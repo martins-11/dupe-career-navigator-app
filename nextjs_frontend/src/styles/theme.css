@@ -51,6 +51,33 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /*
+    ZIP white+teal theme tokens (used by Explore role cards page).
+
+    These are additive variables (safe for existing pages). Explore components
+    use them directly via inline styles for pixel-accurate ZIP styling.
+  */
+  --zip-teal: #17a6a6;
+  --zip-teal-hover: #149595;
+
+  --bg-canvas: #f7f9fb;
+  --bg-surface: #ffffff;
+
+  --text-strong: #173a4a;
+  --text-body: #4b6572;
+  --text-muted: #6b8793;
+
+  --border-subtle: #e6eef2;
+  --border-chip: #dce7ec;
+  --chip-bg: #f1f5f7;
+
+  --radius-card: 8px;
+
+  /* Optional Explore hover/ring helpers */
+  --shadow-card-hover: 0 10px 24px rgba(23, 166, 166, 0.1);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --ring-teal: 0 0 0 3px rgba(23, 166, 166, 0.35);
 }
 
 .dark {

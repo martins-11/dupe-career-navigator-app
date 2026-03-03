@@ -92,13 +92,18 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
     <div ref={wrapperRef} className="relative w-full max-w-2xl mx-auto">
       <div
         className={cn(
-          "flex items-center rounded-3xl border bg-card shadow-sm transition-shadow duration-300",
-          isFocused && "shadow-md ring-2 ring-primary/20",
+          "flex items-center border shadow-sm transition-shadow duration-300",
           isSticky ? "h-12" : "h-14",
         )}
+        style={{
+          borderRadius: 12,
+          background: "var(--bg-surface)",
+          borderColor: isFocused ? "rgba(23,166,166,0.45)" : "var(--border-subtle)",
+          boxShadow: isFocused ? "var(--ring-teal)" : "none",
+        }}
       >
         <div className="flex items-center justify-center pl-5">
-          <Search className="h-5 w-5 text-muted-foreground" />
+          <Search className="h-5 w-5" style={{ color: "var(--text-muted)" }} />
         </div>
         <input
           type="text"
@@ -108,9 +113,10 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
           onKeyDown={handleKeyDown}
           placeholder="Search job title, skills, or industry..."
           className={cn(
-            "flex-1 bg-transparent px-4 text-foreground placeholder:text-muted-foreground focus:outline-none",
+            "flex-1 bg-transparent px-4 focus:outline-none",
             isSticky ? "text-sm" : "text-base",
           )}
+          style={{ color: "var(--text-strong)" }}
         />
         <button
           onClick={() => {
@@ -118,9 +124,20 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
             setIsFocused(false);
           }}
           className={cn(
-            "flex items-center justify-center rounded-3xl bg-primary text-primary-foreground font-medium transition-all duration-200 hover:opacity-90 active:scale-95 cursor-pointer mr-1.5",
+            "flex items-center justify-center font-semibold transition-all duration-200 active:scale-95 cursor-pointer mr-1.5",
             isSticky ? "px-5 py-2 text-sm" : "px-6 py-2.5 text-sm",
           )}
+          style={{
+            borderRadius: 12,
+            background: "var(--zip-teal)",
+            color: "#fff",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal-hover)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal)";
+          }}
         >
           Search
         </button>
@@ -128,7 +145,14 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
 
       {/* Autocomplete dropdown */}
       {isFocused && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-2 rounded-2xl border bg-card shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+        <div
+          className="absolute top-full left-0 right-0 z-50 mt-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200"
+          style={{
+            borderRadius: 12,
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
           <ul className="py-2" role="listbox">
             {suggestions.map((s, i) => (
               <li
@@ -137,9 +161,14 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
                 aria-selected={i === highlightIndex}
                 className={cn(
                   "flex items-center gap-3 px-5 py-3 text-sm cursor-pointer transition-colors duration-150",
-                  i === highlightIndex ? "bg-secondary text-secondary-foreground" : "text-foreground hover:bg-secondary/60",
                 )}
+                style={{
+                  background:
+                    i === highlightIndex ? "rgba(23,166,166,0.10)" : "transparent",
+                  color: "var(--text-strong)",
+                }}
                 onMouseEnter={() => setHighlightIndex(i)}
+                onMouseLeave={() => setHighlightIndex(-1)}
                 onClick={() => {
                   onQueryChange(s);
                   setSuggestions([]);
@@ -147,7 +176,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
                   onSearch();
                 }}
               >
-                <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Search className="h-4 w-4 shrink-0" style={{ color: "var(--text-muted)" }} />
                 <span>{highlightMatch(s)}</span>
               </li>
             ))}

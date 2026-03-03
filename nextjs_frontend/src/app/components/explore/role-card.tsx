@@ -28,36 +28,48 @@ export function RoleCard({ role, index }: RoleCardProps) {
   }
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" style={{ animationDelay: `${index * 100}ms` }}>
+    <div
+      className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
+      style={{ animationDelay: `${index * 100}ms` }}
+    >
       <div
         className={cn(
-          "relative rounded-3xl bg-card border overflow-hidden cursor-pointer",
-          "transition-all duration-[380ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
-          isHovered && !isSelected && "shadow-xl -translate-y-1 scale-[1.02]",
-          !isHovered && !isSelected && "shadow-sm",
-          isSelected && "shadow-sm",
+          "relative overflow-hidden cursor-pointer",
+          "transition-all duration-[280ms] ease-out",
         )}
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: "var(--radius-card)",
+          boxShadow: isHovered && !isSelected ? "var(--shadow-card-hover)" : "var(--shadow-card)",
+          transform: isHovered && !isSelected ? "translateY(-1px)" : "translateY(0px)",
+          borderColor: isHovered && !isSelected ? "rgba(23,166,166,0.35)" : "var(--border-subtle)",
+        }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
         {/* Card content */}
-        <div className="p-6 flex flex-col gap-4">
+        <div className="p-4 sm:p-5 flex flex-col gap-4">
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col gap-1">
-              <h3 className="font-semibold text-foreground text-lg leading-tight text-balance">{role.title}</h3>
-              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <h3 className="font-bold text-[14px] leading-tight text-balance" style={{ color: "var(--text-strong)" }}>
+                {role.title}
+              </h3>
+              <span className="inline-flex items-center gap-1.5 text-[11px]" style={{ color: "var(--text-muted)" }}>
                 <Briefcase className="h-3 w-3" />
                 {role.industry}
               </span>
             </div>
+
             {/* Career level badge */}
             <span
-              className={cn(
-                "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase shrink-0",
-                "transition-all duration-300",
-                "bg-secondary text-secondary-foreground",
-              )}
+              className="inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-semibold tracking-wide uppercase shrink-0"
+              style={{
+                background: "var(--chip-bg)",
+                border: "1px solid var(--border-chip)",
+                color: "var(--text-body)",
+              }}
             >
               {role.careerLevel}
             </span>
@@ -65,20 +77,30 @@ export function RoleCard({ role, index }: RoleCardProps) {
 
           {/* Salary & Experience row */}
           <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Salary</span>
-              <span className="font-medium text-foreground">{`₹${role.salaryMin}L – ₹${role.salaryMax}L`}</span>
+            <div className="flex items-center justify-between text-[12px]">
+              <span style={{ color: "var(--text-muted)" }}>Salary</span>
+              <span className="font-semibold" style={{ color: "var(--text-strong)" }}>{`₹${role.salaryMin}L – ₹${role.salaryMax}L`}</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Experience</span>
-              <span className="font-medium text-foreground">{role.experience}</span>
+            <div className="flex items-center justify-between text-[12px]">
+              <span style={{ color: "var(--text-muted)" }}>Experience</span>
+              <span className="font-semibold" style={{ color: "var(--text-strong)" }}>
+                {role.experience}
+              </span>
             </div>
           </div>
 
           {/* Skills: show 3 by default */}
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {role.skills.slice(0, 3).map((skill) => (
-              <span key={skill} className="inline-flex items-center rounded-full bg-secondary text-secondary-foreground px-2.5 py-1 text-xs font-medium">
+              <span
+                key={skill}
+                className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
+                style={{
+                  background: "var(--chip-bg)",
+                  border: "1px solid var(--border-chip)",
+                  color: "var(--text-body)",
+                }}
+              >
                 {skill}
               </span>
             ))}
@@ -87,20 +109,21 @@ export function RoleCard({ role, index }: RoleCardProps) {
           {/* Expanded content: description, responsibilities, expanded skills */}
           <div
             className={cn(
-              "grid transition-all duration-[380ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
+              "grid transition-all duration-300 ease-out",
               isHovered && !isSelected ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
             )}
           >
             <div className="overflow-hidden">
               <div className="flex flex-col gap-4 pt-2">
-                <div className="h-px w-full bg-border" />
+                <div className="h-px w-full" style={{ background: "var(--border-subtle)" }} />
 
                 <p
                   className={cn(
-                    "text-sm text-muted-foreground leading-relaxed",
-                    "transition-all duration-300 delay-75",
+                    "text-[12px] leading-relaxed",
+                    "transition-all duration-200",
                     isHovered && !isSelected ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
                   )}
+                  style={{ color: "var(--text-body)" }}
                 >
                   {role.description}
                 </p>
@@ -108,15 +131,17 @@ export function RoleCard({ role, index }: RoleCardProps) {
                 <div
                   className={cn(
                     "flex flex-col gap-1.5",
-                    "transition-all duration-300 delay-100",
+                    "transition-all duration-200",
                     isHovered && !isSelected ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
                   )}
                 >
-                  <span className="text-xs font-semibold text-foreground uppercase tracking-wide">Key Responsibilities</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-strong)" }}>
+                    Key Responsibilities
+                  </span>
                   <ul className="flex flex-col gap-1">
                     {role.responsibilities.map((resp, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                      <li key={i} className="flex items-start gap-2 text-[12px]" style={{ color: "var(--text-body)" }}>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "var(--zip-teal)" }} />
                         <span>{resp}</span>
                       </li>
                     ))}
@@ -125,19 +150,22 @@ export function RoleCard({ role, index }: RoleCardProps) {
 
                 <div
                   className={cn(
-                    "flex flex-wrap gap-1.5",
-                    "transition-all duration-300 delay-150",
+                    "flex flex-wrap gap-2",
+                    "transition-all duration-200",
                     isHovered && !isSelected ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
                   )}
                 >
                   {role.expandedSkills.map((skill, i) => (
                     <span
                       key={skill}
-                      className="inline-flex items-center rounded-full bg-secondary text-secondary-foreground px-2.5 py-1 text-xs font-medium transition-all duration-200"
+                      className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium transition-all duration-200"
                       style={{
-                        transitionDelay: isHovered ? `${150 + i * 40}ms` : "0ms",
+                        background: "var(--chip-bg)",
+                        border: "1px solid var(--border-chip)",
+                        color: "var(--text-body)",
+                        transitionDelay: isHovered ? `${120 + i * 30}ms` : "0ms",
                         opacity: isHovered && !isSelected ? 1 : 0,
-                        transform: isHovered && !isSelected ? "scale(1)" : "scale(0.85)",
+                        transform: isHovered && !isSelected ? "scale(1)" : "scale(0.92)",
                       }}
                     >
                       {skill}
@@ -153,16 +181,35 @@ export function RoleCard({ role, index }: RoleCardProps) {
             onClick={handleSelect}
             disabled={isSelected}
             className={cn(
-              "w-full rounded-2xl py-2.5 text-sm font-medium transition-all duration-300 cursor-pointer",
-              isSelected
-                ? "bg-primary text-primary-foreground"
-                : isHovered
-                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                  : "bg-secondary text-secondary-foreground hover:bg-primary hover:text-primary-foreground",
+              "w-full text-[12.5px] font-semibold transition-all duration-200 cursor-pointer active:scale-[0.99]",
             )}
+            style={{
+              height: 38,
+              borderRadius: 10,
+              background: isSelected ? "var(--zip-teal)" : "var(--zip-teal)",
+              border: "1px solid var(--zip-teal)",
+              color: "#fff",
+              boxShadow: isHovered && !isSelected ? "0 6px 16px rgba(23,166,166,0.20)" : "none",
+              outline: "none",
+            }}
+            onMouseEnter={(e) => {
+              if (isSelected) return;
+              (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal-hover)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--zip-teal-hover)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal)";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--zip-teal)";
+            }}
+            onFocus={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--ring-teal)";
+            }}
+            onBlur={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = isHovered && !isSelected ? "0 6px 16px rgba(23,166,166,0.20)" : "none";
+            }}
           >
             {isSelected ? (
-              <span className="inline-flex items-center gap-2">
+              <span className="inline-flex items-center justify-center gap-2">
                 <Check className="h-4 w-4" />
                 Selected
               </span>
@@ -172,27 +219,33 @@ export function RoleCard({ role, index }: RoleCardProps) {
           </button>
         </div>
 
-        {/* Glassmorphism overlay on hover */}
+        {/* Subtle teal wash on hover (ZIP-like) */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-0 rounded-3xl transition-all duration-[380ms] ease-[cubic-bezier(0.4,0,0.2,1)]",
+            "pointer-events-none absolute inset-0 transition-opacity duration-200",
             isHovered && !isSelected ? "opacity-100" : "opacity-0",
           )}
           style={{
-            background: "linear-gradient(135deg, rgba(13,148,136,0.04) 0%, rgba(15,118,110,0.06) 100%)",
-            boxShadow: isHovered && !isSelected ? "inset 0 0 0 1px rgba(13,148,136,0.12), 0 0 20px rgba(13,148,136,0.06)" : "none",
+            background: "linear-gradient(135deg, rgba(23,166,166,0.03) 0%, rgba(23,166,166,0.06) 100%)",
           }}
         />
 
-        {/* Selected overlay */}
+        {/* Selected overlay keeps existing behavior but aligns to ZIP teal */}
         {isSelected && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-primary animate-in fade-in zoom-in-95 duration-300">
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-300"
+            style={{ borderRadius: "var(--radius-card)", background: "var(--zip-teal)" }}
+          >
             <div className="flex flex-col items-center gap-3">
-              <div className="flex items-center justify-center h-14 w-14 rounded-full bg-primary-foreground/20 animate-in zoom-in duration-500">
-                <Check className="h-7 w-7 text-primary-foreground" />
+              <div className="flex items-center justify-center h-14 w-14 rounded-full" style={{ background: "rgba(255,255,255,0.18)" }}>
+                <Check className="h-7 w-7" style={{ color: "#fff" }} />
               </div>
-              <p className="text-primary-foreground font-semibold text-base">Role Selected Successfully</p>
-              <p className="text-primary-foreground/70 text-sm">{role.title}</p>
+              <p className="font-semibold text-base" style={{ color: "#fff" }}>
+                Role Selected Successfully
+              </p>
+              <p className="text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>
+                {role.title}
+              </p>
             </div>
           </div>
         )}
@@ -205,7 +258,15 @@ export function RoleCard({ role, index }: RoleCardProps) {
 export function SkeletonCard() {
   /** ZIP-matching skeleton card with shimmer utility class. */
   return (
-    <div className="rounded-3xl border bg-card p-6 flex flex-col gap-4">
+    <div
+      className="border p-5 flex flex-col gap-4"
+      style={{
+        borderRadius: "var(--radius-card)",
+        background: "var(--bg-surface)",
+        borderColor: "var(--border-subtle)",
+        boxShadow: "var(--shadow-card)",
+      }}
+    >
       <div className="flex items-start justify-between">
         <div className="flex flex-col gap-2">
           <div className="h-5 w-48 rounded-lg bg-muted shimmer" />
@@ -222,7 +283,8 @@ export function SkeletonCard() {
         <div className="h-6 w-20 rounded-full bg-muted shimmer" />
         <div className="h-6 w-14 rounded-full bg-muted shimmer" />
       </div>
-      <div className="h-10 w-full rounded-2xl bg-muted shimmer" />
+      <div className="h-10 w-full" style={{ borderRadius: 10 }} />
+      <div className="h-10 w-full rounded-lg bg-muted shimmer" style={{ borderRadius: 10 }} />
     </div>
   );
 }

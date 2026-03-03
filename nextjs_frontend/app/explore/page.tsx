@@ -102,7 +102,7 @@ export default function Page() {
     <main
       className="min-h-screen"
       style={{
-        backgroundColor: "#F7F9FB",
+        backgroundColor: "var(--bg-canvas)",
       }}
     >
       {/* Sentinel for sticky detection */}
@@ -181,7 +181,7 @@ export default function Page() {
       {hasSearched && (
         <section className="max-w-6xl mx-auto px-4 md:px-8 py-8" style={{ fontFamily: "Helvetica Neue, Arial, sans-serif" }}>
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
@@ -189,7 +189,7 @@ export default function Page() {
           ) : filteredRoles.length === 0 ? (
             <EmptyState />
           ) : (
-            <div key={resultsKey} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div key={resultsKey} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredRoles.map((role, i) => (
                 <RoleCard key={role.id} role={role} index={i} />
               ))}

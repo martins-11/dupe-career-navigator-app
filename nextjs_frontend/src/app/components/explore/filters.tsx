@@ -48,21 +48,38 @@ function FilterDropdown({
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "flex items-center justify-between gap-2 rounded-2xl border bg-card text-sm transition-all duration-200 cursor-pointer w-full",
-          open && "ring-2 ring-primary/20 border-primary/30",
+          "flex items-center justify-between gap-2 border text-sm transition-all duration-200 cursor-pointer w-full",
           isCompact ? "px-3 py-2" : "px-4 py-2.5",
         )}
+        style={{
+          borderRadius: 12,
+          background: "var(--bg-surface)",
+          borderColor: open ? "rgba(23,166,166,0.45)" : "var(--border-subtle)",
+          boxShadow: open ? "var(--ring-teal)" : "none",
+          color: value ? "var(--text-strong)" : "var(--text-muted)",
+        }}
       >
-        <span className={value ? "text-foreground" : "text-muted-foreground"}>{value || label}</span>
+        <span>{value || label}</span>
         <ChevronDown
-          className={cn("h-4 w-4 text-muted-foreground transition-transform duration-300", open && "rotate-180")}
+          className={cn("h-4 w-4 transition-transform duration-300", open && "rotate-180")}
+          style={{ color: "var(--text-muted)" }}
         />
       </button>
       {open && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1.5 rounded-2xl border bg-card shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 max-h-56 overflow-y-auto">
+        <div
+          className="absolute top-full left-0 right-0 z-50 mt-1.5 shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 max-h-56 overflow-y-auto"
+          style={{
+            borderRadius: 12,
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
           <ul className="py-1.5">
             <li
-              className="px-4 py-2 text-sm text-muted-foreground cursor-pointer hover:bg-secondary/60 transition-colors"
+              className="px-4 py-2 text-sm cursor-pointer transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLLIElement).style.background = "rgba(23,166,166,0.08)")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLLIElement).style.background = "transparent")}
               onClick={() => {
                 onSelect("");
                 setOpen(false);
@@ -73,10 +90,20 @@ function FilterDropdown({
             {options.map((opt) => (
               <li
                 key={opt}
-                className={cn(
-                  "px-4 py-2 text-sm cursor-pointer transition-colors duration-150",
-                  value === opt ? "bg-secondary text-secondary-foreground font-medium" : "text-foreground hover:bg-secondary/60",
-                )}
+                className={cn("px-4 py-2 text-sm cursor-pointer transition-colors duration-150")}
+                style={{
+                  background: value === opt ? "rgba(23,166,166,0.10)" : "transparent",
+                  color: "var(--text-strong)",
+                  fontWeight: value === opt ? 600 : 400,
+                }}
+                onMouseEnter={(e) => {
+                  if (value === opt) return;
+                  (e.currentTarget as HTMLLIElement).style.background = "rgba(23,166,166,0.08)";
+                }}
+                onMouseLeave={(e) => {
+                  if (value === opt) return;
+                  (e.currentTarget as HTMLLIElement).style.background = "transparent";
+                }}
                 onClick={() => {
                   onSelect(opt);
                   setOpen(false);
@@ -125,37 +152,59 @@ function SkillsDropdown({
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "flex items-center justify-between gap-2 rounded-2xl border bg-card text-sm transition-all duration-200 cursor-pointer w-full",
-          open && "ring-2 ring-primary/20 border-primary/30",
+          "flex items-center justify-between gap-2 border text-sm transition-all duration-200 cursor-pointer w-full",
           isCompact ? "px-3 py-2" : "px-4 py-2.5",
         )}
+        style={{
+          borderRadius: 12,
+          background: "var(--bg-surface)",
+          borderColor: open ? "rgba(23,166,166,0.45)" : "var(--border-subtle)",
+          boxShadow: open ? "var(--ring-teal)" : "none",
+          color: selected.length > 0 ? "var(--text-strong)" : "var(--text-muted)",
+        }}
       >
-        <span className={selected.length > 0 ? "text-foreground" : "text-muted-foreground"}>
+        <span>
           {selected.length > 0 ? `${selected.length} skill${selected.length > 1 ? "s" : ""} selected` : "Required Skills"}
         </span>
-        <ChevronDown
-          className={cn("h-4 w-4 text-muted-foreground transition-transform duration-300", open && "rotate-180")}
-        />
+        <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", open && "rotate-180")} style={{ color: "var(--text-muted)" }} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1.5 rounded-2xl border bg-card shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 max-h-56 overflow-y-auto">
+        <div
+          className="absolute top-full left-0 right-0 z-50 mt-1.5 shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 max-h-56 overflow-y-auto"
+          style={{
+            borderRadius: 12,
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border-subtle)",
+          }}
+        >
           <ul className="py-1.5">
             {ALL_SKILLS.map((skill) => {
               const isSelected = selected.includes(skill);
               return (
                 <li
                   key={skill}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-2 text-sm cursor-pointer transition-colors duration-150",
-                    isSelected ? "bg-secondary text-secondary-foreground" : "text-foreground hover:bg-secondary/60",
-                  )}
+                  className={cn("flex items-center gap-3 px-4 py-2 text-sm cursor-pointer transition-colors duration-150")}
+                  style={{
+                    background: isSelected ? "rgba(23,166,166,0.10)" : "transparent",
+                    color: "var(--text-strong)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (isSelected) return;
+                    (e.currentTarget as HTMLLIElement).style.background = "rgba(23,166,166,0.08)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isSelected) return;
+                    (e.currentTarget as HTMLLIElement).style.background = "transparent";
+                  }}
                   onClick={() => toggle(skill)}
                 >
                   <div
-                    className={cn(
-                      "h-4 w-4 rounded border flex items-center justify-center transition-colors duration-200 shrink-0",
-                      isSelected ? "bg-primary border-primary" : "border-border",
-                    )}
+                    className={cn("h-4 w-4 rounded border flex items-center justify-center transition-colors duration-200 shrink-0")}
+                    style={{
+                      borderRadius: 4,
+                      borderColor: isSelected ? "var(--zip-teal)" : "var(--border-chip)",
+                      background: isSelected ? "var(--zip-teal)" : "#fff",
+                    }}
                   >
                     {isSelected && (
                       <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
