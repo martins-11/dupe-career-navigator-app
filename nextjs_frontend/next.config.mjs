@@ -8,6 +8,40 @@ const nextConfig = {
   },
 
   /**
+   * Ensure Next.js HMR (/_next/webpack-hmr) works in proxied preview environments.
+   *
+   * In Kavia preview, the browser reaches the app via a public HTTPS origin that proxies
+   * to the container port. If Next's dev client uses an explicit ":3000" port, the browser
+   * will attempt `wss://<public-host>:3000/_next/webpack-hmr` which is not reachable.
+   *
+   * By setting a WebSocket URL with port 0, the client will use the current page origin's
+   * effective port (e.g., 443 for https) and connect successfully through the proxy.
+   */
+  webpack(config, context) {
+    if (context.dev) {
+      const protocol = process.env.HMR_PROTOCOL || 'wss';
+      const hostname = process.env.HMR_HOSTNAME || process.env.HOST || '0.0.0.0';
+      const pathname = process.env.HMR_PATHNAME || '/_next/webpack-hmr';
+
+      // Next 14 uses webpack-dev-server under the hood for dev; this config shapes the client URL.
+      config.devServer = {
+        ...(config.devServer || {}),
+        client: {
+          ...((config.devServer && config.devServer.client) || {}),
+          webSocketURL: {
+            protocol,
+            hostname,
+            port: 0,
+            pathname,
+          },
+        },
+      };
+    }
+
+    return config;
+  },
+
+  /**
    * Proxy backend API calls when the frontend is served separately from the Express backend.
    *
    * This protects against same-origin 404s (e.g. POST /uploads/documents) when the frontend
