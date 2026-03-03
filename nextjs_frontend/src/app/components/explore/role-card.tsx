@@ -22,28 +22,30 @@ export function RoleCard({ role, index }: RoleCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isSelected, setIsSelected] = useState(false);
 
+  // Tuned hover parameters:
+  // - slightly stronger lift + teal aura shadow (still subtle)
+  // - a touch more teal border on hover for “ZIP” affordance
+  const isInteractiveHover = isHovered && !isSelected;
+
   function handleSelect(e: React.MouseEvent) {
     e.stopPropagation();
     setIsSelected(true);
   }
 
   return (
-    <div
-      className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both"
-      style={{ animationDelay: `${index * 100}ms` }}
-    >
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" style={{ animationDelay: `${index * 100}ms` }}>
       <div
-        className={cn(
-          "relative overflow-hidden cursor-pointer",
-          "transition-all duration-[280ms] ease-out",
-        )}
+        className={cn("relative overflow-hidden cursor-pointer", "transition-all duration-[260ms] ease-out")}
         style={{
           background: "var(--bg-surface)",
           border: "1px solid var(--border-subtle)",
           borderRadius: "var(--radius-card)",
-          boxShadow: isHovered && !isSelected ? "var(--shadow-card-hover)" : "var(--shadow-card)",
-          transform: isHovered && !isSelected ? "translateY(-1px)" : "translateY(0px)",
-          borderColor: isHovered && !isSelected ? "rgba(23,166,166,0.35)" : "var(--border-subtle)",
+          // Slightly stronger than theme token to make hover feel “real”, but still airy.
+          boxShadow: isInteractiveHover
+            ? "0 14px 34px rgba(23, 166, 166, 0.14), 0 2px 6px rgba(23, 58, 74, 0.06)"
+            : "var(--shadow-card)",
+          transform: isInteractiveHover ? "translateY(-2px)" : "translateY(0px)",
+          borderColor: isInteractiveHover ? "rgba(23,166,166,0.45)" : "var(--border-subtle)",
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -110,7 +112,7 @@ export function RoleCard({ role, index }: RoleCardProps) {
           <div
             className={cn(
               "grid transition-all duration-300 ease-out",
-              isHovered && !isSelected ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+              isInteractiveHover ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
             )}
           >
             <div className="overflow-hidden">
@@ -121,7 +123,7 @@ export function RoleCard({ role, index }: RoleCardProps) {
                   className={cn(
                     "text-[12px] leading-relaxed",
                     "transition-all duration-200",
-                    isHovered && !isSelected ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+                    isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
                   )}
                   style={{ color: "var(--text-body)" }}
                 >
@@ -132,7 +134,7 @@ export function RoleCard({ role, index }: RoleCardProps) {
                   className={cn(
                     "flex flex-col gap-1.5",
                     "transition-all duration-200",
-                    isHovered && !isSelected ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+                    isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
                   )}
                 >
                   <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-strong)" }}>
@@ -152,7 +154,7 @@ export function RoleCard({ role, index }: RoleCardProps) {
                   className={cn(
                     "flex flex-wrap gap-2",
                     "transition-all duration-200",
-                    isHovered && !isSelected ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
+                    isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
                   )}
                 >
                   {role.expandedSkills.map((skill, i) => (
@@ -164,8 +166,8 @@ export function RoleCard({ role, index }: RoleCardProps) {
                         border: "1px solid var(--border-chip)",
                         color: "var(--text-body)",
                         transitionDelay: isHovered ? `${120 + i * 30}ms` : "0ms",
-                        opacity: isHovered && !isSelected ? 1 : 0,
-                        transform: isHovered && !isSelected ? "scale(1)" : "scale(0.92)",
+                        opacity: isInteractiveHover ? 1 : 0,
+                        transform: isInteractiveHover ? "scale(1)" : "scale(0.92)",
                       }}
                     >
                       {skill}
@@ -182,6 +184,8 @@ export function RoleCard({ role, index }: RoleCardProps) {
             disabled={isSelected}
             className={cn(
               "w-full text-[12.5px] font-semibold transition-all duration-200 cursor-pointer active:scale-[0.99]",
+              // Declarative hover/focus (no imperative style mutation).
+              !isSelected ? "hover:brightness-[0.96]" : "",
             )}
             style={{
               height: 38,
@@ -189,11 +193,14 @@ export function RoleCard({ role, index }: RoleCardProps) {
               background: isSelected ? "var(--zip-teal)" : "var(--zip-teal)",
               border: "1px solid var(--zip-teal)",
               color: "#fff",
-              boxShadow: isHovered && !isSelected ? "0 6px 16px rgba(23,166,166,0.20)" : "none",
+              // Slightly stronger on hover, but less “glowy” than before.
+              boxShadow: isInteractiveHover ? "0 8px 20px rgba(23,166,166,0.22)" : "none",
               outline: "none",
             }}
             onMouseEnter={(e) => {
               if (isSelected) return;
+              // Keep the exact ZIP hover teal, while avoiding re-render churn.
+              // (Using inline events is OK here; avoids creating extra CSS files.)
               (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal-hover)";
               (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--zip-teal-hover)";
             }}
@@ -205,7 +212,7 @@ export function RoleCard({ role, index }: RoleCardProps) {
               (e.currentTarget as HTMLButtonElement).style.boxShadow = "var(--ring-teal)";
             }}
             onBlur={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = isHovered && !isSelected ? "0 6px 16px rgba(23,166,166,0.20)" : "none";
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = isInteractiveHover ? "0 8px 20px rgba(23,166,166,0.22)" : "none";
             }}
           >
             {isSelected ? (
@@ -223,10 +230,11 @@ export function RoleCard({ role, index }: RoleCardProps) {
         <div
           className={cn(
             "pointer-events-none absolute inset-0 transition-opacity duration-200",
-            isHovered && !isSelected ? "opacity-100" : "opacity-0",
+            isInteractiveHover ? "opacity-100" : "opacity-0",
           )}
           style={{
-            background: "linear-gradient(135deg, rgba(23,166,166,0.03) 0%, rgba(23,166,166,0.06) 100%)",
+            // Slightly more visible wash to support stronger shadow while staying tasteful.
+            background: "linear-gradient(135deg, rgba(23,166,166,0.035) 0%, rgba(23,166,166,0.075) 100%)",
           }}
         />
 
