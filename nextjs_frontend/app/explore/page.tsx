@@ -5,30 +5,33 @@ import { SearchBar } from "@/app/components/explore/search-bar";
 import { ActiveFilterTags, Filters } from "@/app/components/explore/filters";
 import { EmptyState } from "@/app/components/explore/empty-state";
 import { RoleCard, SkeletonCard } from "@/app/components/explore/role-card";
-import { ROLES } from "@/app/components/explore/roles-data";
 import type { Role } from "@/app/components/explore/roles-data";
 import { cn } from "@/app/components/ui/utils";
+import { searchRoles } from "@/lib/rolesApi";
 
 /**
  * Explore Roles page.
  *
- * ZIP-authoritative UI replica:
- * - Hero section before first search
- * - Sticky search+filters container after first search with intersection observer
- * - Autocomplete search with keyboard navigation
- * - Filters (title/industry/skills + salary range slider)
- * - Loading skeletons, empty state
- * - Role cards with hover expansion, selection overlay, staggered enter animation
+ * Backend integration:
+ * - Uses GET /api/roles/search for role search + filters.
+ *
+ * Missing backend features (guarded in UI):
+ * - Dedicated autocomplete endpoint (approximated by search endpoint)
+ * - Role details endpoint
+ * - Save selected role endpoint
  */
 export default function Page() {
   const [query, setQuery] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
   const [selectedTitle, setSelectedTitle] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [salaryRange, setSalaryRange] = useState<[number, number]>([0, 60]);
-  const [filteredRoles, setFilteredRoles] = useState<Role[]>([]);
+
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [resultsKey, setResultsKey] = useState(0);
 
   const stickyRef = useRef<HTMLDivElement>(null);
@@ -48,63 +51,69 @@ export default function Page() {
     return () => observer.disconnect();
   }, [hasSearched]);
 
-  const filterRoles = useCallback(() => {
-    let results = [...ROLES];
-    const q = query.toLowerCase().trim();
+  const fetchRoles = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setResultsKey((k) => k + 1);
 
-    if (q) {
-      results = results.filter(
-        (r) =>
-          r.title.toLowerCase().includes(q) ||
-          r.industry.toLowerCase().includes(q) ||
-          r.skills.some((s) => s.toLowerCase().includes(q)) ||
-          r.description.toLowerCase().includes(q),
-      );
+    try {
+      const data = await searchRoles({
+        q: query.trim() || undefined,
+        industry: selectedIndustry.trim() || undefined,
+        skills: selectedSkills.length > 0 ? selectedSkills : undefined,
+        min_salary: salaryRange[0],
+        max_salary: salaryRange[1],
+        limit: 50,
+        // user_id can be added once the frontend has a user identity concept wired up.
+      });
+
+      setRoles(data);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to load roles.";
+      setRoles([]);
+      setError(msg);
+    } finally {
+      setIsLoading(false);
     }
-    if (selectedTitle) {
-      results = results.filter((r) => r.title === selectedTitle);
-    }
-    if (selectedIndustry) {
-      results = results.filter((r) => r.industry === selectedIndustry);
-    }
-    if (selectedSkills.length > 0) {
-      results = results.filter((r) => selectedSkills.some((skill) => r.skills.includes(skill)));
-    }
-    if (salaryRange[0] !== 0 || salaryRange[1] !== 60) {
-      results = results.filter((r) => r.salaryMax >= salaryRange[0] && r.salaryMin <= salaryRange[1]);
-    }
-    return results;
-  }, [query, selectedTitle, selectedIndustry, selectedSkills, salaryRange]);
+  }, [query, selectedIndustry, selectedSkills, salaryRange]);
 
   function handleSearch() {
     setHasSearched(true);
-    setIsLoading(true);
-    setResultsKey((k) => k + 1);
-    window.setTimeout(() => {
-      setFilteredRoles(filterRoles());
-      setIsLoading(false);
-    }, 600);
+    void fetchRoles();
   }
 
-  // Auto-filter when dropdown filters change (after initial search)
+  // Re-fetch when filters change (after initial search)
   useEffect(() => {
     if (!hasSearched) return;
-    setIsLoading(true);
-    setResultsKey((k) => k + 1);
+
+    // Small debounce to avoid a request on every keystroke in filters
     const timer = window.setTimeout(() => {
-      setFilteredRoles(filterRoles());
-      setIsLoading(false);
-    }, 400);
+      void fetchRoles();
+    }, 350);
+
     return () => window.clearTimeout(timer);
-  }, [selectedTitle, selectedIndustry, selectedSkills, salaryRange, hasSearched, filterRoles]);
+  }, [selectedTitle, selectedIndustry, selectedSkills, salaryRange, hasSearched, fetchRoles]);
+
+  // We don’t have an explicit backend param for "job title filter" per the provided notes.
+  // We incorporate it by prefixing it into q (search term).
+  useEffect(() => {
+    if (!hasSearched) return;
+
+    // If user provides a "job title" filter, we fold it into the query.
+    // This keeps the UI functional without inventing new API params.
+    // Only do this when the title changes and query is empty or matches previous title.
+    // (We keep it simple: append title to query if query doesn't already contain it.)
+    if (!selectedTitle.trim()) return;
+
+    const t = selectedTitle.trim();
+    if (!query.toLowerCase().includes(t.toLowerCase())) {
+      setQuery((prev) => (prev.trim() ? `${prev.trim()} ${t}` : t));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTitle, hasSearched]);
 
   return (
-    <main
-      className="min-h-screen"
-      style={{
-        backgroundColor: "var(--bg-canvas)",
-      }}
-    >
+    <main className="min-h-screen" style={{ backgroundColor: "var(--bg-canvas)" }}>
       {/* Sentinel for sticky detection */}
       <div ref={sentinelRef} className="h-0" />
 
@@ -128,10 +137,7 @@ export default function Page() {
             className="flex flex-col items-center justify-center pt-24 pb-8 px-4 animate-in fade-in duration-700"
             style={{ fontFamily: "Helvetica Neue, Arial, sans-serif" }}
           >
-            <h1
-              className="text-4xl md:text-5xl font-bold text-center text-balance mb-3 tracking-tight"
-              style={{ color: "#17A6A6" }}
-            >
+            <h1 className="text-4xl md:text-5xl font-bold text-center text-balance mb-3 tracking-tight" style={{ color: "#17A6A6" }}>
               Explore Your Future Role
             </h1>
             <p className="text-base md:text-lg text-center max-w-xl text-pretty mb-10" style={{ color: "#4B6572" }}>
@@ -141,10 +147,7 @@ export default function Page() {
         )}
 
         <div
-          className={cn(
-            "flex flex-col gap-4 px-4 md:px-8 transition-all duration-500",
-            hasSearched ? "max-w-6xl mx-auto" : "max-w-3xl mx-auto"
-          )}
+          className={cn("flex flex-col gap-4 px-4 md:px-8 transition-all duration-500", hasSearched ? "max-w-6xl mx-auto" : "max-w-3xl mx-auto")}
           style={{ fontFamily: "Helvetica Neue, Arial, sans-serif" }}
         >
           <SearchBar query={query} onQueryChange={setQuery} onSearch={handleSearch} isSticky={hasSearched && isSticky} />
@@ -172,6 +175,18 @@ export default function Page() {
                 salaryRange={salaryRange}
                 onSalaryChange={setSalaryRange}
               />
+
+              {/* Clear messaging about missing backend capabilities */}
+              <div
+                className="text-xs rounded-xl px-4 py-3"
+                style={{
+                  background: "rgba(23,166,166,0.06)",
+                  border: "1px solid rgba(23,166,166,0.18)",
+                  color: "var(--text-body)",
+                }}
+              >
+                Note: Autocomplete is approximated via role search. Role details and “Save selected role” are not yet supported by the backend API, so selection is local-only.
+              </div>
             </div>
           )}
         </div>
@@ -186,11 +201,37 @@ export default function Page() {
                 <SkeletonCard key={i} />
               ))}
             </div>
-          ) : filteredRoles.length === 0 ? (
+          ) : error ? (
+            <div
+              className="rounded-2xl p-6"
+              style={{
+                background: "var(--bg-surface)",
+                border: "1px solid var(--border-subtle)",
+                boxShadow: "var(--shadow-card)",
+              }}
+            >
+              <h2 className="text-base font-semibold mb-2" style={{ color: "var(--text-strong)" }}>
+                Couldn’t load roles
+              </h2>
+              <p className="text-sm mb-4" style={{ color: "var(--text-body)" }}>
+                {error}
+              </p>
+              <button
+                onClick={() => void fetchRoles()}
+                className="text-sm font-semibold px-4 py-2 cursor-pointer"
+                style={{ borderRadius: 12, background: "var(--zip-teal)", color: "#fff" }}
+              >
+                Retry
+              </button>
+              <p className="text-xs mt-3" style={{ color: "var(--text-muted)" }}>
+                If this persists, check that <code>NEXT_PUBLIC_BACKEND_URL</code> (or <code>NEXT_PUBLIC_API_BASE</code>) is set and the backend is reachable.
+              </p>
+            </div>
+          ) : roles.length === 0 ? (
             <EmptyState />
           ) : (
             <div key={resultsKey} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredRoles.map((role, i) => (
+              {roles.map((role, i) => (
                 <RoleCard key={role.id} role={role} index={i} />
               ))}
             </div>

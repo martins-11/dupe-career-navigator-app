@@ -1,11 +1,9 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
 import { Slider } from "@/app/components/explore/slider";
-import { ALL_SKILLS, INDUSTRIES, JOB_TITLES } from "@/app/components/explore/roles-data";
 
 interface FiltersProps {
   selectedTitle: string;
@@ -19,107 +17,42 @@ interface FiltersProps {
   isCompact: boolean;
 }
 
-function FilterDropdown({
+function TextFilter({
   label,
   value,
-  options,
-  onSelect,
+  placeholder,
+  onChange,
   isCompact,
 }: {
   label: string;
   value: string;
-  options: string[];
-  onSelect: (v: string) => void;
+  placeholder: string;
+  onChange: (v: string) => void;
   isCompact: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs text-muted-foreground">{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
         className={cn(
-          "flex items-center justify-between gap-2 border text-sm transition-all duration-200 cursor-pointer w-full",
+          "border text-sm transition-all duration-200 w-full focus:outline-none",
           isCompact ? "px-3 py-2" : "px-4 py-2.5",
         )}
         style={{
           borderRadius: 12,
           background: "var(--bg-surface)",
-          borderColor: open ? "rgba(23,166,166,0.45)" : "var(--border-subtle)",
-          boxShadow: open ? "var(--ring-teal)" : "none",
-          color: value ? "var(--text-strong)" : "var(--text-muted)",
+          borderColor: "var(--border-subtle)",
+          color: "var(--text-strong)",
         }}
-      >
-        <span>{value || label}</span>
-        <ChevronDown
-          className={cn("h-4 w-4 transition-transform duration-300", open && "rotate-180")}
-          style={{ color: "var(--text-muted)" }}
-        />
-      </button>
-      {open && (
-        <div
-          className="absolute top-full left-0 right-0 z-50 mt-1.5 shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 max-h-56 overflow-y-auto"
-          style={{
-            borderRadius: 12,
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <ul className="py-1.5">
-            <li
-              className="px-4 py-2 text-sm cursor-pointer transition-colors"
-              style={{ color: "var(--text-muted)" }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLLIElement).style.background = "rgba(23,166,166,0.08)")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLLIElement).style.background = "transparent")}
-              onClick={() => {
-                onSelect("");
-                setOpen(false);
-              }}
-            >
-              All
-            </li>
-            {options.map((opt) => (
-              <li
-                key={opt}
-                className={cn("px-4 py-2 text-sm cursor-pointer transition-colors duration-150")}
-                style={{
-                  background: value === opt ? "rgba(23,166,166,0.10)" : "transparent",
-                  color: "var(--text-strong)",
-                  fontWeight: value === opt ? 600 : 400,
-                }}
-                onMouseEnter={(e) => {
-                  if (value === opt) return;
-                  (e.currentTarget as HTMLLIElement).style.background = "rgba(23,166,166,0.08)";
-                }}
-                onMouseLeave={(e) => {
-                  if (value === opt) return;
-                  (e.currentTarget as HTMLLIElement).style.background = "transparent";
-                }}
-                onClick={() => {
-                  onSelect(opt);
-                  setOpen(false);
-                }}
-              >
-                {opt}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      />
     </div>
   );
 }
 
-function SkillsDropdown({
+function SkillsInput({
   selected,
   onChange,
   isCompact,
@@ -128,103 +61,36 @@ function SkillsDropdown({
   onChange: (v: string[]) => void;
   isCompact: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const value = selected.join(", ");
 
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  function toggle(skill: string) {
-    if (selected.includes(skill)) {
-      onChange(selected.filter((s) => s !== skill));
-    } else {
-      onChange([...selected, skill]);
-    }
+  function parseSkills(raw: string): string[] {
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen(!open)}
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs text-muted-foreground">Skills</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(parseSkills(e.target.value))}
+        placeholder="e.g., React, SQL, Python"
         className={cn(
-          "flex items-center justify-between gap-2 border text-sm transition-all duration-200 cursor-pointer w-full",
+          "border text-sm transition-all duration-200 w-full focus:outline-none",
           isCompact ? "px-3 py-2" : "px-4 py-2.5",
         )}
         style={{
           borderRadius: 12,
           background: "var(--bg-surface)",
-          borderColor: open ? "rgba(23,166,166,0.45)" : "var(--border-subtle)",
-          boxShadow: open ? "var(--ring-teal)" : "none",
-          color: selected.length > 0 ? "var(--text-strong)" : "var(--text-muted)",
+          borderColor: "var(--border-subtle)",
+          color: "var(--text-strong)",
         }}
-      >
-        <span>
-          {selected.length > 0 ? `${selected.length} skill${selected.length > 1 ? "s" : ""} selected` : "Required Skills"}
-        </span>
-        <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", open && "rotate-180")} style={{ color: "var(--text-muted)" }} />
-      </button>
-      {open && (
-        <div
-          className="absolute top-full left-0 right-0 z-50 mt-1.5 shadow-lg animate-in fade-in slide-in-from-top-1 duration-200 max-h-56 overflow-y-auto"
-          style={{
-            borderRadius: 12,
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <ul className="py-1.5">
-            {ALL_SKILLS.map((skill) => {
-              const isSelected = selected.includes(skill);
-              return (
-                <li
-                  key={skill}
-                  className={cn("flex items-center gap-3 px-4 py-2 text-sm cursor-pointer transition-colors duration-150")}
-                  style={{
-                    background: isSelected ? "rgba(23,166,166,0.10)" : "transparent",
-                    color: "var(--text-strong)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (isSelected) return;
-                    (e.currentTarget as HTMLLIElement).style.background = "rgba(23,166,166,0.08)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (isSelected) return;
-                    (e.currentTarget as HTMLLIElement).style.background = "transparent";
-                  }}
-                  onClick={() => toggle(skill)}
-                >
-                  <div
-                    className={cn("h-4 w-4 rounded border flex items-center justify-center transition-colors duration-200 shrink-0")}
-                    style={{
-                      borderRadius: 4,
-                      borderColor: isSelected ? "var(--zip-teal)" : "var(--border-chip)",
-                      background: isSelected ? "var(--zip-teal)" : "#fff",
-                    }}
-                  >
-                    {isSelected && (
-                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                        <path
-                          d="M1 4L3.5 6.5L9 1"
-                          stroke="white"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                  {skill}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      />
+      <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+        Enter comma-separated skills. These are sent to the backend as <code>skills</code>.
+      </p>
     </div>
   );
 }
@@ -241,7 +107,7 @@ export function Filters({
   onSalaryChange,
   isCompact,
 }: FiltersProps) {
-  /** ZIP-matching filters row: 3 dropdowns + salary slider. */
+  /** Backend-driven filters row (no mock option lists): title/industry/skills + salary slider. */
   return (
     <div
       className={cn(
@@ -249,21 +115,21 @@ export function Filters({
         isCompact ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
       )}
     >
-      <FilterDropdown
+      <TextFilter
         label="Job Title"
         value={selectedTitle}
-        options={JOB_TITLES}
-        onSelect={onTitleChange}
+        placeholder="e.g., Software Engineer"
+        onChange={onTitleChange}
         isCompact={isCompact}
       />
-      <FilterDropdown
+      <TextFilter
         label="Industry"
         value={selectedIndustry}
-        options={INDUSTRIES}
-        onSelect={onIndustryChange}
+        placeholder="e.g., Technology"
+        onChange={onIndustryChange}
         isCompact={isCompact}
       />
-      <SkillsDropdown selected={selectedSkills} onChange={onSkillsChange} isCompact={isCompact} />
+      <SkillsInput selected={selectedSkills} onChange={onSkillsChange} isCompact={isCompact} />
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">Salary Range</span>
@@ -304,26 +170,16 @@ export function ActiveFilterTags({
   salaryRange,
   onSalaryChange,
 }: ActiveFilterTagsProps) {
-  /** ZIP-matching active filter chips row with per-chip remove and clear-all. */
+  /** Active filter chips row with per-chip remove and clear-all. */
   const tags: { label: string; onRemove: () => void }[] = [];
 
-  if (selectedTitle) {
-    tags.push({ label: selectedTitle, onRemove: () => onTitleChange("") });
-  }
-  if (selectedIndustry) {
-    tags.push({ label: selectedIndustry, onRemove: () => onIndustryChange("") });
-  }
+  if (selectedTitle) tags.push({ label: selectedTitle, onRemove: () => onTitleChange("") });
+  if (selectedIndustry) tags.push({ label: selectedIndustry, onRemove: () => onIndustryChange("") });
   selectedSkills.forEach((skill) => {
-    tags.push({
-      label: skill,
-      onRemove: () => onSkillsChange(selectedSkills.filter((s) => s !== skill)),
-    });
+    tags.push({ label: skill, onRemove: () => onSkillsChange(selectedSkills.filter((s) => s !== skill)) });
   });
   if (salaryRange[0] !== 0 || salaryRange[1] !== 60) {
-    tags.push({
-      label: `₹${salaryRange[0]}L–${salaryRange[1]}L`,
-      onRemove: () => onSalaryChange([0, 60]),
-    });
+    tags.push({ label: `₹${salaryRange[0]}L–₹${salaryRange[1]}L`, onRemove: () => onSalaryChange([0, 60]) });
   }
 
   if (tags.length === 0) return null;
@@ -352,10 +208,7 @@ export function ActiveFilterTags({
           </button>
         </span>
       ))}
-      <button
-        onClick={clearAll}
-        className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto cursor-pointer"
-      >
+      <button onClick={clearAll} className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto cursor-pointer">
         Clear All
       </button>
     </div>

@@ -4,7 +4,7 @@ import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
-import { ALL_SKILLS, INDUSTRIES, JOB_TITLES, ROLES } from "@/app/components/explore/roles-data";
+import { getRoleSuggestions } from "@/lib/rolesApi";
 
 interface SearchBarProps {
   query: string;
@@ -15,11 +15,10 @@ interface SearchBarProps {
 
 /**
  * Search bar with autocomplete suggestions.
- * Matches ZIP behavior:
- * - suggestions appear after 2+ characters
- * - arrow key navigation + Enter selection
- * - click outside closes
- * - sticky mode adjusts height + text sizing
+ *
+ * Backend integration:
+ * - Backend does not have a dedicated autocomplete endpoint.
+ * - We approximate suggestions using GET /api/roles/search?q=...&limit=6.
  */
 export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBarProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -28,18 +27,33 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (query.length < 2) {
-      setSuggestions([]);
-      return;
+    let cancelled = false;
+
+    async function run() {
+      if (query.length < 2) {
+        setSuggestions([]);
+        return;
+      }
+
+      try {
+        const s = await getRoleSuggestions(query, 6);
+        if (!cancelled) {
+          setSuggestions(s);
+          setHighlightIndex(-1);
+        }
+      } catch {
+        // Autocomplete should never block the UX; if it fails, just hide suggestions.
+        if (!cancelled) {
+          setSuggestions([]);
+          setHighlightIndex(-1);
+        }
+      }
     }
-    const q = query.toLowerCase();
-    const titleMatches = JOB_TITLES.filter((t) => t.toLowerCase().includes(q));
-    const skillMatches = ALL_SKILLS.filter((s) => s.toLowerCase().includes(q));
-    const industryMatches = INDUSTRIES.filter((i) => i.toLowerCase().includes(q));
-    const roleDescMatches = ROLES.filter((r) => r.description.toLowerCase().includes(q)).map((r) => r.title);
-    const all = [...new Set([...titleMatches, ...skillMatches, ...industryMatches, ...roleDescMatches])];
-    setSuggestions(all.slice(0, 6));
-    setHighlightIndex(-1);
+
+    run();
+    return () => {
+      cancelled = true;
+    };
   }, [query]);
 
   useEffect(() => {
@@ -91,10 +105,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
   return (
     <div ref={wrapperRef} className="relative w-full max-w-2xl mx-auto">
       <div
-        className={cn(
-          "flex items-center border shadow-sm transition-shadow duration-300",
-          isSticky ? "h-12" : "h-14",
-        )}
+        className={cn("flex items-center border shadow-sm transition-shadow duration-300", isSticky ? "h-12" : "h-14")}
         style={{
           borderRadius: 12,
           background: "var(--bg-surface)",
@@ -112,10 +123,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
           onFocus={() => setIsFocused(true)}
           onKeyDown={handleKeyDown}
           placeholder="Search job title, skills, or industry..."
-          className={cn(
-            "flex-1 bg-transparent px-4 focus:outline-none",
-            isSticky ? "text-sm" : "text-base",
-          )}
+          className={cn("flex-1 bg-transparent px-4 focus:outline-none", isSticky ? "text-sm" : "text-base")}
           style={{ color: "var(--text-strong)" }}
         />
         <button
@@ -159,12 +167,9 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
                 key={s}
                 role="option"
                 aria-selected={i === highlightIndex}
-                className={cn(
-                  "flex items-center gap-3 px-5 py-3 text-sm cursor-pointer transition-colors duration-150",
-                )}
+                className={cn("flex items-center gap-3 px-5 py-3 text-sm cursor-pointer transition-colors duration-150")}
                 style={{
-                  background:
-                    i === highlightIndex ? "rgba(23,166,166,0.10)" : "transparent",
+                  background: i === highlightIndex ? "rgba(23,166,166,0.10)" : "transparent",
                   color: "var(--text-strong)",
                 }}
                 onMouseEnter={() => setHighlightIndex(i)}

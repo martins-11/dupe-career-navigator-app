@@ -15,20 +15,19 @@ interface RoleCardProps {
  * RoleCard replicates ZIP interactions:
  * - enter animation with index-based delay
  * - hover: elevate + translate + scale + expands extra content
- * - select: disables button and shows full overlay state
+ * - select: local-only (backend save endpoint is not available yet)
  */
 // PUBLIC_INTERFACE
 export function RoleCard({ role, index }: RoleCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isSelected, setIsSelected] = useState(false);
 
-  // Tuned hover parameters:
-  // - slightly stronger lift + teal aura shadow (still subtle)
-  // - a touch more teal border on hover for “ZIP” affordance
   const isInteractiveHover = isHovered && !isSelected;
 
   function handleSelect(e: React.MouseEvent) {
     e.stopPropagation();
+
+    // Backend save endpoint is not implemented. We keep selection local-only.
     setIsSelected(true);
   }
 
@@ -40,7 +39,6 @@ export function RoleCard({ role, index }: RoleCardProps) {
           background: "var(--bg-surface)",
           border: "1px solid var(--border-subtle)",
           borderRadius: "var(--radius-card)",
-          // Slightly stronger than theme token to make hover feel “real”, but still airy.
           boxShadow: isInteractiveHover
             ? "0 14px 34px rgba(23, 166, 166, 0.14), 0 2px 6px rgba(23, 58, 74, 0.06)"
             : "var(--shadow-card)",
@@ -108,72 +106,55 @@ export function RoleCard({ role, index }: RoleCardProps) {
             ))}
           </div>
 
-          {/* Expanded content: description, responsibilities, expanded skills */}
-          <div
-            className={cn(
-              "grid transition-all duration-300 ease-out",
-              isInteractiveHover ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
-            )}
-          >
+          {/* Expanded content */}
+          <div className={cn("grid transition-all duration-300 ease-out", isInteractiveHover ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
             <div className="overflow-hidden">
               <div className="flex flex-col gap-4 pt-2">
                 <div className="h-px w-full" style={{ background: "var(--border-subtle)" }} />
 
                 <p
-                  className={cn(
-                    "text-[12px] leading-relaxed",
-                    "transition-all duration-200",
-                    isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
-                  )}
+                  className={cn("text-[12px] leading-relaxed", "transition-all duration-200", isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0")}
                   style={{ color: "var(--text-body)" }}
                 >
                   {role.description}
                 </p>
 
-                <div
-                  className={cn(
-                    "flex flex-col gap-1.5",
-                    "transition-all duration-200",
-                    isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
-                  )}
-                >
-                  <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-strong)" }}>
-                    Key Responsibilities
-                  </span>
-                  <ul className="flex flex-col gap-1">
-                    {role.responsibilities.map((resp, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[12px]" style={{ color: "var(--text-body)" }}>
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "var(--zip-teal)" }} />
-                        <span>{resp}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div
-                  className={cn(
-                    "flex flex-wrap gap-2",
-                    "transition-all duration-200",
-                    isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
-                  )}
-                >
-                  {role.expandedSkills.map((skill, i) => (
-                    <span
-                      key={skill}
-                      className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium transition-all duration-200"
-                      style={{
-                        background: "var(--chip-bg)",
-                        border: "1px solid var(--border-chip)",
-                        color: "var(--text-body)",
-                        transitionDelay: isHovered ? `${120 + i * 30}ms` : "0ms",
-                        opacity: isInteractiveHover ? 1 : 0,
-                        transform: isInteractiveHover ? "scale(1)" : "scale(0.92)",
-                      }}
-                    >
-                      {skill}
+                {role.responsibilities.length > 0 && (
+                  <div className={cn("flex flex-col gap-1.5", "transition-all duration-200", isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0")}>
+                    <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--text-strong)" }}>
+                      Key Responsibilities
                     </span>
-                  ))}
-                </div>
+                    <ul className="flex flex-col gap-1">
+                      {role.responsibilities.map((resp, i) => (
+                        <li key={i} className="flex items-start gap-2 text-[12px]" style={{ color: "var(--text-body)" }}>
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "var(--zip-teal)" }} />
+                          <span>{resp}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {role.expandedSkills.length > 0 && (
+                  <div className={cn("flex flex-wrap gap-2", "transition-all duration-200", isInteractiveHover ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0")}>
+                    {role.expandedSkills.map((skill, i) => (
+                      <span
+                        key={skill}
+                        className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium transition-all duration-200"
+                        style={{
+                          background: "var(--chip-bg)",
+                          border: "1px solid var(--border-chip)",
+                          color: "var(--text-body)",
+                          transitionDelay: isHovered ? `${120 + i * 30}ms` : "0ms",
+                          opacity: isInteractiveHover ? 1 : 0,
+                          transform: isInteractiveHover ? "scale(1)" : "scale(0.92)",
+                        }}
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -184,23 +165,19 @@ export function RoleCard({ role, index }: RoleCardProps) {
             disabled={isSelected}
             className={cn(
               "w-full text-[12.5px] font-semibold transition-all duration-200 cursor-pointer active:scale-[0.99]",
-              // Declarative hover/focus (no imperative style mutation).
               !isSelected ? "hover:brightness-[0.96]" : "",
             )}
             style={{
               height: 38,
               borderRadius: 10,
-              background: isSelected ? "var(--zip-teal)" : "var(--zip-teal)",
+              background: "var(--zip-teal)",
               border: "1px solid var(--zip-teal)",
               color: "#fff",
-              // Slightly stronger on hover, but less “glowy” than before.
               boxShadow: isInteractiveHover ? "0 8px 20px rgba(23,166,166,0.22)" : "none",
               outline: "none",
             }}
             onMouseEnter={(e) => {
               if (isSelected) return;
-              // Keep the exact ZIP hover teal, while avoiding re-render churn.
-              // (Using inline events is OK here; avoids creating extra CSS files.)
               (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal-hover)";
               (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--zip-teal-hover)";
             }}
@@ -218,45 +195,26 @@ export function RoleCard({ role, index }: RoleCardProps) {
             {isSelected ? (
               <span className="inline-flex items-center justify-center gap-2">
                 <Check className="h-4 w-4" />
-                Selected
+                Selected (local only)
               </span>
             ) : (
               "Select as Target Role"
             )}
           </button>
+
+          {/* Missing API note */}
+          <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+            Selection is not persisted yet (backend “save selected role” API is missing).
+          </p>
         </div>
 
-        {/* Subtle teal wash on hover (ZIP-like) */}
+        {/* Subtle teal wash on hover */}
         <div
-          className={cn(
-            "pointer-events-none absolute inset-0 transition-opacity duration-200",
-            isInteractiveHover ? "opacity-100" : "opacity-0",
-          )}
+          className={cn("pointer-events-none absolute inset-0 transition-opacity duration-200", isInteractiveHover ? "opacity-100" : "opacity-0")}
           style={{
-            // Slightly more visible wash to support stronger shadow while staying tasteful.
             background: "linear-gradient(135deg, rgba(23,166,166,0.035) 0%, rgba(23,166,166,0.075) 100%)",
           }}
         />
-
-        {/* Selected overlay keeps existing behavior but aligns to ZIP teal */}
-        {isSelected && (
-          <div
-            className="absolute inset-0 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-300"
-            style={{ borderRadius: "var(--radius-card)", background: "var(--zip-teal)" }}
-          >
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex items-center justify-center h-14 w-14 rounded-full" style={{ background: "rgba(255,255,255,0.18)" }}>
-                <Check className="h-7 w-7" style={{ color: "#fff" }} />
-              </div>
-              <p className="font-semibold text-base" style={{ color: "#fff" }}>
-                Role Selected Successfully
-              </p>
-              <p className="text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>
-                {role.title}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
