@@ -99,26 +99,42 @@ export default function Page() {
   }, [selectedTitle, selectedIndustry, selectedSkills, salaryRange, hasSearched, filterRoles]);
 
   return (
-    <main className="min-h-screen bg-background">
+    <main
+      className="min-h-screen"
+      style={{
+        backgroundColor: "#F7F9FB",
+      }}
+    >
       {/* Sentinel for sticky detection */}
       <div ref={sentinelRef} className="h-0" />
 
       {/* Sticky search container */}
       <div
         ref={stickyRef}
-        className={cn(
-          "transition-all duration-500 ease-out z-40",
-          hasSearched ? "sticky top-0" : "",
-          hasSearched ? "bg-card/95 backdrop-blur-md shadow-sm border-b py-4" : "",
-        )}
+        className={cn("transition-all duration-500 ease-out z-40", hasSearched ? "sticky top-0" : "")}
+        style={{
+          backgroundColor: hasSearched ? "rgba(255,255,255,0.92)" : "transparent",
+          backdropFilter: hasSearched ? "blur(10px)" : undefined,
+          WebkitBackdropFilter: hasSearched ? "blur(10px)" : undefined,
+          borderBottom: hasSearched ? "1px solid #E6EEF2" : "none",
+          boxShadow: hasSearched ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+          paddingTop: hasSearched ? "16px" : 0,
+          paddingBottom: hasSearched ? "16px" : 0,
+        }}
       >
         {/* Hero Section */}
         {!hasSearched && (
-          <div className="flex flex-col items-center justify-center pt-24 pb-8 px-4 animate-in fade-in duration-700">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground text-center text-balance mb-3 tracking-tight">
+          <div
+            className="flex flex-col items-center justify-center pt-24 pb-8 px-4 animate-in fade-in duration-700"
+            style={{ fontFamily: "Helvetica Neue, Arial, sans-serif" }}
+          >
+            <h1
+              className="text-4xl md:text-5xl font-bold text-center text-balance mb-3 tracking-tight"
+              style={{ color: "#17A6A6" }}
+            >
               Explore Your Future Role
             </h1>
-            <p className="text-base md:text-lg text-muted-foreground text-center max-w-xl text-pretty mb-10">
+            <p className="text-base md:text-lg text-center max-w-xl text-pretty mb-10" style={{ color: "#4B6572" }}>
               Search and filter roles based on job titles, industries, required skills, and salary ranges.
             </p>
           </div>
@@ -127,8 +143,9 @@ export default function Page() {
         <div
           className={cn(
             "flex flex-col gap-4 px-4 md:px-8 transition-all duration-500",
-            hasSearched ? "max-w-6xl mx-auto" : "max-w-3xl mx-auto",
+            hasSearched ? "max-w-6xl mx-auto" : "max-w-3xl mx-auto"
           )}
+          style={{ fontFamily: "Helvetica Neue, Arial, sans-serif" }}
         >
           <SearchBar query={query} onQueryChange={setQuery} onSearch={handleSearch} isSticky={hasSearched && isSticky} />
 
@@ -162,7 +179,7 @@ export default function Page() {
 
       {/* Results */}
       {hasSearched && (
-        <section className="max-w-6xl mx-auto px-4 md:px-8 py-8">
+        <section className="max-w-6xl mx-auto px-4 md:px-8 py-8" style={{ fontFamily: "Helvetica Neue, Arial, sans-serif" }}>
           {isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {Array.from({ length: 4 }).map((_, i) => (

@@ -1309,29 +1309,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Quick link to ZIP-authoritative Explore UI page */}
-          <a
-            href="/explore"
-            className="hidden sm:inline-flex items-center justify-center rounded-lg transition-colors"
-            style={{
-              marginLeft: '16px',
-              padding: '8px 12px',
-              fontSize: '13px',
-              fontWeight: 600,
-              color: '#0F766E',
-              backgroundColor: 'rgba(20, 184, 166, 0.10)',
-              border: '1px solid rgba(20, 184, 166, 0.25)',
-              textDecoration: 'none',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.backgroundColor = 'rgba(20, 184, 166, 0.16)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLAnchorElement).style.backgroundColor = 'rgba(20, 184, 166, 0.10)';
-            }}
-          >
-            Explore Roles
-          </a>
+
 
           {/* RIGHT - Profile Circle + role/designation */}
           <div className="relative flex items-center gap-3">
@@ -2355,162 +2333,212 @@ export default function App() {
 
         {/* Finalized State */}
         {state === 'finalized' && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-4xl mx-auto">
-            <button
-              onClick={() => setState('draft')}
-              className="mb-6 flex items-center gap-2 transition-all duration-200 hover:opacity-80"
-              style={{
-                color: '#14B8A6',
-                fontWeight: 500,
-                fontSize: '14px',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              ← Go Back
-            </button>
+          <>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="max-w-4xl mx-auto" style={{ paddingBottom: '88px' }}>
+              <button
+                onClick={() => setState('draft')}
+                className="mb-6 flex items-center gap-2 transition-all duration-200 hover:opacity-80"
+                style={{
+                  color: '#14B8A6',
+                  fontWeight: 500,
+                  fontSize: '14px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Go Back
+              </button>
 
-            <h2
-              onMouseEnter={(e) => {
-                setIsHoveringHeading(true);
-                e.currentTarget.style.filter = 'drop-shadow(0 0 8px rgba(20, 184, 166, 0.4))';
-              }}
-              onMouseLeave={(e) => {
-                setIsHoveringHeading(false);
-                e.currentTarget.style.filter = 'none';
-              }}
-              className="relative inline-block cursor-default mx-auto"
-              style={{
-                fontSize: '32px',
-                fontWeight: 700,
-                color: '#14B8A6',
-                marginBottom: '32px',
-                textAlign: 'center',
-                display: 'block',
-                transition: 'filter 0.3s ease',
-              }}
-            >
-              Finalized Persona
-              {isHoveringHeading && (
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ duration: 0.3 }}
-                  style={{
-                    position: 'absolute',
-                    bottom: '-4px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '100%',
-                    height: '2px',
-                    backgroundColor: '#14B8A6',
-                    boxShadow: '0 0 8px rgba(20, 184, 166, 0.4)',
-                    transformOrigin: 'left',
-                  }}
-                />
-              )}
-            </h2>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="bg-white rounded-xl transition-all duration-300"
-              style={{
-                boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)',
-                padding: '32px',
-                border: '1px solid rgba(20, 184, 166, 0.3)',
-              }}
-              onMouseEnter={(e) => {
-                if (!shouldAllowHoverEffects()) return;
-                e.currentTarget.style.boxShadow = '0px 8px 20px rgba(20, 184, 166, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                if (!shouldAllowHoverEffects()) return;
-                e.currentTarget.style.boxShadow = '0px 4px 12px rgba(0, 0, 0, 0.05)';
-              }}
-            >
-              {/* Persona Header: role/designation first */}
-              <div className="flex items-center gap-4 mb-8 pb-6" style={{ borderBottom: '1px solid #D1D5DB' }}>
-                {personaData?.profileImage ? (
-                  <img src={personaData.profileImage} alt="Profile" className="w-20 h-20 rounded-full object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#14B8A6', color: 'white', fontSize: '28px', fontWeight: 600 }}>
-                    {personaCardInitials}
-                  </div>
+              <h2
+                onMouseEnter={(e) => {
+                  setIsHoveringHeading(true);
+                  e.currentTarget.style.filter = 'drop-shadow(0 0 8px rgba(20, 184, 166, 0.4))';
+                }}
+                onMouseLeave={(e) => {
+                  setIsHoveringHeading(false);
+                  e.currentTarget.style.filter = 'none';
+                }}
+                className="relative inline-block cursor-default mx-auto"
+                style={{
+                  fontSize: '32px',
+                  fontWeight: 700,
+                  color: '#14B8A6',
+                  marginBottom: '32px',
+                  textAlign: 'center',
+                  display: 'block',
+                  transition: 'filter 0.3s ease',
+                }}
+              >
+                Finalized Persona
+                {isHoveringHeading && (
+                  <motion.div
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ duration: 0.3 }}
+                    style={{
+                      position: 'absolute',
+                      bottom: '-4px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: '100%',
+                      height: '2px',
+                      backgroundColor: '#14B8A6',
+                      boxShadow: '0 0 8px rgba(20, 184, 166, 0.4)',
+                      transformOrigin: 'left',
+                    }}
+                  />
                 )}
+              </h2>
 
-                <div>
-                  <h3 style={{ fontSize: '24px', fontWeight: 700, color: '#1F2937', marginBottom: '4px' }}>{personaTitle}</h3>
-                  {personaName ? <p style={{ fontSize: '16px', color: '#6B7280' }}>{personaName}</p> : null}
-                </div>
-              </div>
-
-              {/* Professional Summary */}
-              <div className="mb-8">
-                <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Professional Summary</h4>
-                <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: '1.6' }}>{personaSummary}</p>
-              </div>
-
-              {/* Skills */}
-              <div className="mb-8">
-                <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Skills</h4>
-                <div className="flex flex-wrap gap-2">
-                  {personaData.skills.map((skill, idx) => (
-                    <span key={idx} className="rounded-full px-3 py-1.5" style={{ backgroundColor: '#F3F4F6', color: '#1F2937', fontSize: '12px', fontWeight: 500 }}>
-                      {skill}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Key Experiences */}
-              <div className="mb-8">
-                <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Key Experiences</h4>
-                <div className="space-y-6">
-                  {personaData.experiences.map((exp) => (
-                    <div key={exp.id}>
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h5 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937' }}>{exp.role}</h5>
-                          <p style={{ fontSize: '14px', color: '#6B7280' }}>{exp.company}</p>
-                        </div>
-                        <span style={{ fontSize: '12px', color: '#6B7280' }}>{exp.date}</span>
-                      </div>
-                      <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: '1.6' }}>{exp.description}</p>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, delay: 0.1 }}
+                className="bg-white rounded-xl transition-all duration-300"
+                style={{
+                  boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)',
+                  padding: '32px',
+                  border: '1px solid rgba(20, 184, 166, 0.3)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!shouldAllowHoverEffects()) return;
+                  e.currentTarget.style.boxShadow = '0px 8px 20px rgba(20, 184, 166, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!shouldAllowHoverEffects()) return;
+                  e.currentTarget.style.boxShadow = '0px 4px 12px rgba(0, 0, 0, 0.05)';
+                }}
+              >
+                {/* Persona Header: role/designation first */}
+                <div className="flex items-center gap-4 mb-8 pb-6" style={{ borderBottom: '1px solid #D1D5DB' }}>
+                  {personaData?.profileImage ? (
+                    <img src={personaData.profileImage} alt="Profile" className="w-20 h-20 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#14B8A6', color: 'white', fontSize: '28px', fontWeight: 600 }}>
+                      {personaCardInitials}
                     </div>
-                  ))}
+                  )}
+
+                  <div>
+                    <h3 style={{ fontSize: '24px', fontWeight: 700, color: '#1F2937', marginBottom: '4px' }}>{personaTitle}</h3>
+                    {personaName ? <p style={{ fontSize: '16px', color: '#6B7280' }}>{personaName}</p> : null}
+                  </div>
                 </div>
-              </div>
 
-              {/* Career Highlights */}
-              <div className="mb-8">
-                <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Career Highlights</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {personaData.careerHighlights.map((item, idx) => (
-                    <div key={`${idx}-${item.highlight}`} className="p-3 rounded-lg border flex items-start gap-2" style={{ borderColor: '#D1D5DB', backgroundColor: '#FAFAFA' }}>
-                      <Award size={16} style={{ color: '#14B8A6', marginTop: '2px', flexShrink: 0 }} />
-                      <div className="min-w-0 w-full">
-                        <p style={{ fontSize: '13px', color: '#1F2937', lineHeight: '1.5', marginBottom: item.sourceExperience ? '6px' : 0 }}>{item.highlight}</p>
+                {/* Professional Summary */}
+                <div className="mb-8">
+                  <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Professional Summary</h4>
+                  <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: '1.6' }}>{personaSummary}</p>
+                </div>
 
-                        {item.sourceExperience && (
-                          <div className="flex items-start gap-2 rounded-md px-2 py-1 w-full max-w-full" style={{ backgroundColor: 'rgba(20, 184, 166, 0.10)', border: '1px solid rgba(20, 184, 166, 0.25)' }}>
-                            <span style={{ fontSize: '12px', color: '#0F766E', fontWeight: 600, flexShrink: 0, lineHeight: '1.2', marginTop: '1px' }}>Source</span>
-                            <span style={{ fontSize: '12px', color: '#0F766E', fontWeight: 500, lineHeight: '1.2', overflowWrap: 'anywhere', wordBreak: 'break-word' }} className="min-w-0">
-                              {item.sourceExperience}
-                            </span>
+                {/* Skills */}
+                <div className="mb-8">
+                  <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Skills</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {personaData.skills.map((skill, idx) => (
+                      <span key={idx} className="rounded-full px-3 py-1.5" style={{ backgroundColor: '#F3F4F6', color: '#1F2937', fontSize: '12px', fontWeight: 500 }}>
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Key Experiences */}
+                <div className="mb-8">
+                  <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Key Experiences</h4>
+                  <div className="space-y-6">
+                    {personaData.experiences.map((exp) => (
+                      <div key={exp.id}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h5 style={{ fontSize: '14px', fontWeight: 600, color: '#1F2937' }}>{exp.role}</h5>
+                            <p style={{ fontSize: '14px', color: '#6B7280' }}>{exp.company}</p>
                           </div>
-                        )}
+                          <span style={{ fontSize: '12px', color: '#6B7280' }}>{exp.date}</span>
+                        </div>
+                        <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: '1.6' }}>{exp.description}</p>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Per requirement: no history/version tracking UI */}
+                {/* Career Highlights */}
+                <div className="mb-8">
+                  <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '12px' }}>Career Highlights</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {personaData.careerHighlights.map((item, idx) => (
+                      <div key={`${idx}-${item.highlight}`} className="p-3 rounded-lg border flex items-start gap-2" style={{ borderColor: '#D1D5DB', backgroundColor: '#FAFAFA' }}>
+                        <Award size={16} style={{ color: '#14B8A6', marginTop: '2px', flexShrink: 0 }} />
+                        <div className="min-w-0 w-full">
+                          <p style={{ fontSize: '13px', color: '#1F2937', lineHeight: '1.5', marginBottom: item.sourceExperience ? '6px' : 0 }}>{item.highlight}</p>
+
+                          {item.sourceExperience && (
+                            <div className="flex items-start gap-2 rounded-md px-2 py-1 w-full max-w-full" style={{ backgroundColor: 'rgba(20, 184, 166, 0.10)', border: '1px solid rgba(20, 184, 166, 0.25)' }}>
+                              <span style={{ fontSize: '12px', color: '#0F766E', fontWeight: 600, flexShrink: 0, lineHeight: '1.2', marginTop: '1px' }}>Source</span>
+                              <span style={{ fontSize: '12px', color: '#0F766E', fontWeight: 500, lineHeight: '1.2', overflowWrap: 'anywhere', wordBreak: 'break-word' }} className="min-w-0">
+                                {item.sourceExperience}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Per requirement: no history/version tracking UI */}
+              </motion.div>
             </motion.div>
-          </motion.div>
+
+            <a
+              href="/explore"
+              aria-label="Explore role"
+              className="inline-flex items-center justify-center"
+              style={{
+                position: 'fixed',
+                right: '24px',
+                bottom: '24px',
+                zIndex: 60,
+                height: '44px',
+                padding: '10px 16px',
+                borderRadius: '999px',
+                backgroundColor: '#17A6A6',
+                color: '#FFFFFF',
+                fontSize: '14px',
+                fontWeight: 600,
+                letterSpacing: '0.1px',
+                textDecoration: 'none',
+                boxShadow: '0 6px 16px rgba(23,166,166,0.25)',
+                border: '1px solid rgba(23,166,166,0.35)',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#149595';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#17A6A6';
+              }}
+              onFocus={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.outline = '3px solid rgba(23,166,166,0.35)';
+                (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '2px';
+              }}
+              onBlur={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.outline = 'none';
+                (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '0';
+              }}
+            >
+              Explore role
+            </a>
+
+            <style jsx global>{`
+              @media (max-width: 640px) {
+                a[aria-label='Explore role'] {
+                  right: 16px !important;
+                  bottom: 16px !important;
+                }
+              }
+            `}</style>
+          </>
         )}
       </main>
     </div>
