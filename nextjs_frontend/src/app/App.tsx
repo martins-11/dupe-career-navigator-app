@@ -1309,6 +1309,30 @@ export default function App() {
             </div>
           </div>
 
+          {/* Quick link to ZIP-authoritative Explore UI page */}
+          <a
+            href="/explore"
+            className="hidden sm:inline-flex items-center justify-center rounded-lg transition-colors"
+            style={{
+              marginLeft: '16px',
+              padding: '8px 12px',
+              fontSize: '13px',
+              fontWeight: 600,
+              color: '#0F766E',
+              backgroundColor: 'rgba(20, 184, 166, 0.10)',
+              border: '1px solid rgba(20, 184, 166, 0.25)',
+              textDecoration: 'none',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.backgroundColor = 'rgba(20, 184, 166, 0.16)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLAnchorElement).style.backgroundColor = 'rgba(20, 184, 166, 0.10)';
+            }}
+          >
+            Explore Roles
+          </a>
+
           {/* RIGHT - Profile Circle + role/designation */}
           <div className="relative flex items-center gap-3">
             {/* Role/Designation derived from persona/documents */}
