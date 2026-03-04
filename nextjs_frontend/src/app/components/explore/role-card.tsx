@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Briefcase, Check, ChevronRight } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
 import type { Role } from "@/app/components/explore/roles-data";
+import { CompatibilityScore } from "@/app/components/explore/compatibility-score";
 
 interface RoleCardProps {
   role: Role;
@@ -62,17 +63,43 @@ export function RoleCard({ role, index }: RoleCardProps) {
               </span>
             </div>
 
-            {/* Career level badge */}
-            <span
-              className="inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-semibold tracking-wide uppercase shrink-0"
-              style={{
-                background: "var(--chip-bg)",
-                border: "1px solid var(--border-chip)",
-                color: "var(--text-body)",
-              }}
-            >
-              {role.careerLevel}
-            </span>
+            <div className="flex items-start gap-3">
+              {/* CompatibilityScore (3/2 visuals) */}
+              {typeof (role as any)?.threeTwoReport?.score === "number" ||
+              typeof (role as any)?.threeTwoReport?.compatibilityScore === "number" ? (
+                <div className="hidden sm:block">
+                  <CompatibilityScore
+                    score={
+                      typeof (role as any)?.threeTwoReport?.score === "number"
+                        ? (role as any).threeTwoReport.score
+                        : (role as any).threeTwoReport.compatibilityScore
+                    }
+                    masteryCount={
+                      Array.isArray((role as any)?.threeTwoReport?.masteryAreas)
+                        ? (role as any).threeTwoReport.masteryAreas.length
+                        : 0
+                    }
+                    growthCount={
+                      Array.isArray((role as any)?.threeTwoReport?.growthAreas)
+                        ? (role as any).threeTwoReport.growthAreas.length
+                        : 0
+                    }
+                  />
+                </div>
+              ) : null}
+
+              {/* Career level badge */}
+              <span
+                className="inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-semibold tracking-wide uppercase shrink-0"
+                style={{
+                  background: "var(--chip-bg)",
+                  border: "1px solid var(--border-chip)",
+                  color: "var(--text-body)",
+                }}
+              >
+                {role.careerLevel}
+              </span>
+            </div>
           </div>
 
           {/* Salary & Experience row */}
