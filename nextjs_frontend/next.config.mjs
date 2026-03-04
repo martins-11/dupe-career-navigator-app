@@ -81,6 +81,9 @@ const nextConfig = {
       { source: '/extraction/:path*', destination: `${backend}/extraction/:path*` },
       { source: '/health/:path*', destination: `${backend}/health/:path*` },
 
+      // Explore filters: proxy roles filter endpoints (industries/skills/job-titles) to backend.
+      { source: '/api/roles/:path*', destination: `${backend}/api/roles/:path*` },
+
       // Swagger UI + OpenAPI JSON served by the Express backend.
       // Important: include both /docs and /docs/* so swagger-ui-express static assets load correctly.
       { source: '/docs', destination: `${backend}/docs` },
