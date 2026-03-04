@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
  * (`@tailwind base/components/utilities`) before importing any file that uses
  * `@layer base` (e.g. theme.css), otherwise Tailwind compilation can fail.
  */
-import '../src/styles/index.css';
+import '@/styles/index.css';
 
 export const metadata: Metadata = {
   title: 'Career Navigator',
