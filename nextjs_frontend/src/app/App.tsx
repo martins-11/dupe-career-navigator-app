@@ -1125,7 +1125,7 @@ export default function App() {
     const loadFinal = async () => {
       isApplyingArtifactsRef.current[buildId] = true;
       try {
-        const { getOrchestrationByBuild } = await import('../lib/apiClient');
+        const { getOrchestrationByBuild } = await import('@/lib/apiClient');
         const orch = await getOrchestrationByBuild(buildId);
         if (isIgnore) return;
 
