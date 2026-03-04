@@ -673,7 +673,7 @@ export default function App() {
             names: newFiles.map((f) => f.name),
           });
 
-          const { uploadDocuments } = await import('../lib/apiClient');
+          const { uploadDocuments } = await import('@/lib/apiClient');
           const resp = await uploadDocuments({ files: newFiles });
 
           // eslint-disable-next-line no-console
@@ -766,7 +766,7 @@ export default function App() {
       });
 
       // Upload first (side effects: persists document rows + extracted text rows best-effort).
-      await import('../lib/apiClient').then(async ({ uploadDocuments }) => {
+      await import('@/lib/apiClient').then(async ({ uploadDocuments }) => {
         const uploadResp = await uploadDocuments({ files });
         // eslint-disable-next-line no-console
         console.log(`[draft][gen:${generationId}] uploadDocuments raw response:`, uploadResp);
@@ -777,7 +777,7 @@ export default function App() {
       // (e.g., an archived/stale persona source like “Rossini”).
       //
       // Instead, explicitly fetch the newest documents and pass their ids to orchestration.
-      const { listDocuments } = await import('../lib/apiClient');
+      const { listDocuments } = await import('@/lib/apiClient');
       const docs = await listDocuments({ limit: 50, offset: 0 });
       const newestDocIds = docs
         .slice()
@@ -1052,7 +1052,7 @@ export default function App() {
       isApplyingArtifactsRef.current[buildId] = true;
 
       try {
-        const { getOrchestrationByBuild } = await import('../lib/apiClient');
+        const { getOrchestrationByBuild } = await import('@/lib/apiClient');
         const orch = await getOrchestrationByBuild(buildId);
         if (isIgnore) return;
 
@@ -1125,7 +1125,7 @@ export default function App() {
     const loadFinal = async () => {
       isApplyingArtifactsRef.current[buildId] = true;
       try {
-        const { getOrchestrationByBuild } = await import('../lib/apiClient');
+        const { getOrchestrationByBuild } = await import('@/lib/apiClient');
         const orch = await getOrchestrationByBuild(buildId);
         if (isIgnore) return;
 

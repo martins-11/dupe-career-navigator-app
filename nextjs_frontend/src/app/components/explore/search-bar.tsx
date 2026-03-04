@@ -27,16 +27,29 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    /**
+     * Debounced autocomplete:
+     * - Prevents firing a request for every keystroke.
+     * - Helps avoid out-of-order responses updating the UI with stale suggestions.
+     * - Ensures we only ever send a *string* query to the backend.
+     */
     let cancelled = false;
 
-    async function run() {
-      if (query.length < 2) {
-        setSuggestions([]);
-        return;
-      }
+    const q = String(query ?? "");
+    const trimmed = q.trim();
 
+    // Clear suggestions quickly for very short queries.
+    if (trimmed.length < 2) {
+      setSuggestions([]);
+      setHighlightIndex(-1);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = window.setTimeout(async () => {
       try {
-        const s = await getRoleSuggestions(query, 6);
+        const s = await getRoleSuggestions(trimmed, 6);
         if (!cancelled) {
           setSuggestions(s);
           setHighlightIndex(-1);
@@ -48,11 +61,11 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
           setHighlightIndex(-1);
         }
       }
-    }
+    }, 250);
 
-    run();
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [query]);
 
