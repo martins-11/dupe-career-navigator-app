@@ -96,6 +96,15 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
         ? growthAreas.length
         : undefined;
 
+  /**
+   * Authoritative mapping (user_input_ref):
+   * - score = threeTwoReport.score
+   * - masteryCount = masteryAreas.length
+   * - growthCount = growthAreas.length
+   *
+   * Backend now sets threeTwoReport.score to the computed compatibilityScore so the animated circle
+   * reflects ranking consistently across Suggested Roles + Results.
+   */
   return {
     id: String(row?.role_id ?? `role-${index}`),
     title,
@@ -103,6 +112,7 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
     salaryMin: minL,
     salaryMax: maxL,
     experience: '2–6 years',
+    // RoleCard colors skills against masteryAreas/growthAreas. Ensure we provide enough skills for UI.
     skills: skills.slice(0, 5),
     expandedSkills: skills.slice(5, 12),
     description:
