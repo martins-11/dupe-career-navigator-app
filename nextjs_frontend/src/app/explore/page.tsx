@@ -7,7 +7,6 @@ import { EmptyState } from '@/app/components/explore/empty-state';
 import { RoleCard, SkeletonCard } from '@/app/components/explore/role-card';
 import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
-import { getApiBaseUrl as getApiBaseUrlSafe } from '@/lib/apiClient';
 import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from '@/lib/rolesApi';
 
 type RecommendedRole = {
@@ -65,66 +64,64 @@ function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; 
 
 function mapSearchRowToUiRole(row: any, index: number): Role {
   /**
-   * The backend /api/roles/search returns rows like:
-   * { role_id, role_title, industry, skills_required, salary_range, threeTwoReport, ... }
+   * Backend /api/roles/search (Day 3) now returns Bedrock-generated "market roles" with:
+   * - description (2 sentences)
+   * - key_responsibilities (exactly 3)
+   * - experience_range (e.g., "3-5 years")
+   * - salary_range
+   * - required_skills (5-8)
    *
-   * The UI RoleCard expects the richer Role shape. We generate reasonable defaults.
+   * It also still returns compatibility fields:
+   * - threeTwoReport.score (computed)
+   * - threeTwoReport.masteryAreas / growthAreas
    */
   const title = String(row?.role_title ?? row?.title ?? '').trim() || 'Untitled Role';
   const industry = String(row?.industry ?? '').trim() || '—';
-  const skills = Array.isArray(row?.skills_required) ? row.skills_required.map((s: any) => String(s)) : [];
+
+  const requiredSkillsRaw = Array.isArray(row?.required_skills)
+    ? row.required_skills
+    : Array.isArray(row?.skills_required)
+      ? row.skills_required
+      : [];
+
+  const skills = requiredSkillsRaw.map((s: any) => String(s)).map((s: string) => s.trim()).filter(Boolean);
+
   const { minL, maxL } = safeParseSalaryUsdRangeToLakhs(row?.salary_range ?? null);
 
-  // Carry through 3/2 report if present. Be permissive about backend shape.
-  const reportRaw = row?.threeTwoReport ?? row?.three_two_report ?? null;
+  const description =
+    String(row?.description ?? '').trim() ||
+    'Explore this role to understand typical responsibilities, required skills, and how it aligns with your profile.';
 
-  // For any report that includes arrays, compute counts for the existing "Mastery X / Growth Y" pills.
+  const responsibilities = Array.isArray(row?.key_responsibilities)
+    ? row.key_responsibilities.map((x: any) => String(x)).map((s: string) => s.trim()).filter(Boolean).slice(0, 3)
+    : [];
+
+  const experience = String(row?.experience_range ?? '').trim() || '—';
+
+  // Carry through 3/2 report if present.
+  const reportRaw = row?.threeTwoReport ?? row?.three_two_report ?? null;
   const masteryAreas = Array.isArray(reportRaw?.masteryAreas) ? reportRaw.masteryAreas : [];
   const growthAreas = Array.isArray(reportRaw?.growthAreas) ? reportRaw.growthAreas : [];
 
-  const masteryCount =
-    typeof reportRaw?.mastery === 'number'
-      ? reportRaw.mastery
-      : masteryAreas.length > 0
-        ? masteryAreas.length
-        : undefined;
-
-  const growthCount =
-    typeof reportRaw?.growth === 'number'
-      ? reportRaw.growth
-      : growthAreas.length > 0
-        ? growthAreas.length
-        : undefined;
-
-  /**
-   * Authoritative mapping (user_input_ref):
-   * - score = threeTwoReport.score
-   * - masteryCount = masteryAreas.length
-   * - growthCount = growthAreas.length
-   *
-   * Backend now sets threeTwoReport.score to the computed compatibilityScore so the animated circle
-   * reflects ranking consistently across Suggested Roles + Results.
-   */
   return {
     id: String(row?.role_id ?? `role-${index}`),
     title,
     industry,
     salaryMin: minL,
     salaryMax: maxL,
-    experience: '2–6 years',
-    // RoleCard colors skills against masteryAreas/growthAreas. Ensure we provide enough skills for UI.
+    experience,
     skills: skills.slice(0, 5),
     expandedSkills: skills.slice(5, 12),
-    description:
-      'Explore this role to understand typical responsibilities, required skills, and how it aligns with your profile.',
-    responsibilities: [],
+    description,
+    responsibilities,
     careerLevel: 'Recommended',
     threeTwoReport:
       reportRaw && typeof reportRaw === 'object'
         ? {
             ...reportRaw,
-            mastery: masteryCount,
-            growth: growthCount,
+            // Ensure RoleCard pills still work:
+            mastery: masteryAreas.length,
+            growth: growthAreas.length,
           }
         : null,
   };
