@@ -7,7 +7,6 @@ import { EmptyState } from '@/app/components/explore/empty-state';
 import { RoleCard, SkeletonCard } from '@/app/components/explore/role-card';
 import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
-import { getApiBaseUrl as getApiBaseUrlSafe } from '@/lib/apiClient';
 import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from '@/lib/rolesApi';
 
 type RecommendedRole = {

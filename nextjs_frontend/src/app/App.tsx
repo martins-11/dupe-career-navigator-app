@@ -11,6 +11,7 @@ import {
   type BuildStatus,
   type UUID,
 } from '@/lib/apiClient';
+import { RecommendationGrid } from '@/app/components/recommendations/recommendation-grid';
 
 /**
  * Background image was previously referencing a non-existent asset, causing repeated 404s.
@@ -882,6 +883,7 @@ export default function App() {
   };
 
   const handleFinalize = () => {
+    setHasLoadedPostPersonaRecommendations(false);
     setState('finalized');
     setIsEditable(false);
   };
@@ -1236,6 +1238,9 @@ export default function App() {
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHoveringHeading, setIsHoveringHeading] = useState(false);
+
+  // Post-persona recommendations gate: Explore appears only after we have exactly 5 recs loaded.
+  const [hasLoadedPostPersonaRecommendations, setHasLoadedPostPersonaRecommendations] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -2491,44 +2496,59 @@ export default function App() {
               </motion.div>
             </motion.div>
 
-            <a
-              href="/explore"
-              aria-label="Explore role"
-              className="inline-flex items-center justify-center"
-              style={{
-                position: 'fixed',
-                right: '24px',
-                bottom: '24px',
-                zIndex: 60,
-                height: '44px',
-                padding: '10px 16px',
-                borderRadius: '999px',
-                backgroundColor: '#17A6A6',
-                color: '#FFFFFF',
-                fontSize: '14px',
-                fontWeight: 600,
-                letterSpacing: '0.1px',
-                textDecoration: 'none',
-                boxShadow: '0 6px 16px rgba(23,166,166,0.25)',
-                border: '1px solid rgba(23,166,166,0.35)',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#149595';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#17A6A6';
-              }}
-              onFocus={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.outline = '3px solid rgba(23,166,166,0.35)';
-                (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '2px';
-              }}
-              onBlur={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.outline = 'none';
-                (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '0';
-              }}
-            >
-              Explore role
-            </a>
+            {/* Post-persona recommendations grid (below the finalized persona card) */}
+            <div className="max-w-4xl mx-auto" style={{ padding: '0 0 24px 0' }}>
+              <RecommendationGrid
+                personaId={personaId}
+                finalPersona={personaData as any}
+                onLoadedExactlyFive={(loaded) => {
+                  setHasLoadedPostPersonaRecommendations(Boolean(loaded));
+                }}
+              />
+            </div>
+
+            {/* Explore appears only after 5 recommendations are loaded (per acceptance criteria).
+                Note: RecommendationGrid includes its own Explore CTA; we keep the floating CTA gated too. */}
+            {hasLoadedPostPersonaRecommendations ? (
+              <a
+                href="/explore"
+                aria-label="Explore role"
+                className="inline-flex items-center justify-center"
+                style={{
+                  position: 'fixed',
+                  right: '24px',
+                  bottom: '24px',
+                  zIndex: 60,
+                  height: '44px',
+                  padding: '10px 16px',
+                  borderRadius: '999px',
+                  backgroundColor: '#17A6A6',
+                  color: '#FFFFFF',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  letterSpacing: '0.1px',
+                  textDecoration: 'none',
+                  boxShadow: '0 6px 16px rgba(23,166,166,0.25)',
+                  border: '1px solid rgba(23,166,166,0.35)',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#149595';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#17A6A6';
+                }}
+                onFocus={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.outline = '3px solid rgba(23,166,166,0.35)';
+                  (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '2px';
+                }}
+                onBlur={(e) => {
+                  (e.currentTarget as HTMLAnchorElement).style.outline = 'none';
+                  (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '0';
+                }}
+              >
+                Explore role
+              </a>
+            ) : null}
 
             <style jsx global>{`
               @media (max-width: 640px) {
