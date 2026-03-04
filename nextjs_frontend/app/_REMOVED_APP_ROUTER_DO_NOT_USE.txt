@@ -1,0 +1,6 @@
+This directory is intentionally kept empty.
+
+The canonical Next.js App Router for this project lives under:
+  src/app/
+
+Do not add routes under this root-level app/ folder.
