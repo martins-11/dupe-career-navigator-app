@@ -7,6 +7,7 @@ import { EmptyState } from '@/app/components/explore/empty-state';
 import { RoleCard, SkeletonCard } from '@/app/components/explore/role-card';
 import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
+import { getApiBaseUrl as getApiBaseUrlSafe } from '@/lib/apiClient';
 import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from '@/lib/rolesApi';
 
 type RecommendedRole = {
@@ -17,14 +18,6 @@ type RecommendedRole = {
   estimated_salary_range?: string | null;
 };
 
-// PUBLIC_INTERFACE
-function getApiBaseUrl(): string {
-  /** Returns backend base URL for client-side fetches (NEXT_PUBLIC_* preferred). */
-  const fromNextPublic = process.env.NEXT_PUBLIC_API_BASE ?? process.env.NEXT_PUBLIC_BACKEND_URL;
-  const fromReactApp = (process.env as any).REACT_APP_API_BASE ?? (process.env as any).REACT_APP_BACKEND_URL;
-  return String(fromNextPublic ?? fromReactApp ?? '').trim();
-}
-
 function joinUrl(base: string, path: string): string {
   if (!base) return path;
   return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
@@ -34,9 +27,11 @@ function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; 
   /**
    * Backend catalog ranges are usually like "$130k-$210k".
    * UI displays in lakhs (L). We convert USD to INR lakhs using env USD_TO_INR (default 83).
+   *
+   * NOTE: We deliberately avoid reading env vars here to prevent any `process` usage.
+   * If conversion needs to be configured, prefer a backend-driven field in a future iteration.
    */
-  const usdToInrRaw = Number(process.env.NEXT_PUBLIC_USD_TO_INR ?? (process.env as any).REACT_APP_USD_TO_INR ?? 83);
-  const usdToInr = Number.isFinite(usdToInrRaw) && usdToInrRaw > 0 ? usdToInrRaw : 83;
+  const usdToInr = 83;
 
   const s = String(range || '').toLowerCase();
   const tokens = s.match(/(\d+(\.\d+)?)(\s*[kmb])?/g) || [];
@@ -71,7 +66,7 @@ function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; 
 function mapSearchRowToUiRole(row: any, index: number): Role {
   /**
    * The backend /api/roles/search returns rows like:
-   * { role_id, role_title, industry, skills_required, salary_range, ... }
+   * { role_id, role_title, industry, skills_required, salary_range, threeTwoReport, ... }
    *
    * The UI RoleCard expects the richer Role shape. We generate reasonable defaults.
    */
@@ -80,6 +75,36 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
   const skills = Array.isArray(row?.skills_required) ? row.skills_required.map((s: any) => String(s)) : [];
   const { minL, maxL } = safeParseSalaryUsdRangeToLakhs(row?.salary_range ?? null);
 
+  // Carry through 3/2 report if present. Be permissive about backend shape.
+  const reportRaw = row?.threeTwoReport ?? row?.three_two_report ?? null;
+
+  // For any report that includes arrays, compute counts for the existing "Mastery X / Growth Y" pills.
+  const masteryAreas = Array.isArray(reportRaw?.masteryAreas) ? reportRaw.masteryAreas : [];
+  const growthAreas = Array.isArray(reportRaw?.growthAreas) ? reportRaw.growthAreas : [];
+
+  const masteryCount =
+    typeof reportRaw?.mastery === 'number'
+      ? reportRaw.mastery
+      : masteryAreas.length > 0
+        ? masteryAreas.length
+        : undefined;
+
+  const growthCount =
+    typeof reportRaw?.growth === 'number'
+      ? reportRaw.growth
+      : growthAreas.length > 0
+        ? growthAreas.length
+        : undefined;
+
+  /**
+   * Authoritative mapping (user_input_ref):
+   * - score = threeTwoReport.score
+   * - masteryCount = masteryAreas.length
+   * - growthCount = growthAreas.length
+   *
+   * Backend now sets threeTwoReport.score to the computed compatibilityScore so the animated circle
+   * reflects ranking consistently across Suggested Roles + Results.
+   */
   return {
     id: String(row?.role_id ?? `role-${index}`),
     title,
@@ -87,12 +112,21 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
     salaryMin: minL,
     salaryMax: maxL,
     experience: '2–6 years',
+    // RoleCard colors skills against masteryAreas/growthAreas. Ensure we provide enough skills for UI.
     skills: skills.slice(0, 5),
     expandedSkills: skills.slice(5, 12),
     description:
       'Explore this role to understand typical responsibilities, required skills, and how it aligns with your profile.',
     responsibilities: [],
     careerLevel: 'Recommended',
+    threeTwoReport:
+      reportRaw && typeof reportRaw === 'object'
+        ? {
+            ...reportRaw,
+            mastery: masteryCount,
+            growth: growthCount,
+          }
+        : null,
   };
 }
 
@@ -217,29 +251,51 @@ export default function Page() {
 
   const fetchSuggestedRoles = useCallback(async () => {
     /**
-     * Fetch Suggested Roles from recommendations logic after persona finalization.
+     * Fetch Suggested Roles using backend-scored data (NO static placeholders).
      *
-     * Backend contract:
-     * - GET /api/recommendations/roles
-     * - Response: { roles: Array<{ role_id, role_title, industry, match_reason, estimated_salary_range }> }
+     * We intentionally derive Suggested Roles from the same scored role-search endpoint
+     * that powers main results:
+     * - GET /api/roles/search?q=&limit=
+     *
+     * Rationale:
+     * - Guarantees Suggested Roles include `threeTwoReport` (score + mastery/growth areas)
+     *   for the 3/2 visuals.
+     * - Ensures sorting by highest compatibility score (backend + defensive client sort).
+     *
+     * Note:
+     * - We previously used GET /api/recommendations/roles, but that response does not
+     *   guarantee `threeTwoReport`. This change aligns with the Day 3 requirement:
+     *   Suggested Roles + search results must be fed by dynamic scored data.
      */
     setIsLoadingSuggested(true);
     setSuggestedError(null);
 
     try {
-      const base = getApiBaseUrl();
-      const url = joinUrl(base, '/api/recommendations/roles');
+      // Use a broad search (empty q) and take the top N scored results.
+      const rows = await searchRoles({ limit: 6 });
 
-      const res = await fetch(url, { method: 'GET' });
-      const json = await res.json();
+      const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
 
-      if (!res.ok) {
-        const msg = json?.message || json?.error || `Failed to load suggestions (${res.status})`;
-        throw new Error(msg);
-      }
+      // Defensive sort in case backend changes (still expected backend sort desc).
+      mapped.sort((a, b) => {
+        const aScore =
+          typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
+            ? (a as any).threeTwoReport.compatibilityScore
+            : typeof (a as any)?.threeTwoReport?.score === 'number'
+              ? (a as any).threeTwoReport.score
+              : -Infinity;
 
-      const recs: RecommendedRole[] = Array.isArray(json?.roles) ? json.roles : [];
-      setSuggestedRoles(recs.map(mapRecommendationToUiRole));
+        const bScore =
+          typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
+            ? (b as any).threeTwoReport.compatibilityScore
+            : typeof (b as any)?.threeTwoReport?.score === 'number'
+              ? (b as any).threeTwoReport.score
+              : -Infinity;
+
+        return bScore - aScore;
+      });
+
+      setSuggestedRoles(mapped.slice(0, 4));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load Suggested Roles.';
       setSuggestedRoles([]);
@@ -247,7 +303,7 @@ export default function Page() {
     } finally {
       setIsLoadingSuggested(false);
     }
-  }, []);
+  }, [searchRoles]);
 
   const fetchRoles = useCallback(async () => {
     setIsLoading(true);
@@ -271,6 +327,28 @@ export default function Page() {
       });
 
       const mapped = (Array.isArray(data) ? data : []).map(mapSearchRowToUiRole);
+
+      // Defensive client-side sort: highest compatibility first.
+      // Backend is expected to already return sorted results, but this ensures the UX remains correct
+      // if the backend response order changes.
+      mapped.sort((a, b) => {
+        const aScore =
+          typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
+            ? (a as any).threeTwoReport.compatibilityScore
+            : typeof (a as any)?.threeTwoReport?.score === 'number'
+              ? (a as any).threeTwoReport.score
+              : -Infinity;
+
+        const bScore =
+          typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
+            ? (b as any).threeTwoReport.compatibilityScore
+            : typeof (b as any)?.threeTwoReport?.score === 'number'
+              ? (b as any).threeTwoReport.score
+              : -Infinity;
+
+        return bScore - aScore;
+      });
+
       setRoles(mapped);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load roles.';

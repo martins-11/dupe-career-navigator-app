@@ -17,8 +17,7 @@ interface SearchBarProps {
  * Search bar with autocomplete suggestions.
  *
  * Backend integration:
- * - Backend does not have a dedicated autocomplete endpoint.
- * - We approximate suggestions using GET /api/roles/search?q=...&limit=6.
+ * - Suggestions are powered by GET /api/roles/search?q=...&limit=5 (titles extracted client-side).
  */
 export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBarProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -49,7 +48,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
 
     const timer = window.setTimeout(async () => {
       try {
-        const s = await getRoleSuggestions(trimmed, 6);
+        const s = await getRoleSuggestions(trimmed, 5);
         if (!cancelled) {
           setSuggestions(s);
           setHighlightIndex(-1);
@@ -132,7 +131,15 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
         <input
           type="text"
           value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            onQueryChange(next);
+
+            // Keep autocomplete responsive even if parent state updates are delayed.
+            // (Debounce is already applied in the effect; this just ensures suggestions
+            // are actually triggered by input changes, per authoritative instructions.)
+            setIsFocused(true);
+          }}
           onFocus={() => setIsFocused(true)}
           onKeyDown={handleKeyDown}
           placeholder="Search job title, skills, or industry..."

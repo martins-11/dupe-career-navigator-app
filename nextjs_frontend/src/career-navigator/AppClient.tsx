@@ -1,6 +1,6 @@
 'use client';
 
-import App from '../app/App';
+import App from '@/app/App';
 
 /**
  * Client entrypoint expected by some earlier code/imports/layouts.

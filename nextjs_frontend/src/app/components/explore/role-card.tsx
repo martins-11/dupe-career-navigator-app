@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Briefcase, Check, ChevronRight } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
 import type { Role } from "@/app/components/explore/roles-data";
+import { CompatibilityScore } from "@/app/components/explore/compatibility-score";
 
 interface RoleCardProps {
   role: Role;
@@ -62,17 +63,43 @@ export function RoleCard({ role, index }: RoleCardProps) {
               </span>
             </div>
 
-            {/* Career level badge */}
-            <span
-              className="inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-semibold tracking-wide uppercase shrink-0"
-              style={{
-                background: "var(--chip-bg)",
-                border: "1px solid var(--border-chip)",
-                color: "var(--text-body)",
-              }}
-            >
-              {role.careerLevel}
-            </span>
+            <div className="flex items-start gap-3">
+              {/* CompatibilityScore (3/2 visuals) */}
+              {typeof (role as any)?.threeTwoReport?.score === "number" ||
+              typeof (role as any)?.threeTwoReport?.compatibilityScore === "number" ? (
+                <div className="hidden sm:block">
+                  <CompatibilityScore
+                    score={
+                      typeof (role as any)?.threeTwoReport?.score === "number"
+                        ? (role as any).threeTwoReport.score
+                        : (role as any).threeTwoReport.compatibilityScore
+                    }
+                    masteryCount={
+                      Array.isArray((role as any)?.threeTwoReport?.masteryAreas)
+                        ? (role as any).threeTwoReport.masteryAreas.length
+                        : 0
+                    }
+                    growthCount={
+                      Array.isArray((role as any)?.threeTwoReport?.growthAreas)
+                        ? (role as any).threeTwoReport.growthAreas.length
+                        : 0
+                    }
+                  />
+                </div>
+              ) : null}
+
+              {/* Career level badge */}
+              <span
+                className="inline-flex items-center rounded-full px-2.5 py-1 text-[10.5px] font-semibold tracking-wide uppercase shrink-0"
+                style={{
+                  background: "var(--chip-bg)",
+                  border: "1px solid var(--border-chip)",
+                  color: "var(--text-body)",
+                }}
+              >
+                {role.careerLevel}
+              </span>
+            </div>
           </div>
 
           {/* Salary & Experience row */}
@@ -87,23 +114,90 @@ export function RoleCard({ role, index }: RoleCardProps) {
                 {role.experience}
               </span>
             </div>
+
+            {/* 3/2 Score tags (Mastery/Growth) */}
+            {role.threeTwoReport && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {typeof role.threeTwoReport.mastery === "number" && (
+                  <span
+                    className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                    style={{
+                      background: "rgba(22, 163, 74, 0.10)", // green wash
+                      border: "1px solid rgba(22, 163, 74, 0.22)",
+                      color: "rgb(21, 128, 61)",
+                    }}
+                  >
+                    Mastery {role.threeTwoReport.mastery}
+                  </span>
+                )}
+                {typeof role.threeTwoReport.growth === "number" && (
+                  <span
+                    className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                    style={{
+                      background: "rgba(245, 158, 11, 0.12)", // amber wash
+                      border: "1px solid rgba(245, 158, 11, 0.28)",
+                      color: "rgb(180, 83, 9)",
+                    }}
+                  >
+                    Growth {role.threeTwoReport.growth}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Skills: show 3 by default */}
+          {/* Skills: show 3 by default (with Mastery/Growth indicators when available) */}
           <div className="flex flex-wrap gap-2">
-            {role.skills.slice(0, 3).map((skill) => (
-              <span
-                key={skill}
-                className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
-                style={{
-                  background: "var(--chip-bg)",
-                  border: "1px solid var(--border-chip)",
-                  color: "var(--text-body)",
-                }}
-              >
-                {skill}
-              </span>
-            ))}
+            {(() => {
+              const masterySet = new Set(
+                Array.isArray((role as any)?.threeTwoReport?.masteryAreas)
+                  ? ((role as any).threeTwoReport.masteryAreas as string[]).map((s) => String(s).toLowerCase())
+                  : [],
+              );
+              const growthSet = new Set(
+                Array.isArray((role as any)?.threeTwoReport?.growthAreas)
+                  ? ((role as any).threeTwoReport.growthAreas as string[]).map((s) => String(s).toLowerCase())
+                  : [],
+              );
+
+              return role.skills.slice(0, 3).map((skill) => {
+                const key = String(skill).toLowerCase();
+                const isMastery = masterySet.has(key);
+                const isGrowth = growthSet.has(key);
+
+                // Authoritative colors per user instructions:
+                // - Mastery: #0d9488 (teal/green)
+                // - Growth:  #d97706 (amber)
+                const chipStyle = isMastery
+                  ? {
+                      background: "rgba(13, 148, 136, 0.12)",
+                      border: "1px solid rgba(13, 148, 136, 0.28)",
+                      color: "#0d9488",
+                    }
+                  : isGrowth
+                    ? {
+                        background: "rgba(217, 119, 6, 0.12)",
+                        border: "1px solid rgba(217, 119, 6, 0.28)",
+                        color: "#d97706",
+                      }
+                    : {
+                        background: "var(--chip-bg)",
+                        border: "1px solid var(--border-chip)",
+                        color: "var(--text-body)",
+                      };
+
+                return (
+                  <span
+                    key={skill}
+                    className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
+                    style={chipStyle}
+                    title={isMastery ? "Mastery skill" : isGrowth ? "Growth skill" : "Skill"}
+                  >
+                    {skill}
+                  </span>
+                );
+              });
+            })()}
           </div>
 
           {/* Expanded content */}
