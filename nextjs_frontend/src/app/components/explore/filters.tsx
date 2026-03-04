@@ -107,7 +107,10 @@ function StructuredSelect({
   disabled?: boolean;
 }) {
   const normalizedOptions = useMemo(
-    () => [...new Set(options.map((s) => s.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    () =>
+      [...new Set((Array.isArray(options) ? options : []).map((s) => s.trim()).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
     [options],
   );
 
