@@ -10,7 +10,7 @@ import {
   updatePersona,
   type BuildStatus,
   type UUID,
-} from '../lib/apiClient';
+} from '@/lib/apiClient';
 
 /**
  * Background image was previously referencing a non-existent asset, causing repeated 404s.
