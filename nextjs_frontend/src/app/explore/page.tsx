@@ -7,6 +7,7 @@ import { EmptyState } from '@/app/components/explore/empty-state';
 import { RoleCard, SkeletonCard } from '@/app/components/explore/role-card';
 import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
+import { getApiBaseUrl as getApiBaseUrlSafe } from '@/lib/apiClient';
 import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from '@/lib/rolesApi';
 
 type RecommendedRole = {
@@ -17,14 +18,6 @@ type RecommendedRole = {
   estimated_salary_range?: string | null;
 };
 
-// PUBLIC_INTERFACE
-function getApiBaseUrl(): string {
-  /** Returns backend base URL for client-side fetches (NEXT_PUBLIC_* preferred). */
-  const fromNextPublic = process.env.NEXT_PUBLIC_API_BASE ?? process.env.NEXT_PUBLIC_BACKEND_URL;
-  const fromReactApp = (process.env as any).REACT_APP_API_BASE ?? (process.env as any).REACT_APP_BACKEND_URL;
-  return String(fromNextPublic ?? fromReactApp ?? '').trim();
-}
-
 function joinUrl(base: string, path: string): string {
   if (!base) return path;
   return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
@@ -34,9 +27,11 @@ function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; 
   /**
    * Backend catalog ranges are usually like "$130k-$210k".
    * UI displays in lakhs (L). We convert USD to INR lakhs using env USD_TO_INR (default 83).
+   *
+   * NOTE: We deliberately avoid reading env vars here to prevent any `process` usage.
+   * If conversion needs to be configured, prefer a backend-driven field in a future iteration.
    */
-  const usdToInrRaw = Number(process.env.NEXT_PUBLIC_USD_TO_INR ?? (process.env as any).REACT_APP_USD_TO_INR ?? 83);
-  const usdToInr = Number.isFinite(usdToInrRaw) && usdToInrRaw > 0 ? usdToInrRaw : 83;
+  const usdToInr = 83;
 
   const s = String(range || '').toLowerCase();
   const tokens = s.match(/(\d+(\.\d+)?)(\s*[kmb])?/g) || [];
@@ -82,8 +77,24 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
 
   // Carry through 3/2 report if present. Be permissive about backend shape.
   const reportRaw = row?.threeTwoReport ?? row?.three_two_report ?? null;
-  const mastery = Number(reportRaw?.mastery);
-  const growth = Number(reportRaw?.growth);
+
+  // For any report that includes arrays, compute counts for the existing "Mastery X / Growth Y" pills.
+  const masteryAreas = Array.isArray(reportRaw?.masteryAreas) ? reportRaw.masteryAreas : [];
+  const growthAreas = Array.isArray(reportRaw?.growthAreas) ? reportRaw.growthAreas : [];
+
+  const masteryCount =
+    typeof reportRaw?.mastery === 'number'
+      ? reportRaw.mastery
+      : masteryAreas.length > 0
+        ? masteryAreas.length
+        : undefined;
+
+  const growthCount =
+    typeof reportRaw?.growth === 'number'
+      ? reportRaw.growth
+      : growthAreas.length > 0
+        ? growthAreas.length
+        : undefined;
 
   return {
     id: String(row?.role_id ?? `role-${index}`),
@@ -99,10 +110,11 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
     responsibilities: [],
     careerLevel: 'Recommended',
     threeTwoReport:
-      reportRaw && (Number.isFinite(mastery) || Number.isFinite(growth))
+      reportRaw && typeof reportRaw === 'object'
         ? {
-            mastery: Number.isFinite(mastery) ? mastery : undefined,
-            growth: Number.isFinite(growth) ? growth : undefined,
+            ...reportRaw,
+            mastery: masteryCount,
+            growth: growthCount,
           }
         : null,
   };
@@ -239,7 +251,7 @@ export default function Page() {
     setSuggestedError(null);
 
     try {
-      const base = getApiBaseUrl();
+      const base = getApiBaseUrlSafe();
       const url = joinUrl(base, '/api/recommendations/roles');
 
       const res = await fetch(url, { method: 'GET' });

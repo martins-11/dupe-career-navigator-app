@@ -22,10 +22,24 @@ export interface Role {
 
   /**
    * Optional 3/2 report coming from backend role search results.
-   * Used to render Mastery (green) / Growth (amber) tags in the Explore cards.
+   * Used to render Mastery (green) / Growth (amber) tags and show scoring.
+   *
+   * Backend is expected to provide:
+   * - masteryAreas: string[]
+   * - growthAreas: string[]
+   * - compatibilityScore: number (0-100)
    */
-  threeTwoReport?: {
-    mastery?: number;
-    growth?: number;
-  } | null;
+  threeTwoReport?:
+    | {
+        status?: 'validated' | 'not_validated' | 'fallback' | string;
+        masteryAreas?: string[];
+        growthAreas?: string[];
+        missingSkills?: string[];
+        score?: number;
+        compatibilityScore?: number;
+        /** Legacy numeric fields (kept for backward compatibility). */
+        mastery?: number;
+        growth?: number;
+      }
+    | null;
 }

@@ -119,21 +119,55 @@ export function RoleCard({ role, index }: RoleCardProps) {
             )}
           </div>
 
-          {/* Skills: show 3 by default */}
+          {/* Skills: show 3 by default (with Mastery/Growth indicators when available) */}
           <div className="flex flex-wrap gap-2">
-            {role.skills.slice(0, 3).map((skill) => (
-              <span
-                key={skill}
-                className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
-                style={{
-                  background: "var(--chip-bg)",
-                  border: "1px solid var(--border-chip)",
-                  color: "var(--text-body)",
-                }}
-              >
-                {skill}
-              </span>
-            ))}
+            {(() => {
+              const masterySet = new Set(
+                Array.isArray((role as any)?.threeTwoReport?.masteryAreas)
+                  ? ((role as any).threeTwoReport.masteryAreas as string[]).map((s) => String(s).toLowerCase())
+                  : [],
+              );
+              const growthSet = new Set(
+                Array.isArray((role as any)?.threeTwoReport?.growthAreas)
+                  ? ((role as any).threeTwoReport.growthAreas as string[]).map((s) => String(s).toLowerCase())
+                  : [],
+              );
+
+              return role.skills.slice(0, 3).map((skill) => {
+                const key = String(skill).toLowerCase();
+                const isMastery = masterySet.has(key);
+                const isGrowth = growthSet.has(key);
+
+                const chipStyle = isMastery
+                  ? {
+                      background: "rgba(22, 163, 74, 0.10)", // green wash
+                      border: "1px solid rgba(22, 163, 74, 0.22)",
+                      color: "rgb(21, 128, 61)",
+                    }
+                  : isGrowth
+                    ? {
+                        background: "rgba(245, 158, 11, 0.12)", // amber wash
+                        border: "1px solid rgba(245, 158, 11, 0.28)",
+                        color: "rgb(180, 83, 9)",
+                      }
+                    : {
+                        background: "var(--chip-bg)",
+                        border: "1px solid var(--border-chip)",
+                        color: "var(--text-body)",
+                      };
+
+                return (
+                  <span
+                    key={skill}
+                    className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium"
+                    style={chipStyle}
+                    title={isMastery ? "Mastery skill" : isGrowth ? "Growth skill" : "Skill"}
+                  >
+                    {skill}
+                  </span>
+                );
+              });
+            })()}
           </div>
 
           {/* Expanded content */}
