@@ -1,4 +1,4 @@
-import App from "../src/app/App";
+import DocumentIngestion from '../src/app/components/DocumentIngestion';
 
 /**
  * Root route:
@@ -6,5 +6,5 @@ import App from "../src/app/App";
  * - Explore/Search is reachable at `/explore` (and later in the natural flow).
  */
 export default function Page() {
-  return <App />;
+  return <DocumentIngestion />;
 }
