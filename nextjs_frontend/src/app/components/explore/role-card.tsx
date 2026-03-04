@@ -165,17 +165,20 @@ export function RoleCard({ role, index }: RoleCardProps) {
                 const isMastery = masterySet.has(key);
                 const isGrowth = growthSet.has(key);
 
+                // Authoritative colors per user instructions:
+                // - Mastery: #0d9488 (teal/green)
+                // - Growth:  #d97706 (amber)
                 const chipStyle = isMastery
                   ? {
-                      background: "rgba(22, 163, 74, 0.10)", // green wash
-                      border: "1px solid rgba(22, 163, 74, 0.22)",
-                      color: "rgb(21, 128, 61)",
+                      background: "rgba(13, 148, 136, 0.12)",
+                      border: "1px solid rgba(13, 148, 136, 0.28)",
+                      color: "#0d9488",
                     }
                   : isGrowth
                     ? {
-                        background: "rgba(245, 158, 11, 0.12)", // amber wash
-                        border: "1px solid rgba(245, 158, 11, 0.28)",
-                        color: "rgb(180, 83, 9)",
+                        background: "rgba(217, 119, 6, 0.12)",
+                        border: "1px solid rgba(217, 119, 6, 0.28)",
+                        color: "#d97706",
                       }
                     : {
                         background: "var(--chip-bg)",
