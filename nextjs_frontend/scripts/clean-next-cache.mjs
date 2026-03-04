@@ -1,10 +1,15 @@
 /**
  * Safe cache cleanup script for Next.js.
  *
- * We intentionally implement this in Node (instead of `rm -rf .next`) because some
- * execution environments disallow destructive shell commands. This script:
- * - removes `nextjs_frontend/.next` if it exists
- * - does NOT touch other directories
+ * We implement this in Node (instead of `rm -rf`) because some execution environments
+ * disallow destructive shell commands.
+ *
+ * This script removes:
+ *  - `nextjs_frontend/.next`
+ *  - `nextjs_frontend/node_modules/.cache`
+ *
+ * These are the two caches called out in the user instructions as the root cause of
+ * stale path mappings that can manifest as CSS/JS 404s in dev.
  */
 
 import fs from "node:fs";
@@ -17,22 +22,27 @@ const __dirname = path.dirname(__filename);
 // scripts/ -> project root
 const projectRoot = path.resolve(__dirname, "..");
 const nextCacheDir = path.join(projectRoot, ".next");
+const nodeModulesCacheDir = path.join(projectRoot, "node_modules", ".cache");
 
 function log(msg) {
   process.stdout.write(`${msg}\n`);
 }
 
-try {
-  if (!fs.existsSync(nextCacheDir)) {
-    log(`[clean-next-cache] No .next directory found at: ${nextCacheDir}`);
-    process.exit(0);
+function rmDirIfExists(dirPath, label) {
+  if (!fs.existsSync(dirPath)) {
+    log(`[clean-next-cache] No ${label} directory found at: ${dirPath}`);
+    return;
   }
 
-  // Force + recursive is the Node equivalent of `rm -rf`, but scoped to `.next` only.
-  fs.rmSync(nextCacheDir, { recursive: true, force: true });
+  // Force + recursive is the Node equivalent of `rm -rf`.
+  fs.rmSync(dirPath, { recursive: true, force: true });
+  log(`[clean-next-cache] Removed ${label}: ${dirPath}`);
+}
 
-  log(`[clean-next-cache] Removed: ${nextCacheDir}`);
+try {
+  rmDirIfExists(nextCacheDir, ".next");
+  rmDirIfExists(nodeModulesCacheDir, "node_modules/.cache");
 } catch (err) {
-  log(`[clean-next-cache] Failed to remove .next cache: ${err instanceof Error ? err.message : String(err)}`);
+  log(`[clean-next-cache] Failed cache cleanup: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 }

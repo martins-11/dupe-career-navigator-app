@@ -2,11 +2,10 @@
 
 /**
  * Compatibility shim:
- * This project’s Next.js App Router pages live under `/app/**`.
- * Some tooling/agents referenced `/src/app/**`; keep this file to avoid module-not-found errors
- * if any code still imports it.
+ * Some tooling/agents referenced `/src/app/**`. The canonical App Router pages live under `/app/**`.
  *
- * We re-export the real Explore page component.
+ * We re-export the real Explore page component using the tsconfig `@/*` alias (src/*),
+ * avoiding brittle relative paths.
  */
 
-export { default } from "../../../app/explore/page";
+export { default } from "@/../app/explore/page";
