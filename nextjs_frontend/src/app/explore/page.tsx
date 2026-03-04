@@ -241,29 +241,51 @@ export default function Page() {
 
   const fetchSuggestedRoles = useCallback(async () => {
     /**
-     * Fetch Suggested Roles from recommendations logic after persona finalization.
+     * Fetch Suggested Roles using backend-scored data (NO static placeholders).
      *
-     * Backend contract:
-     * - GET /api/recommendations/roles
-     * - Response: { roles: Array<{ role_id, role_title, industry, match_reason, estimated_salary_range }> }
+     * We intentionally derive Suggested Roles from the same scored role-search endpoint
+     * that powers main results:
+     * - GET /api/roles/search?q=&limit=
+     *
+     * Rationale:
+     * - Guarantees Suggested Roles include `threeTwoReport` (score + mastery/growth areas)
+     *   for the 3/2 visuals.
+     * - Ensures sorting by highest compatibility score (backend + defensive client sort).
+     *
+     * Note:
+     * - We previously used GET /api/recommendations/roles, but that response does not
+     *   guarantee `threeTwoReport`. This change aligns with the Day 3 requirement:
+     *   Suggested Roles + search results must be fed by dynamic scored data.
      */
     setIsLoadingSuggested(true);
     setSuggestedError(null);
 
     try {
-      const base = getApiBaseUrlSafe();
-      const url = joinUrl(base, '/api/recommendations/roles');
+      // Use a broad search (empty q) and take the top N scored results.
+      const rows = await searchRoles({ limit: 6 });
 
-      const res = await fetch(url, { method: 'GET' });
-      const json = await res.json();
+      const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
 
-      if (!res.ok) {
-        const msg = json?.message || json?.error || `Failed to load suggestions (${res.status})`;
-        throw new Error(msg);
-      }
+      // Defensive sort in case backend changes (still expected backend sort desc).
+      mapped.sort((a, b) => {
+        const aScore =
+          typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
+            ? (a as any).threeTwoReport.compatibilityScore
+            : typeof (a as any)?.threeTwoReport?.score === 'number'
+              ? (a as any).threeTwoReport.score
+              : -Infinity;
 
-      const recs: RecommendedRole[] = Array.isArray(json?.roles) ? json.roles : [];
-      setSuggestedRoles(recs.map(mapRecommendationToUiRole));
+        const bScore =
+          typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
+            ? (b as any).threeTwoReport.compatibilityScore
+            : typeof (b as any)?.threeTwoReport?.score === 'number'
+              ? (b as any).threeTwoReport.score
+              : -Infinity;
+
+        return bScore - aScore;
+      });
+
+      setSuggestedRoles(mapped.slice(0, 4));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load Suggested Roles.';
       setSuggestedRoles([]);
@@ -271,7 +293,7 @@ export default function Page() {
     } finally {
       setIsLoadingSuggested(false);
     }
-  }, []);
+  }, [searchRoles]);
 
   const fetchRoles = useCallback(async () => {
     setIsLoading(true);
@@ -295,6 +317,28 @@ export default function Page() {
       });
 
       const mapped = (Array.isArray(data) ? data : []).map(mapSearchRowToUiRole);
+
+      // Defensive client-side sort: highest compatibility first.
+      // Backend is expected to already return sorted results, but this ensures the UX remains correct
+      // if the backend response order changes.
+      mapped.sort((a, b) => {
+        const aScore =
+          typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
+            ? (a as any).threeTwoReport.compatibilityScore
+            : typeof (a as any)?.threeTwoReport?.score === 'number'
+              ? (a as any).threeTwoReport.score
+              : -Infinity;
+
+        const bScore =
+          typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
+            ? (b as any).threeTwoReport.compatibilityScore
+            : typeof (b as any)?.threeTwoReport?.score === 'number'
+              ? (b as any).threeTwoReport.score
+              : -Infinity;
+
+        return bScore - aScore;
+      });
+
       setRoles(mapped);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load roles.';
