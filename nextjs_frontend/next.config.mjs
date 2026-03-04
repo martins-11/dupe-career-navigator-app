@@ -4,7 +4,11 @@ const nextConfig = {
   // The app uses `@import url(...)` in CSS for Inter fonts.
   // Next.js requires explicit allow-listing for these remote styles.
   experimental: {
-    // Keep default; no App Router flags required (it's default in Next 13+).
+    /**
+     * Next.js 14+ requires explicit permission for non-local dev origins
+     * (e.g. cloud IDE preview/proxy hostnames) to allow HMR connections.
+     */
+    allowedDevOrigins: ['vscode-internal-19658-beta.beta01.cloud.kavia.ai'],
   },
 
   /**
