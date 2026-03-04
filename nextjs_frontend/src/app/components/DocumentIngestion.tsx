@@ -1,6 +1,6 @@
 'use client';
 
-import App from '../App';
+import App from '@/app/App';
 
 /**
  * DocumentIngestion is the explicit landing-page component for the application.
