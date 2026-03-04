@@ -71,7 +71,7 @@ function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; 
 function mapSearchRowToUiRole(row: any, index: number): Role {
   /**
    * The backend /api/roles/search returns rows like:
-   * { role_id, role_title, industry, skills_required, salary_range, ... }
+   * { role_id, role_title, industry, skills_required, salary_range, threeTwoReport, ... }
    *
    * The UI RoleCard expects the richer Role shape. We generate reasonable defaults.
    */
@@ -79,6 +79,11 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
   const industry = String(row?.industry ?? '').trim() || '—';
   const skills = Array.isArray(row?.skills_required) ? row.skills_required.map((s: any) => String(s)) : [];
   const { minL, maxL } = safeParseSalaryUsdRangeToLakhs(row?.salary_range ?? null);
+
+  // Carry through 3/2 report if present. Be permissive about backend shape.
+  const reportRaw = row?.threeTwoReport ?? row?.three_two_report ?? null;
+  const mastery = Number(reportRaw?.mastery);
+  const growth = Number(reportRaw?.growth);
 
   return {
     id: String(row?.role_id ?? `role-${index}`),
@@ -93,6 +98,13 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
       'Explore this role to understand typical responsibilities, required skills, and how it aligns with your profile.',
     responsibilities: [],
     careerLevel: 'Recommended',
+    threeTwoReport:
+      reportRaw && (Number.isFinite(mastery) || Number.isFinite(growth))
+        ? {
+            mastery: Number.isFinite(mastery) ? mastery : undefined,
+            growth: Number.isFinite(growth) ? growth : undefined,
+          }
+        : null,
   };
 }
 

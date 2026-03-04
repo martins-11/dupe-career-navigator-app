@@ -19,4 +19,13 @@ export interface Role {
   description: string;
   responsibilities: string[];
   careerLevel: string;
+
+  /**
+   * Optional 3/2 report coming from backend role search results.
+   * Used to render Mastery (green) / Growth (amber) tags in the Explore cards.
+   */
+  threeTwoReport?: {
+    mastery?: number;
+    growth?: number;
+  } | null;
 }

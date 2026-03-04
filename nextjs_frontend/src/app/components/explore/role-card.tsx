@@ -87,6 +87,36 @@ export function RoleCard({ role, index }: RoleCardProps) {
                 {role.experience}
               </span>
             </div>
+
+            {/* 3/2 Score tags (Mastery/Growth) */}
+            {role.threeTwoReport && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {typeof role.threeTwoReport.mastery === "number" && (
+                  <span
+                    className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                    style={{
+                      background: "rgba(22, 163, 74, 0.10)", // green wash
+                      border: "1px solid rgba(22, 163, 74, 0.22)",
+                      color: "rgb(21, 128, 61)",
+                    }}
+                  >
+                    Mastery {role.threeTwoReport.mastery}
+                  </span>
+                )}
+                {typeof role.threeTwoReport.growth === "number" && (
+                  <span
+                    className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                    style={{
+                      background: "rgba(245, 158, 11, 0.12)", // amber wash
+                      border: "1px solid rgba(245, 158, 11, 0.28)",
+                      color: "rgb(180, 83, 9)",
+                    }}
+                  >
+                    Growth {role.threeTwoReport.growth}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Skills: show 3 by default */}
