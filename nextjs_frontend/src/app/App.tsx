@@ -2507,57 +2507,6 @@ export default function App() {
               />
             </div>
 
-            {/* Explore appears only after 5 recommendations are loaded (per acceptance criteria).
-                Note: RecommendationGrid includes its own Explore CTA; we keep the floating CTA gated too. */}
-            {hasLoadedPostPersonaRecommendations ? (
-              <a
-                href="/explore"
-                aria-label="Explore role"
-                className="inline-flex items-center justify-center"
-                style={{
-                  position: 'fixed',
-                  right: '24px',
-                  bottom: '24px',
-                  zIndex: 60,
-                  height: '44px',
-                  padding: '10px 16px',
-                  borderRadius: '999px',
-                  backgroundColor: '#17A6A6',
-                  color: '#FFFFFF',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  letterSpacing: '0.1px',
-                  textDecoration: 'none',
-                  boxShadow: '0 6px 16px rgba(23,166,166,0.25)',
-                  border: '1px solid rgba(23,166,166,0.35)',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#149595';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#17A6A6';
-                }}
-                onFocus={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.outline = '3px solid rgba(23,166,166,0.35)';
-                  (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '2px';
-                }}
-                onBlur={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.outline = 'none';
-                  (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '0';
-                }}
-              >
-                Explore role
-              </a>
-            ) : null}
-
-            <style jsx global>{`
-              @media (max-width: 640px) {
-                a[aria-label='Explore role'] {
-                  right: 16px !important;
-                  bottom: 16px !important;
-                }
-              }
-            `}</style>
           </>
         )}
       </main>

@@ -338,8 +338,8 @@ export function RecommendationGrid(props: {
     };
   }, [props.personaId]);
 
-  const baseUrl = getApiBaseUrl();
-  const exploreUrl = joinUrl(baseUrl ? '' : '', '/explore'); // keep relative route
+  // Keep navigation reliable by using a direct relative route. (Works with Next.js App Router.)
+  const exploreUrl = '/explore';
 
   return (
     <section style={{ marginTop: 24 }}>
