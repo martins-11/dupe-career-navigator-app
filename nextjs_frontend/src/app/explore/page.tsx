@@ -268,7 +268,7 @@ export default function Page() {
     setSuggestedError(null);
 
     try {
-      // Use a broad search (empty q) and take the top N scored results.
+      // Use a broad search (explicit empty q string) and take the top N scored results.
       // IMPORTANT: persona-driven wiring
       // - When personaId is present in localStorage (set after orchestration run-all),
       //   pass it to the backend so it loads the *finalized persona* as the source of truth
@@ -276,7 +276,7 @@ export default function Page() {
       const personaId =
         typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
 
-      const rows = await searchRoles({ limit: 6, personaId: personaId || undefined });
+      const rows = await searchRoles({ q: '', limit: 6, personaId: personaId || undefined });
 
       const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
 
@@ -307,7 +307,7 @@ export default function Page() {
     } finally {
       setIsLoadingSuggested(false);
     }
-  }, [searchRoles]);
+  }, []);
 
   const fetchRoles = useCallback(async () => {
     setIsLoading(true);
@@ -400,6 +400,18 @@ export default function Page() {
     void fetchRoles();
   }
 
+  // Initial load: fetch persona-driven Suggested Roles without requiring user search.
+  // Also prefetch filter options so the filter UI is ready when the user searches.
+  useEffect(() => {
+    void fetchSuggestedRoles();
+
+    // Prefetch filter options in the background (does not affect Suggested Roles visibility).
+    if (!isLoadingFilterOptions && industryOptions.length === 0 && skillsOptions.length === 0) {
+      void fetchFilterOptions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Re-fetch when filters change (after initial search)
   useEffect(() => {
     if (!hasSearched) return;
@@ -491,77 +503,76 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Suggested Roles + Results */}
-      {hasSearched && (
-        <section
-          className="max-w-6xl mx-auto px-4 md:px-8 py-8"
-          style={{ fontFamily: 'Helvetica Neue, Arial, sans-serif' }}
-        >
-          {/* Suggested Roles */}
-          <div className="mb-8">
-            <div className="flex items-end justify-between gap-3 mb-3">
-              <div>
-                <h2 className="text-base font-semibold" style={{ color: 'var(--text-strong)' }}>
-                  Suggested Roles
-                </h2>
-                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                  Powered by your finalized persona (recommendations).
-                </p>
-              </div>
-
-              <button
-                onClick={() => void fetchSuggestedRoles()}
-                className="text-xs font-semibold px-3 py-2 cursor-pointer"
-                style={{
-                  borderRadius: 10,
-                  background: 'rgba(23,166,166,0.06)',
-                  border: '1px solid rgba(23,166,166,0.18)',
-                  color: 'var(--text-body)',
-                }}
-              >
-                Refresh
-              </button>
+      {/* Suggested Roles */}
+      <section
+        className={cn('max-w-6xl mx-auto px-4 md:px-8 py-8', hasSearched ? '' : 'pt-10')}
+        style={{ fontFamily: 'Helvetica Neue, Arial, sans-serif' }}
+      >
+        <div className="mb-8">
+          <div className="flex items-end justify-between gap-3 mb-3">
+            <div>
+              <h2 className="text-base font-semibold" style={{ color: 'var(--text-strong)' }}>
+                Suggested Roles
+              </h2>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                Powered by your finalized persona (recommendations).
+              </p>
             </div>
 
-            {isLoadingSuggested ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <SkeletonCard key={`sugg-skel-${i}`} />
-                ))}
-              </div>
-            ) : suggestedError ? (
-              <div
-                className="text-xs rounded-xl px-4 py-3"
-                style={{
-                  background: 'rgba(255, 0, 0, 0.03)',
-                  border: '1px solid rgba(255, 0, 0, 0.12)',
-                  color: 'var(--text-body)',
-                }}
-              >
-                Couldn’t load Suggested Roles: {suggestedError}
-              </div>
-            ) : suggestedRoles.length === 0 ? (
-              <div
-                className="text-xs rounded-xl px-4 py-3"
-                style={{
-                  background: 'rgba(23,166,166,0.06)',
-                  border: '1px solid rgba(23,166,166,0.18)',
-                  color: 'var(--text-body)',
-                }}
-              >
-                No suggestions yet. Finalize a persona to see recommendations here.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {suggestedRoles.map((role, i) => (
-                  <RoleCard key={`suggested-${role.id}`} role={role} index={i} />
-                ))}
-              </div>
-            )}
+            <button
+              onClick={() => void fetchSuggestedRoles()}
+              className="text-xs font-semibold px-3 py-2 cursor-pointer"
+              style={{
+                borderRadius: 10,
+                background: 'rgba(23,166,166,0.06)',
+                border: '1px solid rgba(23,166,166,0.18)',
+                color: 'var(--text-body)',
+              }}
+            >
+              Refresh
+            </button>
           </div>
 
-          {/* Results */}
-          {isLoading ? (
+          {isLoadingSuggested ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <SkeletonCard key={`sugg-skel-${i}`} />
+              ))}
+            </div>
+          ) : suggestedError ? (
+            <div
+              className="text-xs rounded-xl px-4 py-3"
+              style={{
+                background: 'rgba(255, 0, 0, 0.03)',
+                border: '1px solid rgba(255, 0, 0, 0.12)',
+                color: 'var(--text-body)',
+              }}
+            >
+              Couldn’t load Suggested Roles: {suggestedError}
+            </div>
+          ) : suggestedRoles.length === 0 ? (
+            <div
+              className="text-xs rounded-xl px-4 py-3"
+              style={{
+                background: 'rgba(23,166,166,0.06)',
+                border: '1px solid rgba(23,166,166,0.18)',
+                color: 'var(--text-body)',
+              }}
+            >
+              No suggestions yet. Finalize a persona to see recommendations here.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {suggestedRoles.map((role, i) => (
+                <RoleCard key={`suggested-${role.id}`} role={role} index={i} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Results (only after explicit search) */}
+        {hasSearched ? (
+          isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <SkeletonCard key={i} />
@@ -605,9 +616,9 @@ export default function Page() {
                 <RoleCard key={role.id} role={role} index={i} />
               ))}
             </div>
-          )}
-        </section>
-      )}
+          )
+        ) : null}
+      </section>
     </main>
   );
 }
