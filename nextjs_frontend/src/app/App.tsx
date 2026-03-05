@@ -813,6 +813,18 @@ export default function App() {
 
       setBuildId(runAll.build.id);
       setPersonaId(runAll.results.generate.personaId ?? null);
+
+      // Persona bridging:
+      // Persist the generated personaId so Explore/Suggested Roles can be persona-driven
+      // even after navigation/refresh.
+      try {
+        const pid = runAll.results.generate.personaId ?? null;
+        if (pid) {
+          window.localStorage.setItem('careerNavigator.personaId', String(pid));
+        }
+      } catch {
+        // ignore storage errors (e.g., privacy mode)
+      }
       setBuildStatus({
         id: runAll.build.id,
         status: runAll.build.status,
@@ -924,6 +936,14 @@ export default function App() {
       console.log(`[draft][regen:${generationId}] generateDraftForBuild response:`, resp);
 
       setPersonaId(resp.personaId ?? null);
+
+      // Keep persisted personaId in sync for Explore/recommendations bridging.
+      try {
+        const pid = resp.personaId ?? null;
+        if (pid) window.localStorage.setItem('careerNavigator.personaId', String(pid));
+      } catch {
+        // ignore
+      }
 
       if (buildStatus?.status === 'succeeded') {
         setState('draft');
@@ -2507,57 +2527,6 @@ export default function App() {
               />
             </div>
 
-            {/* Explore appears only after 5 recommendations are loaded (per acceptance criteria).
-                Note: RecommendationGrid includes its own Explore CTA; we keep the floating CTA gated too. */}
-            {hasLoadedPostPersonaRecommendations ? (
-              <a
-                href="/explore"
-                aria-label="Explore role"
-                className="inline-flex items-center justify-center"
-                style={{
-                  position: 'fixed',
-                  right: '24px',
-                  bottom: '24px',
-                  zIndex: 60,
-                  height: '44px',
-                  padding: '10px 16px',
-                  borderRadius: '999px',
-                  backgroundColor: '#17A6A6',
-                  color: '#FFFFFF',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  letterSpacing: '0.1px',
-                  textDecoration: 'none',
-                  boxShadow: '0 6px 16px rgba(23,166,166,0.25)',
-                  border: '1px solid rgba(23,166,166,0.35)',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#149595';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#17A6A6';
-                }}
-                onFocus={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.outline = '3px solid rgba(23,166,166,0.35)';
-                  (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '2px';
-                }}
-                onBlur={(e) => {
-                  (e.currentTarget as HTMLAnchorElement).style.outline = 'none';
-                  (e.currentTarget as HTMLAnchorElement).style.outlineOffset = '0';
-                }}
-              >
-                Explore role
-              </a>
-            ) : null}
-
-            <style jsx global>{`
-              @media (max-width: 640px) {
-                a[aria-label='Explore role'] {
-                  right: 16px !important;
-                  bottom: 16px !important;
-                }
-              }
-            `}</style>
           </>
         )}
       </main>
