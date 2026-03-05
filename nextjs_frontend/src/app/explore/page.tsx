@@ -269,7 +269,14 @@ export default function Page() {
 
     try {
       // Use a broad search (empty q) and take the top N scored results.
-      const rows = await searchRoles({ limit: 6 });
+      // IMPORTANT: persona-driven wiring
+      // - When personaId is present in localStorage (set after orchestration run-all),
+      //   pass it to the backend so it loads the *finalized persona* as the source of truth
+      //   for scoring + mastery/growth tags.
+      const personaId =
+        typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
+
+      const rows = await searchRoles({ limit: 6, personaId: personaId || undefined });
 
       const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
 
@@ -314,6 +321,9 @@ export default function Page() {
        *
        * Note: min_salary/max_salary are UI slider units (lakhs). Backend converts to align with USD catalog.
        */
+      const personaId =
+        typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
+
       const data = await searchRoles({
         q: query.trim() || undefined,
         industry: selectedIndustry.trim() || undefined,
@@ -321,6 +331,7 @@ export default function Page() {
         min_salary: salaryRange[0],
         max_salary: salaryRange[1],
         limit: 50,
+        personaId: personaId || undefined,
       });
 
       const mapped = (Array.isArray(data) ? data : []).map(mapSearchRowToUiRole);

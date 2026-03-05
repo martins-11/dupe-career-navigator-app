@@ -813,6 +813,18 @@ export default function App() {
 
       setBuildId(runAll.build.id);
       setPersonaId(runAll.results.generate.personaId ?? null);
+
+      // Persona bridging:
+      // Persist the generated personaId so Explore/Suggested Roles can be persona-driven
+      // even after navigation/refresh.
+      try {
+        const pid = runAll.results.generate.personaId ?? null;
+        if (pid) {
+          window.localStorage.setItem('careerNavigator.personaId', String(pid));
+        }
+      } catch {
+        // ignore storage errors (e.g., privacy mode)
+      }
       setBuildStatus({
         id: runAll.build.id,
         status: runAll.build.status,
@@ -924,6 +936,14 @@ export default function App() {
       console.log(`[draft][regen:${generationId}] generateDraftForBuild response:`, resp);
 
       setPersonaId(resp.personaId ?? null);
+
+      // Keep persisted personaId in sync for Explore/recommendations bridging.
+      try {
+        const pid = resp.personaId ?? null;
+        if (pid) window.localStorage.setItem('careerNavigator.personaId', String(pid));
+      } catch {
+        // ignore
+      }
 
       if (buildStatus?.status === 'succeeded') {
         setState('draft');

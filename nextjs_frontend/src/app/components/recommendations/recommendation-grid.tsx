@@ -308,11 +308,16 @@ export function RecommendationGrid(props: {
       setError(null);
 
       try {
+        // Contract: backend requires personaId (persona-driven only).
+        if (!props.personaId) {
+          throw new Error('Missing personaId: finalize a persona to generate recommendations.');
+        }
+
         const sp = new URLSearchParams();
-        if (props.personaId) sp.set('personaId', String(props.personaId));
+        sp.set('personaId', String(props.personaId));
 
         const data = await apiFetch<{ roles: RecommendationRole[] }>(
-          `/api/recommendations/initial${sp.toString() ? `?${sp.toString()}` : ''}`,
+          `/api/recommendations/initial?${sp.toString()}`,
           { method: 'GET' }
         );
 
