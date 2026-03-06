@@ -8,7 +8,7 @@ import { EmptyState } from '@/app/components/explore/empty-state';
 import { RoleCard, SkeletonCard } from '@/app/components/explore/role-card';
 import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
-import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from '@/lib/rolesApi';
+import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles, searchSuggestedRoles } from '@/lib/rolesApi';
 import { getCurrentPersonaId, persistPersonaId } from '@/lib/personaStorage';
 
 type RecommendedRole = {
@@ -246,8 +246,9 @@ export default function Page() {
     try {
       const [industries, skills] = await Promise.all([getRoleIndustries(), getRoleSkills()]);
 
-      setIndustryOptions(industries);
-      setSkillsOptions(skills);
+      // Backend contract returns string[] for both endpoints.
+      setIndustryOptions(Array.isArray(industries) ? industries : []);
+      setSkillsOptions(Array.isArray(skills) ? skills : []);
 
       // Optional endpoint: if it errors (404 etc), we simply hide the field.
       try {
@@ -274,20 +275,16 @@ export default function Page() {
 
   const fetchSuggestedRoles = useCallback(async () => {
     /**
-     * Fetch Suggested Roles using backend-scored data (NO static placeholders).
+     * Fetch Suggested Roles from the dedicated recommendations endpoint:
+     * - GET /api/recommendations/roles?personaId=...
      *
-     * We intentionally derive Suggested Roles from the same scored role-search endpoint
-     * that powers main results:
-     * - GET /api/roles/search?q=&limit=
+     * This is the contract used for “suggested roles” and is persona-driven when personaId is present.
      *
-     * Rationale:
-     * - Guarantees Suggested Roles include `threeTwoReport` (score + mastery/growth areas)
-     *   for the 3/2 visuals.
-     * - Ensures sorting by highest compatibility score (backend + defensive client sort).
-     *
-     * Persona wiring (CRITICAL for empty-state bug fix):
-     * - Prefer personaId from the URL (when coming from Finalized Persona → Explore).
-     * - Fall back to localStorage.
+     * Fallback:
+     * - If recommendations return empty (or fail), we fall back to persona-driven search scoring:
+     *   - GET /api/roles/search?personaId=...&q=&limit=...
+     * This ensures we still populate the section with personalized results (and 3/2 report)
+     * even if the recommendations subsystem is unavailable.
      */
     setIsLoadingSuggested(true);
     setSuggestedError(null);
@@ -301,30 +298,41 @@ export default function Page() {
         source: personaIdFromUrl ? 'url' : canonicalPersonaId ? 'localStorage' : 'none',
       });
 
-      const rows = await searchRoles({ q: '', limit: 6, personaId: personaId || undefined });
+      let suggested: Role[] = [];
 
-      const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
+      // Primary: recommendations service
+      if (personaId) {
+        const recs = await searchSuggestedRoles({ personaId, limit: 5 });
+        suggested = (Array.isArray(recs) ? recs : []).map(mapRecommendationToUiRole);
+      }
 
-      // Defensive sort in case backend changes (still expected backend sort desc).
-      mapped.sort((a, b) => {
-        const aScore =
-          typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
-            ? (a as any).threeTwoReport.compatibilityScore
-            : typeof (a as any)?.threeTwoReport?.score === 'number'
-              ? (a as any).threeTwoReport.score
-              : -Infinity;
+      // Fallback: persona-driven scored search (gives 3/2 report)
+      if (suggested.length === 0) {
+        const rows = await searchRoles({ q: '', limit: 6, personaId: personaId || undefined });
+        const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
 
-        const bScore =
-          typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
-            ? (b as any).threeTwoReport.compatibilityScore
-            : typeof (b as any)?.threeTwoReport?.score === 'number'
-              ? (b as any).threeTwoReport.score
-              : -Infinity;
+        mapped.sort((a, b) => {
+          const aScore =
+            typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
+              ? (a as any).threeTwoReport.compatibilityScore
+              : typeof (a as any)?.threeTwoReport?.score === 'number'
+                ? (a as any).threeTwoReport.score
+                : -Infinity;
 
-        return bScore - aScore;
-      });
+          const bScore =
+            typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
+              ? (b as any).threeTwoReport.compatibilityScore
+              : typeof (b as any)?.threeTwoReport?.score === 'number'
+                ? (b as any).threeTwoReport.score
+                : -Infinity;
 
-      setSuggestedRoles(mapped.slice(0, 4));
+          return bScore - aScore;
+        });
+
+        suggested = mapped.slice(0, 4);
+      }
+
+      setSuggestedRoles(suggested.slice(0, 4));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load Suggested Roles.';
       setSuggestedRoles([]);
