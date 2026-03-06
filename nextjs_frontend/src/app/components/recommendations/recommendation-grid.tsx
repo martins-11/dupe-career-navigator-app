@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { getApiBaseUrl, apiFetch, type UUID } from '@/lib/apiClient';
+import { apiFetch, type UUID } from '@/lib/apiClient';
 
 type RecommendationRole = {
   role_id: string;
