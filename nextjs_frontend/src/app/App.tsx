@@ -587,16 +587,19 @@ export default function App() {
   // (This is separate from backend limits; it’s purely a frontend stability guard.)
   const MAX_TOTAL_UPLOAD_BYTES = 30 * 1024 * 1024; // 30MB across all currently selected + newly selected files
 
+  /**
+   * Track auto-upload state to prevent duplicate concurrent uploads which can freeze the tab.
+   * - The UI also uploads again in "Generate Draft Persona", so we only do the background upload
+   *   when one is not already in-flight.
+   */
+  const isPickerUploadInFlightRef = useRef(false);
+  const lastPickerUploadKeyRef = useRef<string>('');
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     /**
      * IMPORTANT:
      * - Snapshot FileList BEFORE clearing input value.
-     *   Clearing e.target.value can clear e.target.files in some browsers, which caused:
-     *   "Select Files" -> choose files -> no upload request.
-     *
-     * Reliability rule:
-     * - Only trigger the backend upload when the selection passes the same basic UI guards
-     *   (type/count/size). This keeps behavior predictable.
+     * - Keep this handler lightweight: avoid heavy logs and avoid re-entrant uploads.
      */
     e.stopPropagation();
 
@@ -610,11 +613,7 @@ export default function App() {
     const list = e.target.files;
 
     // Some browsers can fire a change event with a null/empty file list (e.g., cancel).
-    if (!list || list.length === 0) {
-      // eslint-disable-next-line no-console
-      console.log('[upload][picker] onChange fired with no files (cancel?)');
-      return;
-    }
+    if (!list || list.length === 0) return;
 
     // CRITICAL: snapshot as a real array NOW (do not retain FileList reference).
     const newFiles = Array.from(list);
@@ -623,14 +622,6 @@ export default function App() {
     // NOTE: do this AFTER snapshotting.
     e.target.value = '';
 
-    // eslint-disable-next-line no-console
-    console.log('[upload][picker] onChange snapshot', {
-      count: newFiles.length,
-      names: newFiles.map((f) => f.name),
-      sizes: newFiles.map((f) => f.size),
-      types: newFiles.map((f) => f.type),
-    });
-
     // Validate up-front so we don't POST requests that are guaranteed to be rejected by the UI anyway.
     const invalidFiles = newFiles.filter((file) => !validateFile(file));
     if (invalidFiles.length > 0) {
@@ -638,12 +629,14 @@ export default function App() {
       return;
     }
 
-    // Size guard (existing + new). Use current state via functional update below, but we can still
-    // check new-only bytes here for clearer logs.
+    // Conservative key to prevent duplicate uploads for the same selection.
+    const selectionKey = newFiles.map((f) => `${f.name}:${f.size}:${f.lastModified}`).join('|');
     const newBytes = newFiles.reduce((sum, f) => sum + (f.size ?? 0), 0);
 
     // Defer UI state updates to next tick to reduce chance of freezes.
     window.setTimeout(() => {
+      let didAccept = false;
+
       setUploadedFiles((prev) => {
         const existingBytes = prev.reduce((sum, f) => sum + (f.file?.size ?? 0), 0);
 
@@ -661,6 +654,7 @@ export default function App() {
           return prev;
         }
 
+        didAccept = true;
         setUploadError('');
         setBackendError('');
 
@@ -672,27 +666,26 @@ export default function App() {
         return [...prev, ...newUploadedFiles];
       });
 
-      // Kick off upload AFTER state guards are satisfied.
+      // Kick off background upload only if:
+      // - selection was accepted by UI guards
+      // - not already uploading
+      // - not a duplicate selection
+      if (!didAccept) return;
+      if (isPickerUploadInFlightRef.current) return;
+      if (selectionKey && selectionKey === lastPickerUploadKeyRef.current) return;
+
+      isPickerUploadInFlightRef.current = true;
+      lastPickerUploadKeyRef.current = selectionKey;
+
       void (async () => {
         try {
-          // eslint-disable-next-line no-console
-          console.log('[upload][picker] POST /uploads/documents starting', {
-            count: newFiles.length,
-            names: newFiles.map((f) => f.name),
-          });
-
           const { uploadDocuments } = await import('@/lib/apiClient');
           const resp = await uploadDocuments({ files: newFiles });
 
-          // eslint-disable-next-line no-console
-          console.log('[upload][picker] POST /uploads/documents succeeded', resp);
-
           // If backend extracted an employee name for a performance review, prefer that as display label.
-          // We do NOT replace the underlying File.name; we only mirror it into UI state for display.
           const summaries = Array.isArray((resp as any)?.fileSummaries) ? ((resp as any).fileSummaries as any[]) : [];
           if (summaries.length > 0) {
             setUploadedFiles((prev) => {
-              // Apply the summaries to the last N appended files (best-effort).
               const next = prev.slice();
               const tailStart = Math.max(0, next.length - newFiles.length);
 
@@ -704,7 +697,6 @@ export default function App() {
                 const isPerformanceReview = summary?.category === 'performance_review';
 
                 if (isPerformanceReview && extractedEmployeeName) {
-                  // Attach a non-breaking custom field for display.
                   (next[tailStart + i] as any).displayName = `Performance review — ${extractedEmployeeName}`;
                 }
               }
@@ -713,9 +705,9 @@ export default function App() {
             });
           }
         } catch (err: any) {
-          // eslint-disable-next-line no-console
-          console.warn('[upload][picker] POST /uploads/documents failed', err);
           setBackendError(err?.message || 'Upload failed. Please try again.');
+        } finally {
+          isPickerUploadInFlightRef.current = false;
         }
       })();
     }, 0);
