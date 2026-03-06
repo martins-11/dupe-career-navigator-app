@@ -1,13 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { SearchBar } from '@/app/components/explore/search-bar';
 import { ActiveFilterTags, Filters } from '@/app/components/explore/filters';
 import { EmptyState } from '@/app/components/explore/empty-state';
 import { RoleCard, SkeletonCard } from '@/app/components/explore/role-card';
 import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
-import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from '@/lib/rolesApi';
+import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles, searchSuggestedRoles } from '@/lib/rolesApi';
+import { getCurrentPersonaId, persistPersonaId } from '@/lib/personaStorage';
+import { createLogger } from '@/lib/logger';
 
 type RecommendedRole = {
   role_id: string;
@@ -19,7 +22,7 @@ type RecommendedRole = {
 
 function joinUrl(base: string, path: string): string {
   if (!base) return path;
-  return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+  return `${base.replace(/\/*$/, '')}/${path.replace(/^\/*/, '')}`;
 }
 
 function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; maxL: number } {
@@ -159,6 +162,31 @@ function mapRecommendationToUiRole(rec: RecommendedRole, index: number): Role {
  * - Uses GET /api/recommendations/roles for "Suggested Roles" after persona finalization.
  */
 export default function Page() {
+  const log = useMemo(() => createLogger('explore'), []);
+  const searchParams = useSearchParams();
+
+  /**
+   * Persona finalization detection / persistence:
+   * - When navigating from the Finalized Persona screen, we include personaId in the Explore URL
+   *   (see RecommendationGrid: /explore?personaId=...).
+   * - Explore must treat that as the source of truth, persist it to localStorage, and use it
+   *   immediately when calling persona-driven endpoints (suggestions + role search scoring).
+   */
+  const personaIdFromUrl = useMemo(() => {
+    const raw = searchParams?.get('personaId');
+    const v = typeof raw === 'string' ? raw.trim() : '';
+    return v.length > 0 ? v : null;
+  }, [searchParams]);
+
+  const canonicalPersonaId = useMemo(() => {
+    return personaIdFromUrl || getCurrentPersonaId();
+  }, [personaIdFromUrl]);
+
+  // Persist URL personaId for subsequent refreshes/navigation.
+  useEffect(() => {
+    if (personaIdFromUrl) persistPersonaId(personaIdFromUrl);
+  }, [personaIdFromUrl]);
+
   const [query, setQuery] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -220,8 +248,9 @@ export default function Page() {
     try {
       const [industries, skills] = await Promise.all([getRoleIndustries(), getRoleSkills()]);
 
-      setIndustryOptions(industries);
-      setSkillsOptions(skills);
+      // Backend contract returns string[] for both endpoints.
+      setIndustryOptions(Array.isArray(industries) ? industries : []);
+      setSkillsOptions(Array.isArray(skills) ? skills : []);
 
       // Optional endpoint: if it errors (404 etc), we simply hide the field.
       try {
@@ -248,58 +277,67 @@ export default function Page() {
 
   const fetchSuggestedRoles = useCallback(async () => {
     /**
-     * Fetch Suggested Roles using backend-scored data (NO static placeholders).
+     * Fetch Suggested Roles from the dedicated recommendations endpoint:
+     * - GET /api/recommendations/roles?personaId=...
      *
-     * We intentionally derive Suggested Roles from the same scored role-search endpoint
-     * that powers main results:
-     * - GET /api/roles/search?q=&limit=
+     * This is the contract used for “suggested roles” and is persona-driven when personaId is present.
      *
-     * Rationale:
-     * - Guarantees Suggested Roles include `threeTwoReport` (score + mastery/growth areas)
-     *   for the 3/2 visuals.
-     * - Ensures sorting by highest compatibility score (backend + defensive client sort).
-     *
-     * Note:
-     * - We previously used GET /api/recommendations/roles, but that response does not
-     *   guarantee `threeTwoReport`. This change aligns with the Day 3 requirement:
-     *   Suggested Roles + search results must be fed by dynamic scored data.
+     * Fallback:
+     * - If recommendations return empty (or fail), we fall back to persona-driven search scoring:
+     *   - GET /api/roles/search?personaId=...&q=&limit=...
+     * This ensures we still populate the section with personalized results (and 3/2 report)
+     * even if the recommendations subsystem is unavailable.
      */
     setIsLoadingSuggested(true);
     setSuggestedError(null);
 
     try {
-      // Use a broad search (explicit empty q string) and take the top N scored results.
-      // IMPORTANT: persona-driven wiring
-      // - When personaId is present in localStorage (set after orchestration run-all),
-      //   pass it to the backend so it loads the *finalized persona* as the source of truth
-      //   for scoring + mastery/growth tags.
-      const personaId =
-        typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
+      const personaId = canonicalPersonaId || '';
 
-      const rows = await searchRoles({ q: '', limit: 6, personaId: personaId || undefined });
+      log.info(
+        'fetchSuggestedRoles personaId',
+        {
+          personaId: personaId || null,
+          source: personaIdFromUrl ? 'url' : canonicalPersonaId ? 'localStorage' : 'none',
+        },
+        { throttleMs: 10000, key: 'suggestedRolesPersonaId' }
+      );
 
-      const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
+      let suggested: Role[] = [];
 
-      // Defensive sort in case backend changes (still expected backend sort desc).
-      mapped.sort((a, b) => {
-        const aScore =
-          typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
-            ? (a as any).threeTwoReport.compatibilityScore
-            : typeof (a as any)?.threeTwoReport?.score === 'number'
-              ? (a as any).threeTwoReport.score
-              : -Infinity;
+      // Primary: recommendations service
+      if (personaId) {
+        const recs = await searchSuggestedRoles({ personaId, limit: 5 });
+        suggested = (Array.isArray(recs) ? recs : []).map(mapRecommendationToUiRole);
+      }
 
-        const bScore =
-          typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
-            ? (b as any).threeTwoReport.compatibilityScore
-            : typeof (b as any)?.threeTwoReport?.score === 'number'
-              ? (b as any).threeTwoReport.score
-              : -Infinity;
+      // Fallback: persona-driven scored search (gives 3/2 report)
+      if (suggested.length === 0) {
+        const rows = await searchRoles({ q: '', limit: 6, personaId: personaId || undefined });
+        const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
 
-        return bScore - aScore;
-      });
+        mapped.sort((a, b) => {
+          const aScore =
+            typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
+              ? (a as any).threeTwoReport.compatibilityScore
+              : typeof (a as any)?.threeTwoReport?.score === 'number'
+                ? (a as any).threeTwoReport.score
+                : -Infinity;
 
-      setSuggestedRoles(mapped.slice(0, 4));
+          const bScore =
+            typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
+              ? (b as any).threeTwoReport.compatibilityScore
+              : typeof (b as any)?.threeTwoReport?.score === 'number'
+                ? (b as any).threeTwoReport.score
+                : -Infinity;
+
+          return bScore - aScore;
+        });
+
+        suggested = mapped.slice(0, 4);
+      }
+
+      setSuggestedRoles(suggested.slice(0, 4));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load Suggested Roles.';
       setSuggestedRoles([]);
@@ -307,7 +345,7 @@ export default function Page() {
     } finally {
       setIsLoadingSuggested(false);
     }
-  }, []);
+  }, [canonicalPersonaId, personaIdFromUrl]);
 
   const fetchRoles = useCallback(async () => {
     setIsLoading(true);
@@ -321,8 +359,16 @@ export default function Page() {
        *
        * Note: min_salary/max_salary are UI slider units (lakhs). Backend converts to align with USD catalog.
        */
-      const personaId =
-        typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
+      const personaId = canonicalPersonaId || '';
+
+      log.info(
+        'fetchRoles personaId',
+        {
+          personaId: personaId || null,
+          source: personaIdFromUrl ? 'url' : canonicalPersonaId ? 'localStorage' : 'none',
+        },
+        { throttleMs: 10000, key: 'rolesPersonaId' }
+      );
 
       const data = await searchRoles({
         q: query.trim() || undefined,
@@ -365,7 +411,7 @@ export default function Page() {
     } finally {
       setIsLoading(false);
     }
-  }, [query, selectedIndustry, selectedSkills, salaryRange]);
+  }, [canonicalPersonaId, personaIdFromUrl, query, selectedIndustry, selectedSkills, salaryRange]);
 
   const resetAll = useCallback(() => {
     setQuery('');
@@ -400,7 +446,7 @@ export default function Page() {
     void fetchRoles();
   }
 
-  // Initial load: fetch persona-driven Suggested Roles without requiring user search.
+  // Initial load: fetch Suggested Roles without requiring user search.
   // Also prefetch filter options so the filter UI is ready when the user searches.
   useEffect(() => {
     void fetchSuggestedRoles();
@@ -411,6 +457,13 @@ export default function Page() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // If personaId arrives later (e.g. after finalization navigation, or localStorage updated),
+  // refetch suggestions so we don't get stuck in the "No suggestions yet" state.
+  useEffect(() => {
+    if (!canonicalPersonaId) return;
+    void fetchSuggestedRoles();
+  }, [canonicalPersonaId, fetchSuggestedRoles]);
 
   // Re-fetch when filters change (after initial search)
   useEffect(() => {

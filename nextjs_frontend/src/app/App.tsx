@@ -11,7 +11,9 @@ import {
   type BuildStatus,
   type UUID,
 } from '@/lib/apiClient';
+import { getCurrentPersonaId, persistPersonaId, persistPersonaIdFromOrchestrationResponse, setStoredPersonaId } from '@/lib/personaStorage';
 import { RecommendationGrid } from '@/app/components/recommendations/recommendation-grid';
+import { createLogger } from '@/lib/logger';
 
 /**
  * Background image was previously referencing a non-existent asset, causing repeated 404s.
@@ -270,25 +272,17 @@ function coercePersonaDataFromBackendJson(personaJson: any, fallback: PersonaDat
   /**
    * Attempt to map backend persona JSON into this UI's legacy PersonaData fields.
    *
-   * We support TWO common backend shapes:
-   * 1) “Legacy/current state” persona JSON keys:
-   *    - professional_summary (string)
-   *    - core_competencies (string[])
-   *    - career_highlights (string[] | {text:string, source_experience?: string}[])
-   *
-   * 2) OpenAPI PersonaDraft shape:
-   *    - title (string)
-   *    - summary (string)
-   *    - profile.headline (string)  -> best candidate for role/designation
-   *    - skills (string[])
-   *    - experienceHighlights (string[])
-   *
-   * UI bindings:
-   * - personaData.title is displayed as the role/designation line (header + persona sections).
-   * - personaData.name may exist but is not shown under app headline per requirements.
+   * NOTE (perf):
+   * Do NOT console.log the full personaJson here — orchestration artifacts can include large blobs,
+   * and logging them can freeze Chrome/DevTools. Instead, log only a small summary.
    */
   // eslint-disable-next-line no-console
-  console.log('[persona][coerce] raw personaJson:', personaJson);
+  console.log('[persona][coerce] personaJson summary', {
+    type: Array.isArray(personaJson) ? 'array' : typeof personaJson,
+    keys: isNonEmptyObject(personaJson) ? Object.keys(personaJson) : [],
+    title: typeof personaJson?.title === 'string' ? personaJson.title : undefined,
+    headline: typeof personaJson?.profile?.headline === 'string' ? personaJson.profile.headline : undefined,
+  });
 
   try {
     const coercedSkills = asStringArray(personaJson?.core_competencies ?? personaJson?.skills);
@@ -374,6 +368,12 @@ function coercePersonaDataFromBackendJson(personaJson: any, fallback: PersonaDat
 
 export default function App() {
   /**
+   * Rate-limited logger to prevent Chrome/DevTools freezes from high-frequency logs
+   * (especially build-status polling).
+   */
+  const log = useMemo(() => createLogger('app'), []);
+
+  /**
    * Mount guard: used to prevent setState after unmount and to stabilize any auto-trigger logic.
    */
   const isMountedRef = useRef(false);
@@ -399,6 +399,12 @@ export default function App() {
   const [buildId, setBuildId] = useState<UUID | null>(null);
   const [personaId, setPersonaId] = useState<UUID | null>(null);
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
+
+  // Hydrate personaId from URL/localStorage so the UI and API calls stay consistent across refresh/navigation.
+  useEffect(() => {
+    const pid = getCurrentPersonaId();
+    if (pid) setPersonaId(pid);
+  }, []);
 
   const [isEditable, setIsEditable] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -580,16 +586,21 @@ export default function App() {
   // (This is separate from backend limits; it’s purely a frontend stability guard.)
   const MAX_TOTAL_UPLOAD_BYTES = 30 * 1024 * 1024; // 30MB across all currently selected + newly selected files
 
+  /**
+   * Upload concurrency guard:
+   * We intentionally do NOT auto-upload on file selection, because the "Generate Draft Persona"
+   * action also uploads and would otherwise create duplicate concurrent uploads (a common cause
+   * of Chrome hangs on large files).
+   *
+   * This ref is used to prevent starting multiple uploads at once (double-clicks, re-entrancy).
+   */
+  const isUploadInFlightRef = useRef(false);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     /**
      * IMPORTANT:
      * - Snapshot FileList BEFORE clearing input value.
-     *   Clearing e.target.value can clear e.target.files in some browsers, which caused:
-     *   "Select Files" -> choose files -> no upload request.
-     *
-     * Reliability rule:
-     * - Only trigger the backend upload when the selection passes the same basic UI guards
-     *   (type/count/size). This keeps behavior predictable.
+     * - Keep this handler lightweight: avoid network calls, heavy logs, or parsing.
      */
     e.stopPropagation();
 
@@ -603,11 +614,7 @@ export default function App() {
     const list = e.target.files;
 
     // Some browsers can fire a change event with a null/empty file list (e.g., cancel).
-    if (!list || list.length === 0) {
-      // eslint-disable-next-line no-console
-      console.log('[upload][picker] onChange fired with no files (cancel?)');
-      return;
-    }
+    if (!list || list.length === 0) return;
 
     // CRITICAL: snapshot as a real array NOW (do not retain FileList reference).
     const newFiles = Array.from(list);
@@ -616,23 +623,13 @@ export default function App() {
     // NOTE: do this AFTER snapshotting.
     e.target.value = '';
 
-    // eslint-disable-next-line no-console
-    console.log('[upload][picker] onChange snapshot', {
-      count: newFiles.length,
-      names: newFiles.map((f) => f.name),
-      sizes: newFiles.map((f) => f.size),
-      types: newFiles.map((f) => f.type),
-    });
-
-    // Validate up-front so we don't POST requests that are guaranteed to be rejected by the UI anyway.
+    // Validate up-front so we don't accept files that the UI will reject anyway.
     const invalidFiles = newFiles.filter((file) => !validateFile(file));
     if (invalidFiles.length > 0) {
       setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
       return;
     }
 
-    // Size guard (existing + new). Use current state via functional update below, but we can still
-    // check new-only bytes here for clearer logs.
     const newBytes = newFiles.reduce((sum, f) => sum + (f.size ?? 0), 0);
 
     // Defer UI state updates to next tick to reduce chance of freezes.
@@ -664,53 +661,6 @@ export default function App() {
 
         return [...prev, ...newUploadedFiles];
       });
-
-      // Kick off upload AFTER state guards are satisfied.
-      void (async () => {
-        try {
-          // eslint-disable-next-line no-console
-          console.log('[upload][picker] POST /uploads/documents starting', {
-            count: newFiles.length,
-            names: newFiles.map((f) => f.name),
-          });
-
-          const { uploadDocuments } = await import('@/lib/apiClient');
-          const resp = await uploadDocuments({ files: newFiles });
-
-          // eslint-disable-next-line no-console
-          console.log('[upload][picker] POST /uploads/documents succeeded', resp);
-
-          // If backend extracted an employee name for a performance review, prefer that as display label.
-          // We do NOT replace the underlying File.name; we only mirror it into UI state for display.
-          const summaries = Array.isArray((resp as any)?.fileSummaries) ? ((resp as any).fileSummaries as any[]) : [];
-          if (summaries.length > 0) {
-            setUploadedFiles((prev) => {
-              // Apply the summaries to the last N appended files (best-effort).
-              const next = prev.slice();
-              const tailStart = Math.max(0, next.length - newFiles.length);
-
-              for (let i = 0; i < newFiles.length; i += 1) {
-                const summary = summaries[i];
-                const extractedEmployeeName =
-                  summary && typeof summary.extractedEmployeeName === 'string' ? summary.extractedEmployeeName.trim() : '';
-
-                const isPerformanceReview = summary?.category === 'performance_review';
-
-                if (isPerformanceReview && extractedEmployeeName) {
-                  // Attach a non-breaking custom field for display.
-                  (next[tailStart + i] as any).displayName = `Performance review — ${extractedEmployeeName}`;
-                }
-              }
-
-              return next;
-            });
-          }
-        } catch (err: any) {
-          // eslint-disable-next-line no-console
-          console.warn('[upload][picker] POST /uploads/documents failed', err);
-          setBackendError(err?.message || 'Upload failed. Please try again.');
-        }
-      })();
     }, 0);
   };
 
@@ -732,6 +682,10 @@ export default function App() {
   };
 
   const handleGenerateDraft = async () => {
+    // Prevent re-entrancy/double-clicks from kicking off duplicate uploads + orchestration.
+    if (isUploadInFlightRef.current) return;
+    isUploadInFlightRef.current = true;
+
     const generationId = ++generationIdRef.current;
 
     // Reset artifact circuit-breakers so new uploads can apply new artifacts.
@@ -770,7 +724,11 @@ export default function App() {
       await import('@/lib/apiClient').then(async ({ uploadDocuments }) => {
         const uploadResp = await uploadDocuments({ files });
         // eslint-disable-next-line no-console
-        console.log(`[draft][gen:${generationId}] uploadDocuments raw response:`, uploadResp);
+        console.log(`[draft][gen:${generationId}] uploadDocuments response summary:`, {
+          uploadId: (uploadResp as any)?.uploadId,
+          receivedFilesCount: Array.isArray((uploadResp as any)?.receivedFiles) ? (uploadResp as any).receivedFiles.length : undefined,
+          message: (uploadResp as any)?.message,
+        });
       });
 
       // CRITICAL: Do NOT rely on backend “useLatestCategoryDocs” auto-selection for anonymous sessions,
@@ -804,27 +762,45 @@ export default function App() {
       };
 
       // eslint-disable-next-line no-console
-      console.log(`[orchestrationRunAll][gen:${generationId}] request:`, runAllRequest);
+      console.log(`[orchestrationRunAll][gen:${generationId}] request summary:`, {
+        mode: runAllRequest.mode,
+        documentIdsCount: Array.isArray(runAllRequest.documentIds) ? runAllRequest.documentIds.length : 0,
+        useLatestCategoryDocs: runAllRequest.useLatestCategoryDocs,
+        autoCreatePersona: runAllRequest.autoCreatePersona,
+        generate: runAllRequest.generate,
+      });
 
       const runAll = await orchestrationRunAll(runAllRequest);
 
+      // IMPORTANT (perf): do not log the full `runAll` response, which may include large nested artifacts.
+      // Logging large objects can cause synchronous serialization that freezes Chrome/DevTools.
       // eslint-disable-next-line no-console
-      console.log(`[orchestrationRunAll][gen:${generationId}] response:`, runAll);
+      console.log(`[orchestrationRunAll][gen:${generationId}] response summary:`, {
+        buildId: runAll?.build?.id,
+        status: runAll?.build?.status,
+        progress: runAll?.build?.progress,
+        currentStep: runAll?.build?.currentStep ?? null,
+        hasResults: Boolean((runAll as any)?.results),
+        topLevelKeys: runAll && typeof runAll === 'object' ? Object.keys(runAll as any) : [],
+      });
 
       setBuildId(runAll.build.id);
-      setPersonaId(runAll.results.generate.personaId ?? null);
 
-      // Persona bridging:
-      // Persist the generated personaId so Explore/Suggested Roles can be persona-driven
-      // even after navigation/refresh.
-      try {
-        const pid = runAll.results.generate.personaId ?? null;
-        if (pid) {
-          window.localStorage.setItem('careerNavigator.personaId', String(pid));
-        }
-      } catch {
-        // ignore storage errors (e.g., privacy mode)
-      }
+      // Persona bridging (CRITICAL):
+      // - Extract personaId from the orchestration envelope (authoritative)
+      // - Persist to localStorage immediately so navigation to /explore has persona context
+      // - Keep React state in sync with the persisted personaId
+      const extractedPersonaId = persistPersonaIdFromOrchestrationResponse(runAll);
+      const canonicalPersonaId = persistPersonaId(extractedPersonaId);
+
+      // eslint-disable-next-line no-console
+      console.log(`[persona][gen:${generationId}] persisted personaId`, {
+        extractedPersonaId: extractedPersonaId ?? null,
+        canonicalPersonaId: canonicalPersonaId ?? null,
+      });
+
+      setPersonaId((canonicalPersonaId ?? extractedPersonaId ?? null) as any);
+
       setBuildStatus({
         id: runAll.build.id,
         status: runAll.build.status,
@@ -850,6 +826,8 @@ export default function App() {
       setBackendError(message);
       setHasError(true);
       setState('processing');
+    } finally {
+      isUploadInFlightRef.current = false;
     }
   };
 
@@ -894,10 +872,53 @@ export default function App() {
     }
   };
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
+    /**
+     * Persist finalized persona to the backend so downstream systems (like
+     * /api/recommendations/initial?personaId=...) can load it via personasRepo.getFinal().
+     *
+     * Previously this button only flipped UI state, which caused recommendations to fail
+     * with final_persona_not_found.
+     */
     setHasLoadedPostPersonaRecommendations(false);
-    setState('finalized');
-    setIsEditable(false);
+    setBackendError('');
+
+    if (!buildId) {
+      setBackendError('No build available to finalize. Please generate a draft persona first.');
+      return;
+    }
+
+    try {
+      const { finalizePersonaForBuild } = await import('@/lib/apiClient');
+
+      // Use personaId if available (recommended); backend also can infer from orchestration record.
+      // Persist the UI persona payload as the explicit finalOverride so edits are carried over.
+      const finalOverride = isNonEmptyObject(personaData) ? (personaData as any) : undefined;
+
+      const resp = await finalizePersonaForBuild({
+        buildId,
+        personaId: personaId ?? undefined,
+        finalOverride,
+        saveFinal: true,
+        createVersion: true,
+      });
+
+      // Ensure personaId stays persisted (some environments may return it only from finalize).
+      if (resp?.personaId) {
+        setPersonaId(resp.personaId as any);
+        setStoredPersonaId(String(resp.personaId));
+      }
+
+      setState('finalized');
+      setIsEditable(false);
+    } catch (e: any) {
+      const payloadMsg =
+        e?.payload && typeof e.payload === 'object' && e.payload !== null ? e.payload?.message || e.payload?.error : null;
+
+      const message = payloadMsg || e?.message || 'Failed to finalize persona.';
+      setBackendError(message);
+      setHasError(true);
+    }
   };
 
   // PUBLIC_INTERFACE
@@ -938,11 +959,8 @@ export default function App() {
       setPersonaId(resp.personaId ?? null);
 
       // Keep persisted personaId in sync for Explore/recommendations bridging.
-      try {
-        const pid = resp.personaId ?? null;
-        if (pid) window.localStorage.setItem('careerNavigator.personaId', String(pid));
-      } catch {
-        // ignore
+      if (resp?.personaId) {
+        setStoredPersonaId(String(resp.personaId));
       }
 
       if (buildStatus?.status === 'succeeded') {
@@ -974,8 +992,18 @@ export default function App() {
     const interval = setInterval(async () => {
       try {
         const status = await getBuildStatus(buildId);
-        // eslint-disable-next-line no-console
-        console.log(`[poll][gen:${generationId}] getBuildStatus raw response:`, status);
+
+        // Throttle polling logs heavily. Frequent logs can freeze DevTools and the main thread.
+        log.info(
+          `[poll][gen:${generationId}] buildStatus`,
+          {
+            id: status?.id,
+            status: status?.status,
+            progress: status?.progress,
+            currentStep: status?.currentStep,
+          },
+          { throttleMs: 10000, key: `poll:${buildId}` }
+        );
 
         if (cancelled || !isMountedRef.current) return;
 
@@ -984,8 +1012,14 @@ export default function App() {
         if (status.status === 'succeeded') {
           setState('draft');
         } else if (status.status === 'failed' || status.status === 'cancelled') {
-          // eslint-disable-next-line no-console
-          console.error(`[poll][gen:${generationId}] build ${status.status}; message=`, status.message, 'full status=', status);
+          // Avoid logging the full status object (can be large).
+          log.error(`[poll][gen:${generationId}] build ${status.status}`, {
+            message: status.message,
+            id: status.id,
+            progress: status.progress,
+            currentStep: status.currentStep,
+          });
+
           setBackendError(status.message || `Build ${status.status}.`);
           setHasError(true);
           setState('processing');
@@ -997,8 +1031,8 @@ export default function App() {
           e?.payload && typeof e.payload === 'object' && e.payload !== null ? e.payload?.message || e.payload?.error : null;
 
         const message = payloadMsg || e?.message || 'Failed to poll build status.';
-        // eslint-disable-next-line no-console
-        console.error(`[poll][gen:${generationId}] polling error`, { message, error: e });
+
+        log.error(`[poll][gen:${generationId}] polling error`, { message });
 
         setBackendError(message);
         setHasError(true);

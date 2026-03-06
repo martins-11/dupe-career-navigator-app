@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { getApiBaseUrl, apiFetch, type UUID } from '@/lib/apiClient';
+import { apiFetch, type UUID } from '@/lib/apiClient';
+import { getCurrentPersonaId } from '@/lib/personaStorage';
 
 type RecommendationRole = {
   role_id: string;
@@ -300,6 +301,8 @@ export function RecommendationGrid(props: {
 
   const { mastery, growth } = useMemo(() => computeMasteryGrowthSets(props.finalPersona), [props.finalPersona]);
 
+  const canonicalPersonaId = getCurrentPersonaId() || (props.personaId ? String(props.personaId) : null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -309,17 +312,16 @@ export function RecommendationGrid(props: {
 
       try {
         // Contract: backend requires personaId (persona-driven only).
-        if (!props.personaId) {
+        if (!canonicalPersonaId) {
           throw new Error('Missing personaId: finalize a persona to generate recommendations.');
         }
 
         const sp = new URLSearchParams();
-        sp.set('personaId', String(props.personaId));
+        sp.set('personaId', canonicalPersonaId);
 
-        const data = await apiFetch<{ roles: RecommendationRole[] }>(
-          `/api/recommendations/initial?${sp.toString()}`,
-          { method: 'GET' }
-        );
+        const data = await apiFetch<{ roles: RecommendationRole[] }>(`/api/recommendations/initial?${sp.toString()}`, {
+          method: 'GET',
+        });
 
         const next = Array.isArray(data?.roles) ? data.roles : [];
         const sliced = next.slice(0, 5);
@@ -341,10 +343,11 @@ export function RecommendationGrid(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.personaId]);
+  }, [canonicalPersonaId, props.onLoadedExactlyFive]);
 
   // Keep navigation reliable by using a direct relative route. (Works with Next.js App Router.)
-  const exploreUrl = '/explore';
+  // Include personaId in the URL to avoid any localStorage/stale-state mismatch issues.
+  const exploreUrl = canonicalPersonaId ? `/explore?personaId=${encodeURIComponent(canonicalPersonaId)}` : '/explore';
 
   return (
     <section style={{ marginTop: 24 }}>
@@ -358,28 +361,33 @@ export function RecommendationGrid(props: {
           </p>
         </div>
 
-        {/* Explore should only appear AFTER the 5 recommendations are loaded */}
-        {roles.length === 5 && !isLoading ? (
-          <a
-            href={exploreUrl}
-            style={{
-              height: 38,
-              padding: '8px 14px',
-              borderRadius: 999,
-              backgroundColor: '#17A6A6',
-              color: '#FFFFFF',
-              fontSize: 13,
-              fontWeight: 800,
-              textDecoration: 'none',
-              border: '1px solid rgba(23,166,166,0.35)',
-              boxShadow: '0 8px 20px rgba(23,166,166,0.18)',
-              whiteSpace: 'nowrap',
-            }}
-            aria-label="Explore roles"
-          >
-            Explore
-          </a>
-        ) : null}
+        {/* Explore should only be usable AFTER the 5 recommendations are loaded */}
+        <a
+          href={roles.length === 5 && !isLoading ? exploreUrl : undefined}
+          aria-disabled={!(roles.length === 5 && !isLoading)}
+          onClick={(e) => {
+            if (!(roles.length === 5 && !isLoading)) e.preventDefault();
+          }}
+          style={{
+            height: 38,
+            padding: '8px 14px',
+            borderRadius: 999,
+            backgroundColor: '#17A6A6',
+            color: '#FFFFFF',
+            fontSize: 13,
+            fontWeight: 800,
+            textDecoration: 'none',
+            border: '1px solid rgba(23,166,166,0.35)',
+            boxShadow: '0 8px 20px rgba(23,166,166,0.18)',
+            whiteSpace: 'nowrap',
+            opacity: roles.length === 5 && !isLoading ? 1 : 0.45,
+            pointerEvents: roles.length === 5 && !isLoading ? 'auto' : 'none',
+          }}
+          aria-label="Explore roles"
+          title={roles.length === 5 && !isLoading ? 'Explore roles' : 'Generating recommendations…'}
+        >
+          Explore
+        </a>
       </div>
 
       {isLoading ? (
