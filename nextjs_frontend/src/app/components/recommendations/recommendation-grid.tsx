@@ -364,28 +364,33 @@ export function RecommendationGrid(props: {
           </p>
         </div>
 
-        {/* Explore should only appear AFTER the 5 recommendations are loaded */}
-        {roles.length === 5 && !isLoading ? (
-          <a
-            href={exploreUrl}
-            style={{
-              height: 38,
-              padding: '8px 14px',
-              borderRadius: 999,
-              backgroundColor: '#17A6A6',
-              color: '#FFFFFF',
-              fontSize: 13,
-              fontWeight: 800,
-              textDecoration: 'none',
-              border: '1px solid rgba(23,166,166,0.35)',
-              boxShadow: '0 8px 20px rgba(23,166,166,0.18)',
-              whiteSpace: 'nowrap',
-            }}
-            aria-label="Explore roles"
-          >
-            Explore
-          </a>
-        ) : null}
+        {/* Explore should only be usable AFTER the 5 recommendations are loaded */}
+        <a
+          href={roles.length === 5 && !isLoading ? exploreUrl : undefined}
+          aria-disabled={!(roles.length === 5 && !isLoading)}
+          onClick={(e) => {
+            if (!(roles.length === 5 && !isLoading)) e.preventDefault();
+          }}
+          style={{
+            height: 38,
+            padding: '8px 14px',
+            borderRadius: 999,
+            backgroundColor: '#17A6A6',
+            color: '#FFFFFF',
+            fontSize: 13,
+            fontWeight: 800,
+            textDecoration: 'none',
+            border: '1px solid rgba(23,166,166,0.35)',
+            boxShadow: '0 8px 20px rgba(23,166,166,0.18)',
+            whiteSpace: 'nowrap',
+            opacity: roles.length === 5 && !isLoading ? 1 : 0.45,
+            pointerEvents: roles.length === 5 && !isLoading ? 'auto' : 'none',
+          }}
+          aria-label="Explore roles"
+          title={roles.length === 5 && !isLoading ? 'Explore roles' : 'Generating recommendations…'}
+        >
+          Explore
+        </a>
       </div>
 
       {isLoading ? (
