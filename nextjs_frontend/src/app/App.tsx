@@ -755,12 +755,27 @@ export default function App() {
       };
 
       // eslint-disable-next-line no-console
-      console.log(`[orchestrationRunAll][gen:${generationId}] request:`, runAllRequest);
+      console.log(`[orchestrationRunAll][gen:${generationId}] request summary:`, {
+        mode: runAllRequest.mode,
+        documentIdsCount: Array.isArray(runAllRequest.documentIds) ? runAllRequest.documentIds.length : 0,
+        useLatestCategoryDocs: runAllRequest.useLatestCategoryDocs,
+        autoCreatePersona: runAllRequest.autoCreatePersona,
+        generate: runAllRequest.generate,
+      });
 
       const runAll = await orchestrationRunAll(runAllRequest);
 
+      // IMPORTANT (perf): do not log the full `runAll` response, which may include large nested artifacts.
+      // Logging large objects can cause synchronous serialization that freezes Chrome/DevTools.
       // eslint-disable-next-line no-console
-      console.log(`[orchestrationRunAll][gen:${generationId}] response:`, runAll);
+      console.log(`[orchestrationRunAll][gen:${generationId}] response summary:`, {
+        buildId: runAll?.build?.id,
+        status: runAll?.build?.status,
+        progress: runAll?.build?.progress,
+        currentStep: runAll?.build?.currentStep ?? null,
+        hasResults: Boolean((runAll as any)?.results),
+        topLevelKeys: runAll && typeof runAll === 'object' ? Object.keys(runAll as any) : [],
+      });
 
       setBuildId(runAll.build.id);
 
@@ -970,8 +985,15 @@ export default function App() {
     const interval = setInterval(async () => {
       try {
         const status = await getBuildStatus(buildId);
+        // IMPORTANT (perf): do not log full polling payloads repeatedly; log only a stable summary.
         // eslint-disable-next-line no-console
-        console.log(`[poll][gen:${generationId}] getBuildStatus raw response:`, status);
+        console.log(`[poll][gen:${generationId}] getBuildStatus summary:`, {
+          id: status?.id,
+          status: status?.status,
+          progress: status?.progress,
+          currentStep: status?.currentStep,
+          updatedAt: status?.updatedAt,
+        });
 
         if (cancelled || !isMountedRef.current) return;
 
