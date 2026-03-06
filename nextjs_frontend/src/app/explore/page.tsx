@@ -276,6 +276,9 @@ export default function Page() {
       const personaId =
         typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
 
+      // eslint-disable-next-line no-console
+      console.log('[explore] fetchSuggestedRoles personaId', { personaId: personaId || null });
+
       const rows = await searchRoles({ q: '', limit: 6, personaId: personaId || undefined });
 
       const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
@@ -323,6 +326,9 @@ export default function Page() {
        */
       const personaId =
         typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
+
+      // eslint-disable-next-line no-console
+      console.log('[explore] fetchRoles personaId', { personaId: personaId || null });
 
       const data = await searchRoles({
         q: query.trim() || undefined,

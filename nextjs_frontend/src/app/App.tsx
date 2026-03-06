@@ -11,6 +11,7 @@ import {
   type BuildStatus,
   type UUID,
 } from '@/lib/apiClient';
+import { persistPersonaIdFromOrchestrationResponse, setStoredPersonaId } from '@/lib/personaStorage';
 import { RecommendationGrid } from '@/app/components/recommendations/recommendation-grid';
 
 /**
@@ -812,19 +813,15 @@ export default function App() {
       console.log(`[orchestrationRunAll][gen:${generationId}] response:`, runAll);
 
       setBuildId(runAll.build.id);
-      setPersonaId(runAll.results.generate.personaId ?? null);
 
-      // Persona bridging:
-      // Persist the generated personaId so Explore/Suggested Roles can be persona-driven
-      // even after navigation/refresh.
-      try {
-        const pid = runAll.results.generate.personaId ?? null;
-        if (pid) {
-          window.localStorage.setItem('careerNavigator.personaId', String(pid));
-        }
-      } catch {
-        // ignore storage errors (e.g., privacy mode)
-      }
+      // Persona bridging (CRITICAL):
+      // - Extract personaId from the orchestration envelope
+      // - Persist to localStorage immediately so navigation to /explore has persona context
+      const extractedPersonaId = persistPersonaIdFromOrchestrationResponse(runAll);
+
+      // Keep React state in sync with the persisted personaId.
+      setPersonaId(extractedPersonaId ?? null);
+
       setBuildStatus({
         id: runAll.build.id,
         status: runAll.build.status,
@@ -938,11 +935,8 @@ export default function App() {
       setPersonaId(resp.personaId ?? null);
 
       // Keep persisted personaId in sync for Explore/recommendations bridging.
-      try {
-        const pid = resp.personaId ?? null;
-        if (pid) window.localStorage.setItem('careerNavigator.personaId', String(pid));
-      } catch {
-        // ignore
+      if (resp?.personaId) {
+        setStoredPersonaId(String(resp.personaId));
       }
 
       if (buildStatus?.status === 'succeeded') {
