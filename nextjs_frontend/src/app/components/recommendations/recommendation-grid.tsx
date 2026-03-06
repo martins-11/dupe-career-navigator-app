@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { apiFetch, type UUID } from '@/lib/apiClient';
+import type { UUID } from '@/lib/apiClient';
 import { getCurrentPersonaId } from '@/lib/personaStorage';
 
 type RecommendationRole = {
@@ -14,6 +14,29 @@ type RecommendationRole = {
   key_responsibilities?: string[];
   required_skills?: string[];
 };
+
+/**
+ * Local JSON fetch wrapper for this client component.
+ *
+ * We intentionally keep this local (instead of importing apiFetch) to avoid
+ * Fast Refresh / module export shape issues that can surface as:
+ * "apiFetch is not exported" / "apiFetch is not a function".
+ */
+async function apiFetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+
+  let payload: any = null;
+  try {
+    payload = await res.json();
+  } catch {
+    payload = null;
+  }
+
+  if (res.ok) return payload as T;
+
+  const message = (payload && (payload.message || payload.error)) || `Request failed with status ${res.status}`;
+  throw new Error(message);
+}
 
 function joinUrl(base: string, path: string): string {
   if (!base) return path;
@@ -319,7 +342,7 @@ export function RecommendationGrid(props: {
         const sp = new URLSearchParams();
         sp.set('personaId', canonicalPersonaId);
 
-        const data = await apiFetch<{ roles: RecommendationRole[] }>(`/api/recommendations/initial?${sp.toString()}`, {
+        const data = await apiFetchJson<{ roles: RecommendationRole[] }>(`/api/recommendations/initial?${sp.toString()}`, {
           method: 'GET',
         });
 
