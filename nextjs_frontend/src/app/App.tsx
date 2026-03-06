@@ -271,25 +271,17 @@ function coercePersonaDataFromBackendJson(personaJson: any, fallback: PersonaDat
   /**
    * Attempt to map backend persona JSON into this UI's legacy PersonaData fields.
    *
-   * We support TWO common backend shapes:
-   * 1) “Legacy/current state” persona JSON keys:
-   *    - professional_summary (string)
-   *    - core_competencies (string[])
-   *    - career_highlights (string[] | {text:string, source_experience?: string}[])
-   *
-   * 2) OpenAPI PersonaDraft shape:
-   *    - title (string)
-   *    - summary (string)
-   *    - profile.headline (string)  -> best candidate for role/designation
-   *    - skills (string[])
-   *    - experienceHighlights (string[])
-   *
-   * UI bindings:
-   * - personaData.title is displayed as the role/designation line (header + persona sections).
-   * - personaData.name may exist but is not shown under app headline per requirements.
+   * NOTE (perf):
+   * Do NOT console.log the full personaJson here — orchestration artifacts can include large blobs,
+   * and logging them can freeze Chrome/DevTools. Instead, log only a small summary.
    */
   // eslint-disable-next-line no-console
-  console.log('[persona][coerce] raw personaJson:', personaJson);
+  console.log('[persona][coerce] personaJson summary', {
+    type: Array.isArray(personaJson) ? 'array' : typeof personaJson,
+    keys: isNonEmptyObject(personaJson) ? Object.keys(personaJson) : [],
+    title: typeof personaJson?.title === 'string' ? personaJson.title : undefined,
+    headline: typeof personaJson?.profile?.headline === 'string' ? personaJson.profile.headline : undefined,
+  });
 
   try {
     const coercedSkills = asStringArray(personaJson?.core_competencies ?? personaJson?.skills);
@@ -588,18 +580,20 @@ export default function App() {
   const MAX_TOTAL_UPLOAD_BYTES = 30 * 1024 * 1024; // 30MB across all currently selected + newly selected files
 
   /**
-   * Track auto-upload state to prevent duplicate concurrent uploads which can freeze the tab.
-   * - The UI also uploads again in "Generate Draft Persona", so we only do the background upload
-   *   when one is not already in-flight.
+   * Upload concurrency guard:
+   * We intentionally do NOT auto-upload on file selection, because the "Generate Draft Persona"
+   * action also uploads and would otherwise create duplicate concurrent uploads (a common cause
+   * of Chrome hangs on large files).
+   *
+   * This ref is used to prevent starting multiple uploads at once (double-clicks, re-entrancy).
    */
-  const isPickerUploadInFlightRef = useRef(false);
-  const lastPickerUploadKeyRef = useRef<string>('');
+  const isUploadInFlightRef = useRef(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     /**
      * IMPORTANT:
      * - Snapshot FileList BEFORE clearing input value.
-     * - Keep this handler lightweight: avoid heavy logs and avoid re-entrant uploads.
+     * - Keep this handler lightweight: avoid network calls, heavy logs, or parsing.
      */
     e.stopPropagation();
 
@@ -622,21 +616,17 @@ export default function App() {
     // NOTE: do this AFTER snapshotting.
     e.target.value = '';
 
-    // Validate up-front so we don't POST requests that are guaranteed to be rejected by the UI anyway.
+    // Validate up-front so we don't accept files that the UI will reject anyway.
     const invalidFiles = newFiles.filter((file) => !validateFile(file));
     if (invalidFiles.length > 0) {
       setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
       return;
     }
 
-    // Conservative key to prevent duplicate uploads for the same selection.
-    const selectionKey = newFiles.map((f) => `${f.name}:${f.size}:${f.lastModified}`).join('|');
     const newBytes = newFiles.reduce((sum, f) => sum + (f.size ?? 0), 0);
 
     // Defer UI state updates to next tick to reduce chance of freezes.
     window.setTimeout(() => {
-      let didAccept = false;
-
       setUploadedFiles((prev) => {
         const existingBytes = prev.reduce((sum, f) => sum + (f.file?.size ?? 0), 0);
 
@@ -654,7 +644,6 @@ export default function App() {
           return prev;
         }
 
-        didAccept = true;
         setUploadError('');
         setBackendError('');
 
@@ -665,51 +654,6 @@ export default function App() {
 
         return [...prev, ...newUploadedFiles];
       });
-
-      // Kick off background upload only if:
-      // - selection was accepted by UI guards
-      // - not already uploading
-      // - not a duplicate selection
-      if (!didAccept) return;
-      if (isPickerUploadInFlightRef.current) return;
-      if (selectionKey && selectionKey === lastPickerUploadKeyRef.current) return;
-
-      isPickerUploadInFlightRef.current = true;
-      lastPickerUploadKeyRef.current = selectionKey;
-
-      void (async () => {
-        try {
-          const { uploadDocuments } = await import('@/lib/apiClient');
-          const resp = await uploadDocuments({ files: newFiles });
-
-          // If backend extracted an employee name for a performance review, prefer that as display label.
-          const summaries = Array.isArray((resp as any)?.fileSummaries) ? ((resp as any).fileSummaries as any[]) : [];
-          if (summaries.length > 0) {
-            setUploadedFiles((prev) => {
-              const next = prev.slice();
-              const tailStart = Math.max(0, next.length - newFiles.length);
-
-              for (let i = 0; i < newFiles.length; i += 1) {
-                const summary = summaries[i];
-                const extractedEmployeeName =
-                  summary && typeof summary.extractedEmployeeName === 'string' ? summary.extractedEmployeeName.trim() : '';
-
-                const isPerformanceReview = summary?.category === 'performance_review';
-
-                if (isPerformanceReview && extractedEmployeeName) {
-                  (next[tailStart + i] as any).displayName = `Performance review — ${extractedEmployeeName}`;
-                }
-              }
-
-              return next;
-            });
-          }
-        } catch (err: any) {
-          setBackendError(err?.message || 'Upload failed. Please try again.');
-        } finally {
-          isPickerUploadInFlightRef.current = false;
-        }
-      })();
     }, 0);
   };
 
@@ -731,6 +675,10 @@ export default function App() {
   };
 
   const handleGenerateDraft = async () => {
+    // Prevent re-entrancy/double-clicks from kicking off duplicate uploads + orchestration.
+    if (isUploadInFlightRef.current) return;
+    isUploadInFlightRef.current = true;
+
     const generationId = ++generationIdRef.current;
 
     // Reset artifact circuit-breakers so new uploads can apply new artifacts.
@@ -769,7 +717,11 @@ export default function App() {
       await import('@/lib/apiClient').then(async ({ uploadDocuments }) => {
         const uploadResp = await uploadDocuments({ files });
         // eslint-disable-next-line no-console
-        console.log(`[draft][gen:${generationId}] uploadDocuments raw response:`, uploadResp);
+        console.log(`[draft][gen:${generationId}] uploadDocuments response summary:`, {
+          uploadId: (uploadResp as any)?.uploadId,
+          receivedFilesCount: Array.isArray((uploadResp as any)?.receivedFiles) ? (uploadResp as any).receivedFiles.length : undefined,
+          message: (uploadResp as any)?.message,
+        });
       });
 
       // CRITICAL: Do NOT rely on backend “useLatestCategoryDocs” auto-selection for anonymous sessions,
@@ -852,6 +804,8 @@ export default function App() {
       setBackendError(message);
       setHasError(true);
       setState('processing');
+    } finally {
+      isUploadInFlightRef.current = false;
     }
   };
 
