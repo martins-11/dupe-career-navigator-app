@@ -904,10 +904,53 @@ export default function App() {
     }
   };
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
+    /**
+     * Persist finalized persona to the backend so downstream systems (like
+     * /api/recommendations/initial?personaId=...) can load it via personasRepo.getFinal().
+     *
+     * Previously this button only flipped UI state, which caused recommendations to fail
+     * with final_persona_not_found.
+     */
     setHasLoadedPostPersonaRecommendations(false);
-    setState('finalized');
-    setIsEditable(false);
+    setBackendError('');
+
+    if (!buildId) {
+      setBackendError('No build available to finalize. Please generate a draft persona first.');
+      return;
+    }
+
+    try {
+      const { finalizePersonaForBuild } = await import('@/lib/apiClient');
+
+      // Use personaId if available (recommended); backend also can infer from orchestration record.
+      // Persist the UI persona payload as the explicit finalOverride so edits are carried over.
+      const finalOverride = isNonEmptyObject(personaData) ? (personaData as any) : undefined;
+
+      const resp = await finalizePersonaForBuild({
+        buildId,
+        personaId: personaId ?? undefined,
+        finalOverride,
+        saveFinal: true,
+        createVersion: true,
+      });
+
+      // Ensure personaId stays persisted (some environments may return it only from finalize).
+      if (resp?.personaId) {
+        setPersonaId(resp.personaId as any);
+        setStoredPersonaId(String(resp.personaId));
+      }
+
+      setState('finalized');
+      setIsEditable(false);
+    } catch (e: any) {
+      const payloadMsg =
+        e?.payload && typeof e.payload === 'object' && e.payload !== null ? e.payload?.message || e.payload?.error : null;
+
+      const message = payloadMsg || e?.message || 'Failed to finalize persona.';
+      setBackendError(message);
+      setHasError(true);
+    }
   };
 
   // PUBLIC_INTERFACE
