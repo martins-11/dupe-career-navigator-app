@@ -11,7 +11,7 @@ import {
   type BuildStatus,
   type UUID,
 } from '@/lib/apiClient';
-import { persistPersonaIdFromOrchestrationResponse, setStoredPersonaId } from '@/lib/personaStorage';
+import { getCurrentPersonaId, persistPersonaId, persistPersonaIdFromOrchestrationResponse, setStoredPersonaId } from '@/lib/personaStorage';
 import { RecommendationGrid } from '@/app/components/recommendations/recommendation-grid';
 
 /**
@@ -400,6 +400,12 @@ export default function App() {
   const [buildId, setBuildId] = useState<UUID | null>(null);
   const [personaId, setPersonaId] = useState<UUID | null>(null);
   const [buildStatus, setBuildStatus] = useState<BuildStatus | null>(null);
+
+  // Hydrate personaId from URL/localStorage so the UI and API calls stay consistent across refresh/navigation.
+  useEffect(() => {
+    const pid = getCurrentPersonaId();
+    if (pid) setPersonaId(pid);
+  }, []);
 
   const [isEditable, setIsEditable] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -815,12 +821,19 @@ export default function App() {
       setBuildId(runAll.build.id);
 
       // Persona bridging (CRITICAL):
-      // - Extract personaId from the orchestration envelope
+      // - Extract personaId from the orchestration envelope (authoritative)
       // - Persist to localStorage immediately so navigation to /explore has persona context
+      // - Keep React state in sync with the persisted personaId
       const extractedPersonaId = persistPersonaIdFromOrchestrationResponse(runAll);
+      const canonicalPersonaId = persistPersonaId(extractedPersonaId);
 
-      // Keep React state in sync with the persisted personaId.
-      setPersonaId(extractedPersonaId ?? null);
+      // eslint-disable-next-line no-console
+      console.log(`[persona][gen:${generationId}] persisted personaId`, {
+        extractedPersonaId: extractedPersonaId ?? null,
+        canonicalPersonaId: canonicalPersonaId ?? null,
+      });
+
+      setPersonaId((canonicalPersonaId ?? extractedPersonaId ?? null) as any);
 
       setBuildStatus({
         id: runAll.build.id,

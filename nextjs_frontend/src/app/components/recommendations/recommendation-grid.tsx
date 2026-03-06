@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch, type UUID } from '@/lib/apiClient';
+import { getCurrentPersonaId } from '@/lib/personaStorage';
 
 type RecommendationRole = {
   role_id: string;
@@ -309,12 +310,15 @@ export function RecommendationGrid(props: {
 
       try {
         // Contract: backend requires personaId (persona-driven only).
-        if (!props.personaId) {
+        // IMPORTANT: Always use the canonical personaId (URL > localStorage > prop) to avoid mismatches.
+        const canonicalPersonaId = getCurrentPersonaId() || (props.personaId ? String(props.personaId) : null);
+
+        if (!canonicalPersonaId) {
           throw new Error('Missing personaId: finalize a persona to generate recommendations.');
         }
 
         const sp = new URLSearchParams();
-        sp.set('personaId', String(props.personaId));
+        sp.set('personaId', canonicalPersonaId);
 
         const data = await apiFetch<{ roles: RecommendationRole[] }>(
           `/api/recommendations/initial?${sp.toString()}`,
@@ -341,10 +345,12 @@ export function RecommendationGrid(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.personaId]);
+  }, [props.personaId, props.finalPersona]);
 
   // Keep navigation reliable by using a direct relative route. (Works with Next.js App Router.)
-  const exploreUrl = '/explore';
+  // Include personaId in the URL to avoid any localStorage/stale-state mismatch issues.
+  const canonicalPersonaId = getCurrentPersonaId() || (props.personaId ? String(props.personaId) : null);
+  const exploreUrl = canonicalPersonaId ? `/explore?personaId=${encodeURIComponent(canonicalPersonaId)}` : '/explore';
 
   return (
     <section style={{ marginTop: 24 }}>

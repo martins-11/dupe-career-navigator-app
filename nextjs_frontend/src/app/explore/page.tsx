@@ -8,6 +8,7 @@ import { RoleCard, SkeletonCard } from '@/app/components/explore/role-card';
 import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
 import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from '@/lib/rolesApi';
+import { getCurrentPersonaId } from '@/lib/personaStorage';
 
 type RecommendedRole = {
   role_id: string;
@@ -273,8 +274,7 @@ export default function Page() {
       // - When personaId is present in localStorage (set after orchestration run-all),
       //   pass it to the backend so it loads the *finalized persona* as the source of truth
       //   for scoring + mastery/growth tags.
-      const personaId =
-        typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
+      const personaId = getCurrentPersonaId() || '';
 
       // eslint-disable-next-line no-console
       console.log('[explore] fetchSuggestedRoles personaId', { personaId: personaId || null });
@@ -324,8 +324,7 @@ export default function Page() {
        *
        * Note: min_salary/max_salary are UI slider units (lakhs). Backend converts to align with USD catalog.
        */
-      const personaId =
-        typeof window !== 'undefined' ? String(window.localStorage.getItem('careerNavigator.personaId') || '').trim() : '';
+      const personaId = getCurrentPersonaId() || '';
 
       // eslint-disable-next-line no-console
       console.log('[explore] fetchRoles personaId', { personaId: personaId || null });
