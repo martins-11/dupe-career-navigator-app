@@ -13,6 +13,7 @@ import {
 } from '@/lib/apiClient';
 import { getCurrentPersonaId, persistPersonaId, persistPersonaIdFromOrchestrationResponse, setStoredPersonaId } from '@/lib/personaStorage';
 import { RecommendationGrid } from '@/app/components/recommendations/recommendation-grid';
+import { createLogger } from '@/lib/logger';
 
 /**
  * Background image was previously referencing a non-existent asset, causing repeated 404s.
@@ -366,6 +367,12 @@ function coercePersonaDataFromBackendJson(personaJson: any, fallback: PersonaDat
 }
 
 export default function App() {
+  /**
+   * Rate-limited logger to prevent Chrome/DevTools freezes from high-frequency logs
+   * (especially build-status polling).
+   */
+  const log = useMemo(() => createLogger('app'), []);
+
   /**
    * Mount guard: used to prevent setState after unmount and to stabilize any auto-trigger logic.
    */
@@ -985,15 +992,18 @@ export default function App() {
     const interval = setInterval(async () => {
       try {
         const status = await getBuildStatus(buildId);
-        // IMPORTANT (perf): do not log full polling payloads repeatedly; log only a stable summary.
-        // eslint-disable-next-line no-console
-        console.log(`[poll][gen:${generationId}] getBuildStatus summary:`, {
-          id: status?.id,
-          status: status?.status,
-          progress: status?.progress,
-          currentStep: status?.currentStep,
-          updatedAt: status?.updatedAt,
-        });
+
+        // Throttle polling logs heavily. Frequent logs can freeze DevTools and the main thread.
+        log.info(
+          `[poll][gen:${generationId}] buildStatus`,
+          {
+            id: status?.id,
+            status: status?.status,
+            progress: status?.progress,
+            currentStep: status?.currentStep,
+          },
+          { throttleMs: 10000, key: `poll:${buildId}` }
+        );
 
         if (cancelled || !isMountedRef.current) return;
 
@@ -1002,8 +1012,14 @@ export default function App() {
         if (status.status === 'succeeded') {
           setState('draft');
         } else if (status.status === 'failed' || status.status === 'cancelled') {
-          // eslint-disable-next-line no-console
-          console.error(`[poll][gen:${generationId}] build ${status.status}; message=`, status.message, 'full status=', status);
+          // Avoid logging the full status object (can be large).
+          log.error(`[poll][gen:${generationId}] build ${status.status}`, {
+            message: status.message,
+            id: status.id,
+            progress: status.progress,
+            currentStep: status.currentStep,
+          });
+
           setBackendError(status.message || `Build ${status.status}.`);
           setHasError(true);
           setState('processing');
@@ -1015,8 +1031,8 @@ export default function App() {
           e?.payload && typeof e.payload === 'object' && e.payload !== null ? e.payload?.message || e.payload?.error : null;
 
         const message = payloadMsg || e?.message || 'Failed to poll build status.';
-        // eslint-disable-next-line no-console
-        console.error(`[poll][gen:${generationId}] polling error`, { message, error: e });
+
+        log.error(`[poll][gen:${generationId}] polling error`, { message });
 
         setBackendError(message);
         setHasError(true);

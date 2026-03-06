@@ -301,6 +301,8 @@ export function RecommendationGrid(props: {
 
   const { mastery, growth } = useMemo(() => computeMasteryGrowthSets(props.finalPersona), [props.finalPersona]);
 
+  const canonicalPersonaId = getCurrentPersonaId() || (props.personaId ? String(props.personaId) : null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -310,9 +312,6 @@ export function RecommendationGrid(props: {
 
       try {
         // Contract: backend requires personaId (persona-driven only).
-        // IMPORTANT: Always use the canonical personaId (URL > localStorage > prop) to avoid mismatches.
-        const canonicalPersonaId = getCurrentPersonaId() || (props.personaId ? String(props.personaId) : null);
-
         if (!canonicalPersonaId) {
           throw new Error('Missing personaId: finalize a persona to generate recommendations.');
         }
@@ -320,10 +319,9 @@ export function RecommendationGrid(props: {
         const sp = new URLSearchParams();
         sp.set('personaId', canonicalPersonaId);
 
-        const data = await apiFetch<{ roles: RecommendationRole[] }>(
-          `/api/recommendations/initial?${sp.toString()}`,
-          { method: 'GET' }
-        );
+        const data = await apiFetch<{ roles: RecommendationRole[] }>(`/api/recommendations/initial?${sp.toString()}`, {
+          method: 'GET',
+        });
 
         const next = Array.isArray(data?.roles) ? data.roles : [];
         const sliced = next.slice(0, 5);
@@ -345,11 +343,10 @@ export function RecommendationGrid(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.personaId, props.finalPersona]);
+  }, [canonicalPersonaId, props.onLoadedExactlyFive]);
 
   // Keep navigation reliable by using a direct relative route. (Works with Next.js App Router.)
   // Include personaId in the URL to avoid any localStorage/stale-state mismatch issues.
-  const canonicalPersonaId = getCurrentPersonaId() || (props.personaId ? String(props.personaId) : null);
   const exploreUrl = canonicalPersonaId ? `/explore?personaId=${encodeURIComponent(canonicalPersonaId)}` : '/explore';
 
   return (

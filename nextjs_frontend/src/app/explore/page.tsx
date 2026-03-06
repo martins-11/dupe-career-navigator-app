@@ -10,6 +10,7 @@ import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
 import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles, searchSuggestedRoles } from '@/lib/rolesApi';
 import { getCurrentPersonaId, persistPersonaId } from '@/lib/personaStorage';
+import { createLogger } from '@/lib/logger';
 
 type RecommendedRole = {
   role_id: string;
@@ -161,6 +162,7 @@ function mapRecommendationToUiRole(rec: RecommendedRole, index: number): Role {
  * - Uses GET /api/recommendations/roles for "Suggested Roles" after persona finalization.
  */
 export default function Page() {
+  const log = useMemo(() => createLogger('explore'), []);
   const searchParams = useSearchParams();
 
   /**
@@ -292,11 +294,14 @@ export default function Page() {
     try {
       const personaId = canonicalPersonaId || '';
 
-      // eslint-disable-next-line no-console
-      console.log('[explore] fetchSuggestedRoles personaId', {
-        personaId: personaId || null,
-        source: personaIdFromUrl ? 'url' : canonicalPersonaId ? 'localStorage' : 'none',
-      });
+      log.info(
+        'fetchSuggestedRoles personaId',
+        {
+          personaId: personaId || null,
+          source: personaIdFromUrl ? 'url' : canonicalPersonaId ? 'localStorage' : 'none',
+        },
+        { throttleMs: 10000, key: 'suggestedRolesPersonaId' }
+      );
 
       let suggested: Role[] = [];
 
@@ -356,11 +361,14 @@ export default function Page() {
        */
       const personaId = canonicalPersonaId || '';
 
-      // eslint-disable-next-line no-console
-      console.log('[explore] fetchRoles personaId', {
-        personaId: personaId || null,
-        source: personaIdFromUrl ? 'url' : canonicalPersonaId ? 'localStorage' : 'none',
-      });
+      log.info(
+        'fetchRoles personaId',
+        {
+          personaId: personaId || null,
+          source: personaIdFromUrl ? 'url' : canonicalPersonaId ? 'localStorage' : 'none',
+        },
+        { throttleMs: 10000, key: 'rolesPersonaId' }
+      );
 
       const data = await searchRoles({
         q: query.trim() || undefined,
