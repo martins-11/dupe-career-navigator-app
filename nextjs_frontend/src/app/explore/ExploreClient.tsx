@@ -36,22 +36,47 @@ async function fetchInitialRecommendations(personaId: string): Promise<InitialRe
   const sp = new URLSearchParams();
   sp.set('personaId', personaId);
 
-  const res = await fetch(`/api/recommendations/initial?${sp.toString()}`, { method: 'GET' });
+  async function fetchFrom(url: string): Promise<any> {
+    const res = await fetch(url, { method: 'GET' });
+
+    let payload: any = null;
+    try {
+      payload = await res.json();
+    } catch {
+      payload = null;
+    }
+
+    if (!res.ok) {
+      const msg = (payload && (payload.message || payload.error)) || `Request failed with status ${res.status}`;
+      throw new Error(msg);
+    }
+
+    return payload;
+  }
 
   let payload: any = null;
   try {
-    payload = await res.json();
+    payload = await fetchFrom(`/api/recommendations/initial?${sp.toString()}`);
   } catch {
-    payload = null;
+    payload = await fetchFrom(`/api/recommendations/roles?${sp.toString()}`);
   }
 
-  if (!res.ok) {
-    const msg = (payload && (payload.message || payload.error)) || `Request failed with status ${res.status}`;
-    throw new Error(msg);
-  }
+  const roles = Array.isArray(payload?.roles) ? payload.roles : [];
+  return roles.map((raw: any) => {
+    if (raw?.role_id || raw?.role_title) return raw as InitialRecommendationRole;
 
-  const roles = payload?.roles;
-  return Array.isArray(roles) ? roles : [];
+    const tags = Array.isArray(raw?.tags) ? raw.tags : [];
+    return {
+      role_id: String(raw?.id || ''),
+      role_title: String(raw?.title || 'Recommended Role'),
+      industry: String(raw?.industry || tags[0] || 'General'),
+      salary_lpa_range: raw?.salary_lpa_range ?? undefined,
+      experience_range: raw?.experience_range ?? undefined,
+      description: raw?.description ?? undefined,
+      key_responsibilities: Array.isArray(raw?.key_responsibilities) ? raw.key_responsibilities : undefined,
+      required_skills: Array.isArray(raw?.required_skills) ? raw.required_skills : tags,
+    } satisfies InitialRecommendationRole;
+  });
 }
 
 function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; maxL: number } {

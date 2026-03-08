@@ -15,6 +15,20 @@ type RecommendationRole = {
   required_skills?: string[];
 };
 
+type RecommendationRoleApi =
+  | RecommendationRole
+  | {
+      id?: string;
+      title?: string;
+      description?: string | null;
+      industry?: string | null;
+      tags?: string[] | null;
+      required_skills?: string[] | null;
+      key_responsibilities?: string[] | null;
+      salary_lpa_range?: string | null;
+      experience_range?: string | null;
+    };
+
 /**
  * Local JSON fetch wrapper for this client component.
  *
@@ -67,6 +81,35 @@ function skillChipStyle(kind: 'mastery' | 'growth' | 'neutral') {
 
 function normalizeSkill(s: string): string {
   return String(s || '').trim().toLowerCase();
+}
+
+function normalizeRecommendationRole(raw: RecommendationRoleApi): RecommendationRole {
+  if ((raw as RecommendationRole).role_id || (raw as RecommendationRole).role_title) {
+    const cast = raw as RecommendationRole;
+    return {
+      role_id: String(cast.role_id || ''),
+      role_title: String(cast.role_title || ''),
+      industry: String(cast.industry || 'General'),
+      salary_lpa_range: cast.salary_lpa_range,
+      experience_range: cast.experience_range,
+      description: cast.description,
+      key_responsibilities: cast.key_responsibilities,
+      required_skills: cast.required_skills,
+    };
+  }
+
+  const fallback = raw as any;
+  const tags = Array.isArray(fallback.tags) ? fallback.tags : [];
+  return {
+    role_id: String(fallback.id || ''),
+    role_title: String(fallback.title || 'Recommended Role'),
+    industry: String(fallback.industry || tags[0] || 'General'),
+    salary_lpa_range: fallback.salary_lpa_range ?? undefined,
+    experience_range: fallback.experience_range ?? undefined,
+    description: fallback.description ?? undefined,
+    key_responsibilities: Array.isArray(fallback.key_responsibilities) ? fallback.key_responsibilities : undefined,
+    required_skills: Array.isArray(fallback.required_skills) ? fallback.required_skills : tags,
+  };
 }
 
 function extractPersonaSkillsWithProficiency(finalPersona: any): Array<{ name: string; proficiency: number }> {
@@ -342,11 +385,20 @@ export function RecommendationGrid(props: {
         const sp = new URLSearchParams();
         sp.set('personaId', canonicalPersonaId);
 
-        const data = await apiFetchJson<{ roles: RecommendationRole[] }>(`/api/recommendations/initial?${sp.toString()}`, {
-          method: 'GET',
-        });
+        let data: { roles?: RecommendationRoleApi[] } | null = null;
 
-        const next = Array.isArray(data?.roles) ? data.roles : [];
+        try {
+          data = await apiFetchJson<{ roles: RecommendationRoleApi[] }>(`/api/recommendations/initial?${sp.toString()}`, {
+            method: 'GET',
+          });
+        } catch (err) {
+          // Fallback to placeholder endpoint when /initial is not available.
+          data = await apiFetchJson<{ roles: RecommendationRoleApi[] }>(`/api/recommendations/roles?${sp.toString()}`, {
+            method: 'GET',
+          });
+        }
+
+        const next = Array.isArray(data?.roles) ? data.roles.map(normalizeRecommendationRole) : [];
         const sliced = next.slice(0, 5);
         if (!cancelled) {
           setRoles(sliced);
