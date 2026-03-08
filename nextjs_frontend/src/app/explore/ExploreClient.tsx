@@ -8,7 +8,7 @@ import { EmptyState } from '@/app/components/explore/empty-state';
 import { RoleCard, SkeletonCard } from '@/app/components/explore/role-card';
 import type { Role } from '@/app/components/explore/roles-data';
 import { cn } from '@/app/components/ui/utils';
-import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles, searchSuggestedRoles } from '@/lib/rolesApi';
+import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from '@/lib/rolesApi';
 import { getCurrentPersonaId, persistPersonaId } from '@/lib/personaStorage';
 import { createLogger } from '@/lib/logger';
 
@@ -19,6 +19,40 @@ type RecommendedRole = {
   match_reason?: string;
   estimated_salary_range?: string | null;
 };
+
+type InitialRecommendationRole = {
+  role_id: string;
+  role_title: string;
+  industry: string;
+  salary_lpa_range?: string;
+  experience_range?: string;
+  description?: string;
+  key_responsibilities?: string[];
+  required_skills?: string[];
+};
+
+async function fetchInitialRecommendations(personaId: string): Promise<InitialRecommendationRole[]> {
+  // Uses Next.js rewrite: /api/* -> backend
+  const sp = new URLSearchParams();
+  sp.set('personaId', personaId);
+
+  const res = await fetch(`/api/recommendations/initial?${sp.toString()}`, { method: 'GET' });
+
+  let payload: any = null;
+  try {
+    payload = await res.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!res.ok) {
+    const msg = (payload && (payload.message || payload.error)) || `Request failed with status ${res.status}`;
+    throw new Error(msg);
+  }
+
+  const roles = payload?.roles;
+  return Array.isArray(roles) ? roles : [];
+}
 
 function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; maxL: number } {
   /**
@@ -129,6 +163,39 @@ function mapRecommendationToUiRole(rec: RecommendedRole, index: number): Role {
     description,
     responsibilities: [],
     careerLevel: 'Suggested',
+  };
+}
+
+function mapInitialRecommendationToUiRole(rec: InitialRecommendationRole, index: number): Role {
+  // Backend returns salary_lpa_range already in LPA (India). We keep existing UI helper which expects USD;
+  // if we can't parse, we fall back to a reasonable placeholder range.
+  const { minL, maxL } = safeParseSalaryUsdRangeToLakhs(rec.salary_lpa_range ?? null);
+
+  const description =
+    String(rec.description || '').trim() ||
+    'Recommended based on your Final Persona. Explore this role to understand fit, skills, and responsibilities.';
+
+  const responsibilities = Array.isArray(rec.key_responsibilities)
+    ? rec.key_responsibilities.map((x) => String(x)).map((s) => s.trim()).filter(Boolean).slice(0, 3)
+    : [];
+
+  const skills = Array.isArray(rec.required_skills)
+    ? rec.required_skills.map((x) => String(x)).map((s) => s.trim()).filter(Boolean)
+    : [];
+
+  return {
+    id: String(rec.role_id ?? `init-${index}`),
+    title: String(rec.role_title || '').trim() || 'Untitled Role',
+    industry: String(rec.industry || '').trim() || '—',
+    salaryMin: minL,
+    salaryMax: maxL,
+    experience: String(rec.experience_range || '').trim() || '—',
+    skills: skills.slice(0, 5),
+    expandedSkills: skills.slice(5, 12),
+    description,
+    responsibilities,
+    careerLevel: 'Suggested',
+    threeTwoReport: null,
   };
 }
 
@@ -243,11 +310,19 @@ export default function ExploreClient() {
 
       let suggested: Role[] = [];
 
+      // Primary: use the same real recommendations endpoint as the finalized-persona flow.
+      // This prevents the "complete your persona" fallback from /api/recommendations/roles.
       if (personaId) {
-        const recs = await searchSuggestedRoles({ personaId, limit: 5 });
-        suggested = (Array.isArray(recs) ? recs : []).map(mapRecommendationToUiRole);
+        try {
+          const recs = await fetchInitialRecommendations(personaId);
+          suggested = (Array.isArray(recs) ? recs : []).map(mapInitialRecommendationToUiRole);
+        } catch {
+          // We'll fall back to catalog-driven suggestions below.
+          suggested = [];
+        }
       }
 
+      // Fallback: use roles search (optionally persona-scored if backend supports personaId)
       if (suggested.length === 0) {
         const rows = await searchRoles({ q: '', limit: 6, personaId: personaId || undefined });
         const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
