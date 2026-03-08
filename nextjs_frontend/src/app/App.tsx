@@ -11,7 +11,7 @@ import {
   type BuildStatus,
   type UUID,
 } from '@/lib/apiClient';
-import { getCurrentPersonaId, persistPersonaId, persistPersonaIdFromOrchestrationResponse, setStoredPersonaId } from '@/lib/personaStorage';
+import { getCurrentPersonaId, persistPersonaId, persistPersonaIdFromOrchestrationResponse } from '@/lib/personaStorage';
 import { RecommendationGrid } from '@/app/components/recommendations/recommendation-grid';
 import { createLogger } from '@/lib/logger';
 
@@ -905,8 +905,8 @@ export default function App() {
 
       // Ensure personaId stays persisted (some environments may return it only from finalize).
       if (resp?.personaId) {
-        setPersonaId(resp.personaId as any);
-        setStoredPersonaId(String(resp.personaId));
+        const canonical = persistPersonaId(resp.personaId as any);
+        setPersonaId((canonical ?? resp.personaId ?? null) as any);
       }
 
       setState('finalized');
@@ -960,7 +960,7 @@ export default function App() {
 
       // Keep persisted personaId in sync for Explore/recommendations bridging.
       if (resp?.personaId) {
-        setStoredPersonaId(String(resp.personaId));
+        persistPersonaId(resp.personaId as any);
       }
 
       if (buildStatus?.status === 'succeeded') {
