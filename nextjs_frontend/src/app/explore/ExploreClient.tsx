@@ -194,7 +194,8 @@ function mapInitialRecommendationToUiRole(rec: InitialRecommendationRole, index:
     expandedSkills: skills.slice(5, 12),
     description,
     responsibilities,
-    careerLevel: 'Suggested',
+    // IMPORTANT: these are persona-based recommendations (not generic suggestions).
+    careerLevel: 'Recommended',
     threeTwoReport: null,
   };
 }
@@ -243,6 +244,7 @@ export default function ExploreClient() {
   const [suggestedRoles, setSuggestedRoles] = useState<Role[]>([]);
   const [suggestedError, setSuggestedError] = useState<string | null>(null);
   const [isLoadingSuggested, setIsLoadingSuggested] = useState(false);
+  const [suggestedSource, setSuggestedSource] = useState<'initial' | 'fallback' | 'none'>('none');
 
   const stickyRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -309,15 +311,17 @@ export default function ExploreClient() {
       );
 
       let suggested: Role[] = [];
+      let nextSource: 'initial' | 'fallback' | 'none' = 'none';
 
-      // Primary: use the same real recommendations endpoint as the finalized-persona flow.
-      // This prevents the "complete your persona" fallback from /api/recommendations/roles.
+      // Primary: persona-based initial recommendations.
+      // This endpoint is intended to be live (Bedrock/O*NET). If it errors, we should not pretend
+      // we loaded "recommended roles"; we fall back to catalog suggestions.
       if (personaId) {
         try {
           const recs = await fetchInitialRecommendations(personaId);
           suggested = (Array.isArray(recs) ? recs : []).map(mapInitialRecommendationToUiRole);
+          if (suggested.length > 0) nextSource = 'initial';
         } catch {
-          // We'll fall back to catalog-driven suggestions below.
           suggested = [];
         }
       }
@@ -346,11 +350,14 @@ export default function ExploreClient() {
         });
 
         suggested = mapped.slice(0, 4);
+        nextSource = suggested.length > 0 ? 'fallback' : 'none';
       }
 
+      setSuggestedSource(nextSource);
       setSuggestedRoles(suggested.slice(0, 4));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to load Suggested Roles.';
+      const msg = e instanceof Error ? e.message : 'Failed to load role suggestions.';
+      setSuggestedSource('none');
       setSuggestedRoles([]);
       setSuggestedError(msg);
     } finally {
@@ -553,10 +560,12 @@ export default function ExploreClient() {
           <div className="flex items-end justify-between gap-3 mb-3">
             <div>
               <h2 className="text-base font-semibold" style={{ color: 'var(--text-strong)' }}>
-                Suggested Roles
+                {canonicalPersonaId && suggestedSource === 'initial' ? 'Recommended Roles for you' : 'Suggested Roles'}
               </h2>
               <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                Powered by your finalized persona (recommendations).
+                {canonicalPersonaId && suggestedSource === 'initial'
+                  ? 'Based on your finalized persona (initial recommendations).'
+                  : 'Suggestions to help you get started (persona-aware when available).'}
               </p>
             </div>
 
@@ -589,7 +598,7 @@ export default function ExploreClient() {
                 color: 'var(--text-body)',
               }}
             >
-              Couldn’t load Suggested Roles: {suggestedError}
+              Couldn’t load {canonicalPersonaId ? 'recommended roles' : 'suggested roles'}: {suggestedError}
             </div>
           ) : suggestedRoles.length === 0 ? (
             <div
@@ -600,7 +609,9 @@ export default function ExploreClient() {
                 color: 'var(--text-body)',
               }}
             >
-              No suggestions yet. Finalize a persona to see recommendations here.
+              {canonicalPersonaId
+                ? 'No recommendations available yet. Try refreshing, or revisit persona finalization.'
+                : 'No suggestions yet. Finalize a persona to see recommendations here.'}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
