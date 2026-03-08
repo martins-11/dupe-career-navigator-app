@@ -9,10 +9,24 @@ const nextConfig = {
    * Prefer BACKEND_INTERNAL_URL in dev/proxy environments.
    */
   async rewrites() {
+    /**
+     * NOTE ON ENV VARS / PREVIEW 502s
+     * ------------------------------
+     * In Kavia preview environments, the frontend container historically exposes backend URLs
+     * via REACT_APP_* variables (see container env list in the task description).
+     *
+     * If we only read NEXT_PUBLIC_* here, the rewrite destination falls back to localhost,
+     * which is not reachable from the preview runtime. Next.js then returns 502 for any
+     * proxied route (e.g. /api/*, /health, /docs).
+     *
+     * So we accept both naming conventions.
+     */
     const backend =
       process.env.BACKEND_INTERNAL_URL ||
       process.env.NEXT_PUBLIC_API_BASE ||
       process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.REACT_APP_API_BASE ||
+      process.env.REACT_APP_BACKEND_URL ||
       'http://localhost:3001';
 
     return [
