@@ -523,76 +523,82 @@ export default function ExploreClient() {
         className={cn('max-w-6xl mx-auto px-4 md:px-8 py-8', hasSearched ? '' : 'pt-10')}
         style={{ fontFamily: 'Helvetica Neue, Arial, sans-serif' }}
       >
-        <div className="mb-8">
-          <div className="flex items-end justify-between gap-3 mb-3">
-            <div>
-              <h2 className="text-base font-semibold" style={{ color: 'var(--text-strong)' }}>
-                {canonicalPersonaId && suggestedSource === 'initial' ? 'Recommended Roles for you' : 'Suggested Roles'}
-              </h2>
-              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                {canonicalPersonaId && suggestedSource === 'initial'
-                  ? 'Based on your finalized persona (initial recommendations).'
-                  : 'Suggestions to help you get started (persona-aware when available).'}
-                {suggestedMeta?.bedrockUsedFallback ? (
-                  <span style={{ display: 'block', marginTop: 4, color: '#B45309' }}>
-                    Note: recommendations are currently using a fallback set (Bedrock unavailable/misconfigured).
-                  </span>
-                ) : null}
-              </p>
+        {/* Show Suggested/Recommended roles only BEFORE the user starts searching.
+            This prevents the Explore page from feeling like it has "two role-card sections" at once. */}
+        {!hasSearched ? (
+          <div className="mb-8">
+            <div className="flex items-end justify-between gap-3 mb-3">
+              <div>
+                <h2 className="text-base font-semibold" style={{ color: 'var(--text-strong)' }}>
+                  {canonicalPersonaId && suggestedSource === 'initial'
+                    ? 'Recommended Roles for you'
+                    : 'Suggested Roles'}
+                </h2>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                  {canonicalPersonaId && suggestedSource === 'initial'
+                    ? 'Based on your finalized persona (initial recommendations).'
+                    : 'Suggestions to help you get started (persona-aware when available).'}
+                  {suggestedMeta?.bedrockUsedFallback ? (
+                    <span style={{ display: 'block', marginTop: 4, color: '#B45309' }}>
+                      Note: recommendations are currently using a fallback set (Bedrock unavailable/misconfigured).
+                    </span>
+                  ) : null}
+                </p>
+              </div>
+
+              <button
+                onClick={() => void fetchSuggestedRoles()}
+                className="text-xs font-semibold px-3 py-2 cursor-pointer"
+                style={{
+                  borderRadius: 10,
+                  background: 'rgba(23,166,166,0.06)',
+                  border: '1px solid rgba(23,166,166,0.18)',
+                  color: 'var(--text-body)',
+                }}
+              >
+                Refresh
+              </button>
             </div>
 
-            <button
-              onClick={() => void fetchSuggestedRoles()}
-              className="text-xs font-semibold px-3 py-2 cursor-pointer"
-              style={{
-                borderRadius: 10,
-                background: 'rgba(23,166,166,0.06)',
-                border: '1px solid rgba(23,166,166,0.18)',
-                color: 'var(--text-body)',
-              }}
-            >
-              Refresh
-            </button>
+            {isLoadingSuggested ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <SkeletonCard key={`sugg-skel-${i}`} />
+                ))}
+              </div>
+            ) : suggestedError ? (
+              <div
+                className="text-xs rounded-xl px-4 py-3"
+                style={{
+                  background: 'rgba(255, 0, 0, 0.03)',
+                  border: '1px solid rgba(255, 0, 0, 0.12)',
+                  color: 'var(--text-body)',
+                }}
+              >
+                Couldn’t load {canonicalPersonaId ? 'recommended roles' : 'suggested roles'}: {suggestedError}
+              </div>
+            ) : suggestedRoles.length === 0 ? (
+              <div
+                className="text-xs rounded-xl px-4 py-3"
+                style={{
+                  background: 'rgba(23,166,166,0.06)',
+                  border: '1px solid rgba(23,166,166,0.18)',
+                  color: 'var(--text-body)',
+                }}
+              >
+                {canonicalPersonaId
+                  ? 'No recommendations available yet. Try refreshing, or revisit persona finalization.'
+                  : 'No suggestions yet. Finalize a persona to see recommendations here.'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {suggestedRoles.map((role, i) => (
+                  <RoleCard key={`suggested-${role.id}`} role={role} index={i} />
+                ))}
+              </div>
+            )}
           </div>
-
-          {isLoadingSuggested ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <SkeletonCard key={`sugg-skel-${i}`} />
-              ))}
-            </div>
-          ) : suggestedError ? (
-            <div
-              className="text-xs rounded-xl px-4 py-3"
-              style={{
-                background: 'rgba(255, 0, 0, 0.03)',
-                border: '1px solid rgba(255, 0, 0, 0.12)',
-                color: 'var(--text-body)',
-              }}
-            >
-              Couldn’t load {canonicalPersonaId ? 'recommended roles' : 'suggested roles'}: {suggestedError}
-            </div>
-          ) : suggestedRoles.length === 0 ? (
-            <div
-              className="text-xs rounded-xl px-4 py-3"
-              style={{
-                background: 'rgba(23,166,166,0.06)',
-                border: '1px solid rgba(23,166,166,0.18)',
-                color: 'var(--text-body)',
-              }}
-            >
-              {canonicalPersonaId
-                ? 'No recommendations available yet. Try refreshing, or revisit persona finalization.'
-                : 'No suggestions yet. Finalize a persona to see recommendations here.'}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {suggestedRoles.map((role, i) => (
-                <RoleCard key={`suggested-${role.id}`} role={role} index={i} />
-              ))}
-            </div>
-          )}
-        </div>
+        ) : null}
 
         {hasSearched ? (
           isLoading ? (
