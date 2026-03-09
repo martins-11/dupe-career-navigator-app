@@ -244,6 +244,10 @@ export default function ExploreClient() {
   const [suggestedError, setSuggestedError] = useState<string | null>(null);
   const [isLoadingSuggested, setIsLoadingSuggested] = useState(false);
   const [suggestedSource, setSuggestedSource] = useState<'initial' | 'fallback' | 'none'>('none');
+  const [suggestedMeta, setSuggestedMeta] = useState<{ bedrockUsedFallback?: boolean } | null>(null);
+
+  // Prevent redundant suggested-role fetches across mount + personaId hydration.
+  const lastSuggestedPersonaIdRef = useRef<string | null>(null);
 
   const stickyRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -294,12 +298,16 @@ export default function ExploreClient() {
   }, []);
 
   const fetchSuggestedRoles = useCallback(async () => {
+    const personaId = canonicalPersonaId || '';
+
+    // If personaId hasn't changed, do not refetch.
+    if (personaId && lastSuggestedPersonaIdRef.current === personaId) return;
+
     setIsLoadingSuggested(true);
     setSuggestedError(null);
+    setSuggestedMeta(null);
 
     try {
-      const personaId = canonicalPersonaId || '';
-
       log.info(
         'fetchSuggestedRoles personaId',
         {
@@ -313,15 +321,35 @@ export default function ExploreClient() {
       // This section must show persona-driven, Bedrock-backed recommendations (not hardcoded lists
       // and not generic catalog fallback suggestions).
       if (!personaId) {
+        lastSuggestedPersonaIdRef.current = null;
         setSuggestedSource('none');
         setSuggestedRoles([]);
         setSuggestedError('Missing personaId. Please finalize a persona to see recommended roles.');
         return;
       }
 
-      const recs = await fetchInitialRecommendations(personaId);
-      const suggested = (Array.isArray(recs) ? recs : []).map(mapInitialRecommendationToUiRole).slice(0, 4);
+      // Record personaId once we're about to do the request.
+      lastSuggestedPersonaIdRef.current = personaId;
 
+      // Fetch and also capture backend meta when available.
+      const sp = new URLSearchParams();
+      sp.set('personaId', personaId);
+
+      let payload: any = null;
+      try {
+        const res = await fetch(`/api/recommendations/initial?${sp.toString()}`, { method: 'GET' });
+        payload = await res.json();
+        if (!res.ok) throw new Error(payload?.message || payload?.error || `Request failed with status ${res.status}`);
+      } catch {
+        const res = await fetch(`/api/recommendations/roles?${sp.toString()}`, { method: 'GET' });
+        payload = await res.json();
+        if (!res.ok) throw new Error(payload?.message || payload?.error || `Request failed with status ${res.status}`);
+      }
+
+      const recs = Array.isArray(payload?.roles) ? payload.roles : [];
+      const suggested = recs.map((r: any, idx: number) => mapInitialRecommendationToUiRole(r, idx)).slice(0, 4);
+
+      setSuggestedMeta(payload?.meta && typeof payload.meta === 'object' ? payload.meta : null);
       setSuggestedSource(suggested.length > 0 ? 'initial' : 'none');
       setSuggestedRoles(suggested);
     } catch (e) {
@@ -332,7 +360,7 @@ export default function ExploreClient() {
     } finally {
       setIsLoadingSuggested(false);
     }
-  }, [canonicalPersonaId, personaIdFromUrl]);
+  }, [canonicalPersonaId, personaIdFromUrl, log]);
 
   const fetchRoles = useCallback(async () => {
     setIsLoading(true);
@@ -421,8 +449,6 @@ export default function ExploreClient() {
   }
 
   useEffect(() => {
-    void fetchSuggestedRoles();
-
     if (!isLoadingFilterOptions && industryOptions.length === 0 && skillsOptions.length === 0) {
       void fetchFilterOptions();
     }
@@ -535,6 +561,11 @@ export default function ExploreClient() {
                 {canonicalPersonaId && suggestedSource === 'initial'
                   ? 'Based on your finalized persona (initial recommendations).'
                   : 'Suggestions to help you get started (persona-aware when available).'}
+                {suggestedMeta?.bedrockUsedFallback ? (
+                  <span style={{ display: 'block', marginTop: 4, color: '#B45309' }}>
+                    Note: recommendations are currently using a fallback set (Bedrock unavailable/misconfigured).
+                  </span>
+                ) : null}
               </p>
             </div>
 
