@@ -12,13 +12,7 @@ import { getRoleIndustries, getRoleJobTitles, getRoleSkills, searchRoles } from 
 import { getCurrentPersonaId, persistPersonaId } from '@/lib/personaStorage';
 import { createLogger } from '@/lib/logger';
 
-type RecommendedRole = {
-  role_id: string;
-  role_title: string;
-  industry: string;
-  match_reason?: string;
-  estimated_salary_range?: string | null;
-};
+
 
 type InitialRecommendationRole = {
   role_id: string;
@@ -169,27 +163,7 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
   };
 }
 
-function mapRecommendationToUiRole(rec: RecommendedRole, index: number): Role {
-  const { minL, maxL } = safeParseSalaryUsdRangeToLakhs(rec.estimated_salary_range ?? null);
 
-  const description = rec.match_reason
-    ? `${rec.match_reason} You can explore this role and refine filters to find closer matches.`
-    : 'Recommended based on your Final Persona.';
-
-  return {
-    id: String(rec.role_id ?? `rec-${index}`),
-    title: String(rec.role_title || '').trim() || 'Untitled Role',
-    industry: String(rec.industry || '').trim() || '—',
-    salaryMin: minL,
-    salaryMax: maxL,
-    experience: '—',
-    skills: [],
-    expandedSkills: [],
-    description,
-    responsibilities: [],
-    careerLevel: 'Suggested',
-  };
-}
 
 function mapInitialRecommendationToUiRole(rec: InitialRecommendationRole, index: number): Role {
   // Backend returns salary_lpa_range already in LPA (India). We keep existing UI helper which expects USD;
@@ -335,53 +309,23 @@ export default function ExploreClient() {
         { throttleMs: 10000, key: 'suggestedRolesPersonaId' }
       );
 
-      let suggested: Role[] = [];
-      let nextSource: 'initial' | 'fallback' | 'none' = 'none';
-
-      // Primary: persona-based initial recommendations.
-      // This endpoint is intended to be live (Bedrock/O*NET). If it errors, we should not pretend
-      // we loaded "recommended roles"; we fall back to catalog suggestions.
-      if (personaId) {
-        try {
-          const recs = await fetchInitialRecommendations(personaId);
-          suggested = (Array.isArray(recs) ? recs : []).map(mapInitialRecommendationToUiRole);
-          if (suggested.length > 0) nextSource = 'initial';
-        } catch {
-          suggested = [];
-        }
+      // IMPORTANT:
+      // This section must show persona-driven, Bedrock-backed recommendations (not hardcoded lists
+      // and not generic catalog fallback suggestions).
+      if (!personaId) {
+        setSuggestedSource('none');
+        setSuggestedRoles([]);
+        setSuggestedError('Missing personaId. Please finalize a persona to see recommended roles.');
+        return;
       }
 
-      // Fallback: use roles search (optionally persona-scored if backend supports personaId)
-      if (suggested.length === 0) {
-        const rows = await searchRoles({ q: '', limit: 6, personaId: personaId || undefined });
-        const mapped = (Array.isArray(rows) ? rows : []).map(mapSearchRowToUiRole);
+      const recs = await fetchInitialRecommendations(personaId);
+      const suggested = (Array.isArray(recs) ? recs : []).map(mapInitialRecommendationToUiRole).slice(0, 4);
 
-        mapped.sort((a, b) => {
-          const aScore =
-            typeof (a as any)?.threeTwoReport?.compatibilityScore === 'number'
-              ? (a as any).threeTwoReport.compatibilityScore
-              : typeof (a as any)?.threeTwoReport?.score === 'number'
-                ? (a as any).threeTwoReport.score
-                : -Infinity;
-
-          const bScore =
-            typeof (b as any)?.threeTwoReport?.compatibilityScore === 'number'
-              ? (b as any).threeTwoReport.compatibilityScore
-              : typeof (b as any)?.threeTwoReport?.score === 'number'
-                ? (b as any).threeTwoReport.score
-                : -Infinity;
-
-          return bScore - aScore;
-        });
-
-        suggested = mapped.slice(0, 4);
-        nextSource = suggested.length > 0 ? 'fallback' : 'none';
-      }
-
-      setSuggestedSource(nextSource);
-      setSuggestedRoles(suggested.slice(0, 4));
+      setSuggestedSource(suggested.length > 0 ? 'initial' : 'none');
+      setSuggestedRoles(suggested);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to load role suggestions.';
+      const msg = e instanceof Error ? e.message : 'Failed to load recommended roles.';
       setSuggestedSource('none');
       setSuggestedRoles([]);
       setSuggestedError(msg);

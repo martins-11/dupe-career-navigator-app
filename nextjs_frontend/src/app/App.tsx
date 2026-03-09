@@ -12,7 +12,7 @@ import {
   type UUID,
 } from '@/lib/apiClient';
 import { getCurrentPersonaId, persistPersonaId, persistPersonaIdFromOrchestrationResponse } from '@/lib/personaStorage';
-import { RecommendationGrid } from '@/app/components/recommendations/recommendation-grid';
+import { useRouter } from 'next/navigation';
 import { createLogger } from '@/lib/logger';
 
 /**
@@ -372,6 +372,8 @@ export default function App() {
    * (especially build-status polling).
    */
   const log = useMemo(() => createLogger('app'), []);
+
+  const router = useRouter();
 
   /**
    * Mount guard: used to prevent setState after unmount and to stabilize any auto-trigger logic.
@@ -880,7 +882,6 @@ export default function App() {
      * Previously this button only flipped UI state, which caused recommendations to fail
      * with final_persona_not_found.
      */
-    setHasLoadedPostPersonaRecommendations(false);
     setBackendError('');
 
     if (!buildId) {
@@ -1293,8 +1294,7 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHoveringHeading, setIsHoveringHeading] = useState(false);
 
-  // Post-persona recommendations gate: Explore appears only after we have exactly 5 recs loaded.
-  const [hasLoadedPostPersonaRecommendations, setHasLoadedPostPersonaRecommendations] = useState(false);
+
 
   useEffect(() => {
     return () => {
@@ -2550,15 +2550,50 @@ export default function App() {
               </motion.div>
             </motion.div>
 
-            {/* Post-persona recommendations grid (below the finalized persona card) */}
-            <div className="max-w-4xl mx-auto" style={{ padding: '0 0 24px 0' }}>
-              <RecommendationGrid
-                personaId={personaId}
-                finalPersona={personaData as any}
-                onLoadedExactlyFive={(loaded) => {
-                  setHasLoadedPostPersonaRecommendations(Boolean(loaded));
+            {/* Finalized Persona CTA (below the persona card) */}
+            <div className="max-w-4xl mx-auto" style={{ padding: '18px 0 24px 0' }}>
+              <div className="flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const canonicalPersonaId = (personaId || getCurrentPersonaId() || '').trim();
+                    const url = canonicalPersonaId
+                      ? `/explore?personaId=${encodeURIComponent(canonicalPersonaId)}`
+                      : '/explore';
+                    router.push(url);
+                  }}
+                  className="rounded-lg transition-all duration-200"
+                  style={{
+                    backgroundColor: '#14B8A6',
+                    color: 'white',
+                    padding: '12px 22px',
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0px 10px 24px rgba(20, 184, 166, 0.18)',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#0FB9B1';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#14B8A6';
+                  }}
+                >
+                  Explore Roles
+                </button>
+              </div>
+
+              <p
+                className="text-center"
+                style={{
+                  marginTop: 10,
+                  fontSize: 12.5,
+                  color: '#6B7280',
                 }}
-              />
+              >
+                See role recommendations tailored to your persona.
+              </p>
             </div>
 
           </>
