@@ -23,42 +23,38 @@ type InitialRecommendationRole = {
   description?: string;
   key_responsibilities?: string[];
   required_skills?: string[];
+  threeTwoReport?: any;
+  compatibilityScore?: number;
 };
 
 async function fetchInitialRecommendations(personaId: string): Promise<InitialRecommendationRole[]> {
-  // Uses Next.js rewrite: /api/* -> backend
+  /**
+   * Explore page should use a single recommendations API.
+   * Contract: /api/recommendations/initial returns exactly 5 roles (Bedrock-driven, with scoring when available).
+   */
   const sp = new URLSearchParams();
   sp.set('personaId', personaId);
 
-  async function fetchFrom(url: string): Promise<any> {
-    const res = await fetch(url, { method: 'GET' });
-
-    let payload: any = null;
-    try {
-      payload = await res.json();
-    } catch {
-      payload = null;
-    }
-
-    if (!res.ok) {
-      const msg = (payload && (payload.message || payload.error)) || `Request failed with status ${res.status}`;
-      throw new Error(msg);
-    }
-
-    return payload;
-  }
+  const res = await fetch(`/api/recommendations/initial?${sp.toString()}`, { method: 'GET' });
 
   let payload: any = null;
   try {
-    payload = await fetchFrom(`/api/recommendations/initial?${sp.toString()}`);
+    payload = await res.json();
   } catch {
-    payload = await fetchFrom(`/api/recommendations/roles?${sp.toString()}`);
+    payload = null;
+  }
+
+  if (!res.ok) {
+    const msg = (payload && (payload.message || payload.error)) || `Request failed with status ${res.status}`;
+    throw new Error(msg);
   }
 
   const roles = Array.isArray(payload?.roles) ? payload.roles : [];
   return roles.map((raw: any) => {
+    // Preferred backend shape (recommendations/initial)
     if (raw?.role_id || raw?.role_title) return raw as InitialRecommendationRole;
 
+    // Defensive normalization for older placeholder shapes
     const tags = Array.isArray(raw?.tags) ? raw.tags : [];
     return {
       role_id: String(raw?.id || ''),
@@ -69,6 +65,13 @@ async function fetchInitialRecommendations(personaId: string): Promise<InitialRe
       description: raw?.description ?? undefined,
       key_responsibilities: Array.isArray(raw?.key_responsibilities) ? raw.key_responsibilities : undefined,
       required_skills: Array.isArray(raw?.required_skills) ? raw.required_skills : tags,
+      threeTwoReport: raw?.threeTwoReport ?? raw?.three_two_report ?? null,
+      compatibilityScore:
+        typeof raw?.compatibilityScore === 'number'
+          ? raw.compatibilityScore
+          : typeof raw?.compatibility_score === 'number'
+            ? raw.compatibility_score
+            : undefined,
     } satisfies InitialRecommendationRole;
   });
 }
@@ -166,8 +169,11 @@ function mapSearchRowToUiRole(row: any, index: number): Role {
 
 
 function mapInitialRecommendationToUiRole(rec: InitialRecommendationRole, index: number): Role {
-  // Backend returns salary_lpa_range already in LPA (India). We keep existing UI helper which expects USD;
-  // if we can't parse, we fall back to a reasonable placeholder range.
+  /**
+   * Recommended roles should render using the SAME 3/2-scored role card as search results.
+   * That means we must carry through:
+   * - threeTwoReport (masteryAreas/growthAreas + score/compatibilityScore when present)
+   */
   const { minL, maxL } = safeParseSalaryUsdRangeToLakhs(rec.salary_lpa_range ?? null);
 
   const description =
@@ -182,6 +188,19 @@ function mapInitialRecommendationToUiRole(rec: InitialRecommendationRole, index:
     ? rec.required_skills.map((x) => String(x)).map((s) => s.trim()).filter(Boolean)
     : [];
 
+  const reportRaw: any = rec?.threeTwoReport ?? null;
+  const masteryAreas = Array.isArray(reportRaw?.masteryAreas) ? reportRaw.masteryAreas : [];
+  const growthAreas = Array.isArray(reportRaw?.growthAreas) ? reportRaw.growthAreas : [];
+
+  const compatibilityScore =
+    typeof rec?.compatibilityScore === 'number'
+      ? rec.compatibilityScore
+      : typeof reportRaw?.compatibilityScore === 'number'
+        ? reportRaw.compatibilityScore
+        : typeof reportRaw?.score === 'number'
+          ? reportRaw.score
+          : undefined;
+
   return {
     id: String(rec.role_id ?? `init-${index}`),
     title: String(rec.role_title || '').trim() || 'Untitled Role',
@@ -193,9 +212,17 @@ function mapInitialRecommendationToUiRole(rec: InitialRecommendationRole, index:
     expandedSkills: skills.slice(5, 12),
     description,
     responsibilities,
-    // IMPORTANT: these are persona-based recommendations (not generic suggestions).
     careerLevel: 'Recommended',
-    threeTwoReport: null,
+    threeTwoReport:
+      reportRaw && typeof reportRaw === 'object'
+        ? {
+            ...reportRaw,
+            // Ensure the RoleCard can render Mastery/Growth counts even if backend doesn't provide them.
+            mastery: typeof reportRaw.mastery === 'number' ? reportRaw.mastery : masteryAreas.length,
+            growth: typeof reportRaw.growth === 'number' ? reportRaw.growth : growthAreas.length,
+            ...(typeof compatibilityScore === 'number' ? { compatibilityScore } : {}),
+          }
+        : null,
   };
 }
 
@@ -335,19 +362,13 @@ export default function ExploreClient() {
       const sp = new URLSearchParams();
       sp.set('personaId', personaId);
 
-      let payload: any = null;
-      try {
-        const res = await fetch(`/api/recommendations/initial?${sp.toString()}`, { method: 'GET' });
-        payload = await res.json();
-        if (!res.ok) throw new Error(payload?.message || payload?.error || `Request failed with status ${res.status}`);
-      } catch {
-        const res = await fetch(`/api/recommendations/roles?${sp.toString()}`, { method: 'GET' });
-        payload = await res.json();
-        if (!res.ok) throw new Error(payload?.message || payload?.error || `Request failed with status ${res.status}`);
-      }
+      const res = await fetch(`/api/recommendations/initial?${sp.toString()}`, { method: 'GET' });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload?.message || payload?.error || `Request failed with status ${res.status}`);
 
       const recs = Array.isArray(payload?.roles) ? payload.roles : [];
-      const suggested = recs.map((r: any, idx: number) => mapInitialRecommendationToUiRole(r, idx)).slice(0, 4);
+      // Requirement: show only 5 roles initially.
+      const suggested = recs.map((r: any, idx: number) => mapInitialRecommendationToUiRole(r, idx)).slice(0, 5);
 
       setSuggestedMeta(payload?.meta && typeof payload.meta === 'object' ? payload.meta : null);
       setSuggestedSource(suggested.length > 0 ? 'initial' : 'none');
