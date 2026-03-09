@@ -27,55 +27,6 @@ type InitialRecommendationRole = {
   compatibilityScore?: number;
 };
 
-async function fetchInitialRecommendations(personaId: string): Promise<InitialRecommendationRole[]> {
-  /**
-   * Explore page should use a single recommendations API.
-   * Contract: /api/recommendations/initial returns exactly 5 roles (Bedrock-driven, with scoring when available).
-   */
-  const sp = new URLSearchParams();
-  sp.set('personaId', personaId);
-
-  const res = await fetch(`/api/recommendations/initial?${sp.toString()}`, { method: 'GET' });
-
-  let payload: any = null;
-  try {
-    payload = await res.json();
-  } catch {
-    payload = null;
-  }
-
-  if (!res.ok) {
-    const msg = (payload && (payload.message || payload.error)) || `Request failed with status ${res.status}`;
-    throw new Error(msg);
-  }
-
-  const roles = Array.isArray(payload?.roles) ? payload.roles : [];
-  return roles.map((raw: any) => {
-    // Preferred backend shape (recommendations/initial)
-    if (raw?.role_id || raw?.role_title) return raw as InitialRecommendationRole;
-
-    // Defensive normalization for older placeholder shapes
-    const tags = Array.isArray(raw?.tags) ? raw.tags : [];
-    return {
-      role_id: String(raw?.id || ''),
-      role_title: String(raw?.title || 'Recommended Role'),
-      industry: String(raw?.industry || tags[0] || 'General'),
-      salary_lpa_range: raw?.salary_lpa_range ?? undefined,
-      experience_range: raw?.experience_range ?? undefined,
-      description: raw?.description ?? undefined,
-      key_responsibilities: Array.isArray(raw?.key_responsibilities) ? raw.key_responsibilities : undefined,
-      required_skills: Array.isArray(raw?.required_skills) ? raw.required_skills : tags,
-      threeTwoReport: raw?.threeTwoReport ?? raw?.three_two_report ?? null,
-      compatibilityScore:
-        typeof raw?.compatibilityScore === 'number'
-          ? raw.compatibilityScore
-          : typeof raw?.compatibility_score === 'number'
-            ? raw.compatibility_score
-            : undefined,
-    } satisfies InitialRecommendationRole;
-  });
-}
-
 function safeParseSalaryUsdRangeToLakhs(range?: string | null): { minL: number; maxL: number } {
   /**
    * Backend catalog ranges are usually like "$130k-$210k".
