@@ -1,10 +1,12 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { CompatibilityScore } from "./compatibility-score";
 import { apiFetch } from "../../../lib/apiClient";
 import { loadPersona } from "../../../lib/personaStorage";
 import { getTargetRoleSelection, persistTargetRoleSelection } from "../../../lib/targetRoleStorage";
+import { getLocalMindmapViewState, persistLocalMindmapViewState } from "../../../lib/mindmapViewStateStorage";
 
 function normString(v: unknown): string {
   return String(v ?? "").trim();
@@ -118,6 +120,8 @@ function intersectSkills(params: { personaSkills: string[]; requiredSkills: stri
  * - Persona skills shown are filtered to only those matching the role required skills.
  */
 const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }: RoleCardProps) => {
+  const router = useRouter();
+
   const title = normString(role?.title || role?.role_title) || "Untitled Role";
   const industry = normString(role?.industry) || "—";
   const description = normString(role?.description);
@@ -198,6 +202,38 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
 
   const thisRoleId = roleIdFromRole(role);
   const isTarget = Boolean(thisRoleId) && targetRoleId === thisRoleId;
+
+  // PUBLIC_INTERFACE
+  function handleShowMoreDetails() {
+    /**
+     * Navigate from Explore → Mindmap and open the Target-role details view.
+     *
+     * Implementation notes:
+     * - MindmapClient renders the right-side panel using internal state (`rightTab`).
+     *   The simplest cross-route way to select the correct panel is to seed the persisted
+     *   mindmap view-state before navigation.
+     * - We also set centerRoleId so Mindmap centers on the saved target role immediately.
+     */
+    if (!thisRoleId) return;
+
+    // Seed Mindmap view state so the Mindmap page opens with the correct "Target role details" panel.
+    const prev = getLocalMindmapViewState();
+    const next = {
+      ...(prev && typeof prev === "object" ? prev : null),
+      version: 1,
+      centerRoleId: thisRoleId,
+      selectedNodeId: null,
+      // Custom additive field: MindmapClient will ignore unknown keys; this is safe.
+      // If in future we wire MindmapClient to read it, it's already present.
+      rightTab: "target",
+    } as any;
+
+    persistLocalMindmapViewState(next);
+
+    // Preserve personaId when available (Mindmap uses local persona storage, but this keeps URLs consistent).
+    const url = personaId ? `/mindmap?personaId=${encodeURIComponent(personaId)}` : "/mindmap";
+    router.push(url);
+  }
 
   async function handleSetAsTargetRole() {
     if (!thisRoleId) return;
@@ -420,15 +456,17 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
 
             {/* Bottom action row */}
             <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <button
-                type="button"
-                className="text-[12px] text-[#1D4ED8] hover:underline self-start"
-                onClick={() => {
-                  // Placeholder for future “full details” navigation.
-                }}
-              >
-                More …
-              </button>
+              {isTarget ? (
+                <button
+                  type="button"
+                  className="text-[12px] text-[#1D4ED8] hover:underline self-start"
+                  onClick={handleShowMoreDetails}
+                >
+                  Show more details
+                </button>
+              ) : (
+                <span className="text-[12px] text-transparent select-none self-start">.</span>
+              )}
 
               <div className="flex items-center gap-2 sm:justify-end">
                 {saveError && <span className="text-[11px] text-amber-700">{saveError}</span>}
