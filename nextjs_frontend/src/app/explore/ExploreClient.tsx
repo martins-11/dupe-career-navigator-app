@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { RecommendationGrid } from "../components/recommendations/recommendation-grid";
 import { CompatibilityScore } from "../components/explore/compatibility-score";
-import { getPersonaFinal } from "@/src/lib/personaStorage";
+import { loadPersonaId, getPersona } from "../../lib/personaStorage";
 
 // PUBLIC_INTERFACE
 /**
@@ -15,11 +15,16 @@ export default function ExploreClient() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [persona, setPersona] = useState<any>(null);
 
-  // Load personaFinal on mount (DB-driven, strict JSON required)
+  // Load persona on mount (DB-driven, strict JSON required)
   useEffect(() => {
     async function loadPersona() {
-      const data = await getPersonaFinal();
-      setPersona(data);
+      const personaId = loadPersonaId();
+      if (personaId) {
+        const data = getPersona(personaId);
+        setPersona(data);
+      } else {
+        setPersona(null);
+      }
     }
     loadPersona();
   }, []);
