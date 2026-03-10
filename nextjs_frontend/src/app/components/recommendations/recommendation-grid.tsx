@@ -120,23 +120,37 @@ export function RecommendationGrid({
            * Recommendation payloads sometimes use role_id/role_title naming, while the Explore
            * RoleCard supports both role_title + title, role_id + id, etc.
            *
-           * We lightly normalize keys here so:
-           * - React keys are stable
-           * - RoleCard can reliably find identifiers/titles when present
+           * IMPORTANT (accordion correctness):
+           * - The expanded state is keyed by `expandedRoleId`.
+           * - If multiple cards accidentally share the same id (or id is missing/empty),
+           *   multiple cards can appear "expanded" but only one has data → looks like blank panels.
+           * - So we must derive a UNIQUE + STABLE id per role card.
            */
+          const derivedIdRaw =
+            role?.id ??
+            role?.role_id ??
+            // Fallbacks that are usually stable in recommendation payloads:
+            role?.onet_id ??
+            role?.code ??
+            role?.title ??
+            role?.role_title;
+
+          const derivedId = String(derivedIdRaw ?? "").trim();
+          const stableUniqueId = derivedId !== "" ? derivedId : `role-${idx}`;
+
           const normalizedRole = {
             ...role,
-            id: role?.id ?? role?.role_id ?? String(idx),
+            id: stableUniqueId,
             title: role?.title ?? role?.role_title,
           };
 
           return (
             <RoleCard
-              key={normalizedRole.id}
+              key={stableUniqueId}
               role={normalizedRole}
               personaId={personaId}
-              expanded={expandedRoleId === normalizedRole.id}
-              onExpandedChange={(next) => setExpandedRoleId(next ? normalizedRole.id : null)}
+              expanded={expandedRoleId === stableUniqueId}
+              onExpandedChange={(next) => setExpandedRoleId(next ? stableUniqueId : null)}
             />
           );
         })}
