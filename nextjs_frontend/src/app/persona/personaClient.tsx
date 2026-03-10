@@ -46,6 +46,8 @@ export default function PersonaClient() {
 
         setCtx({
           ...res,
+          // Optional envelope for persona JSON (draft/final) if the backend starts returning it.
+          persona: res?.persona ?? null,
           targetRole: { ...(res?.targetRole || null), roleId: targetRoleId },
         });
       } catch (e: any) {
@@ -66,8 +68,16 @@ export default function PersonaClient() {
   const currentRoleTitle = ctx?.currentRole?.currentRoleTitle || null;
   const targetRoleId = ctx?.targetRole?.roleId || null;
 
-  // Stable, non-PII placeholder display name for now (until persona "full_name" is wired through).
-  const displayName = ctx?.userId ? String(ctx.userId) : 'User';
+  // Prefer persona-derived identity fields when available (draft/final persona JSON),
+  // otherwise fall back to the anonymous user key.
+  const persona = ctx?.persona || null;
+  const personaFullName = typeof persona?.full_name === 'string' ? persona.full_name.trim() : '';
+  const personaCurrentRole =
+    (typeof persona?.current_role === 'string' ? persona.current_role.trim() : '') ||
+    (typeof persona?.professional_title === 'string' ? persona.professional_title.trim() : '');
+
+  const displayName = personaFullName || (ctx?.userId ? String(ctx.userId) : 'User');
+  const displayDesignation = personaCurrentRole || currentRoleTitle || null;
 
   return (
     <div className="px-8 py-8 bg-white min-h-screen font-sans">
@@ -75,7 +85,7 @@ export default function PersonaClient() {
         <header className="border-b border-slate-100 pb-6">
           <div className="space-y-1">
             <div className="text-xs uppercase tracking-widest text-slate-400 font-bold">
-              {currentRoleTitle ? currentRoleTitle : 'Current role not detected yet'}
+              {displayDesignation ? displayDesignation : 'Current role not detected yet'}
             </div>
             <h1 className="text-4xl font-extrabold text-[#0D9488] tracking-tight">{displayName}</h1>
           </div>
