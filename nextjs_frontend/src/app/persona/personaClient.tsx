@@ -66,11 +66,19 @@ export default function PersonaClient() {
   const currentRoleTitle = ctx?.currentRole?.currentRoleTitle || null;
   const targetRoleId = ctx?.targetRole?.roleId || null;
 
+  // Stable, non-PII placeholder display name for now (until persona "full_name" is wired through).
+  const displayName = ctx?.userId ? String(ctx.userId) : 'User';
+
   return (
     <div className="px-8 py-8 bg-white min-h-screen font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
         <header className="border-b border-slate-100 pb-6">
-          <h1 className="text-4xl font-extrabold text-[#0D9488] tracking-tight">Persona</h1>
+          <div className="space-y-1">
+            <div className="text-xs uppercase tracking-widest text-slate-400 font-bold">
+              {currentRoleTitle ? currentRoleTitle : 'Current role not detected yet'}
+            </div>
+            <h1 className="text-4xl font-extrabold text-[#0D9488] tracking-tight">{displayName}</h1>
+          </div>
           <p className="text-slate-500 mt-2 text-lg">
             Your current role is extracted from your documents during ingestion. Your target role is set from Explore.
           </p>
