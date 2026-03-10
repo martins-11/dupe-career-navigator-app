@@ -4,7 +4,7 @@ import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
-import { getRoleSuggestions } from "@/lib/rolesApi";
+import { getRoleSuggestions, type RoleSuggestion } from "@/lib/rolesApi";
 
 interface SearchBarProps {
   query: string;
@@ -15,7 +15,7 @@ interface SearchBarProps {
 
 export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBarProps) {
   const [isFocused, setIsFocused] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<RoleSuggestion[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -27,7 +27,9 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
     if (trimmed.length < 2) {
       setSuggestions([]);
       setHighlightIndex(-1);
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     }
 
     const timer = window.setTimeout(async () => {
@@ -69,9 +71,12 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
       e.preventDefault();
       setHighlightIndex((prev) => Math.max(prev - 1, -1));
     } else if (e.key === "Enter") {
+      // Prevent implicit form submissions if this component is ever used inside a <form>.
       e.preventDefault();
-      if (highlightIndex >= 0 && suggestions[highlightIndex]) {
-        onQueryChange(suggestions[highlightIndex]);
+
+      const picked = highlightIndex >= 0 ? suggestions[highlightIndex] : undefined;
+      if (picked?.title) {
+        onQueryChange(picked.title);
         setSuggestions([]);
         setIsFocused(false);
         onSearch();
@@ -85,7 +90,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
   }
 
   function highlightMatch(text: string | any) {
-    if (!text || typeof text !== 'string') return text || "";
+    if (!text || typeof text !== "string") return text || "";
     if (!query) return text;
 
     const idx = text.toLowerCase().indexOf(query.toLowerCase());
@@ -94,16 +99,19 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
     return (
       <>
         {text.substring(0, idx)}
-        <span className="font-bold text-[#0D9488]">
-          {text.substring(idx, idx + query.length)}
-        </span>
+        <span className="font-bold text-[#0D9488]">{text.substring(idx, idx + query.length)}</span>
         {text.substring(idx + query.length)}
       </>
     );
   }
 
   return (
-    <div ref={wrapperRef} className="relative w-full max-w-2xl mx-auto">
+    <div
+      ref={wrapperRef}
+      className="relative w-full max-w-2xl mx-auto"
+      // Defensive: if parent wraps this in a form, this prevents refresh on submit.
+      onSubmit={(e: any) => e?.preventDefault?.()}
+    >
       <div
         className={cn("flex items-center border shadow-sm transition-shadow duration-300", isSticky ? "h-12" : "h-14")}
         style={{
@@ -129,7 +137,11 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
           className={cn("flex-1 bg-transparent px-4 focus:outline-none text-slate-900", isSticky ? "text-sm" : "text-base")}
         />
         <button
-          onClick={() => { onSearch(); setIsFocused(false); }}
+          type="button"
+          onClick={() => {
+            onSearch();
+            setIsFocused(false);
+          }}
           className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold px-6 py-2 rounded-xl mr-1.5 transition-all active:scale-95"
         >
           Search
@@ -141,21 +153,21 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
           <ul className="py-2">
             {suggestions.map((s, i) => (
               <li
-                key={s}
+                key={s.id || `${s.title}-${i}`}
                 className={cn(
                   "flex items-center gap-3 px-5 py-3 text-sm cursor-pointer",
                   i === highlightIndex ? "bg-teal-50 text-[#0D9488]" : "text-slate-700 hover:bg-slate-50"
                 )}
                 onMouseEnter={() => setHighlightIndex(i)}
                 onClick={() => {
-                  onQueryChange(s);
+                  onQueryChange(s.title);
                   setSuggestions([]);
                   setIsFocused(false);
                   onSearch();
                 }}
               >
                 <Search className="h-4 w-4 shrink-0 opacity-50" />
-                <span>{highlightMatch(s)}</span>
+                <span>{highlightMatch(s.title)}</span>
               </li>
             ))}
           </ul>

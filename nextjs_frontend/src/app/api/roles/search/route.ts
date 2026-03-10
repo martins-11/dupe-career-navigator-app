@@ -1,34 +1,47 @@
-import { NextResponse } from 'next/server';
-// Use require if your service uses module.exports, or import if it uses export default
-const { exploreSearchRolesPersonaDriven } = require('@/services/rolesExploreSearchService');
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(request: Request) {
+/**
+ * Proxy for roles search API.
+ * Forwards incoming role search queries to the backend Express API.
+ *
+ * PUBLIC_INTERFACE
+ */
+export async function GET(req: NextRequest) {
+  // Support all search query parameters
+  const url = new URL(req.url);
+  const query = url.search || "";
+  const backendUrl =
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.REACT_APP_BACKEND_URL;
+  if (!backendUrl) {
+    return NextResponse.json(
+      { error: "Backend URL env variable not set" },
+      { status: 500 }
+    );
+  }
+
   try {
-    const { searchParams } = new URL(request.url);
-    
-    // 1. Get the Persona ID from the frontend request
-    const personaId = searchParams.get('personaId');
-    const query = searchParams.get('title') || searchParams.get('q') || '';
+    const res = await fetch(
+      `${backendUrl}/api/roles/search${query}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          // Forward authorization, etc if needed
+          ...(req.headers.get("authorization")
+            ? { authorization: req.headers.get("authorization")! }
+            : {}),
+        },
+        // Optionally, you could forward cookies, etc. if required for auth
+      }
+    );
 
-    if (!personaId) {
-      console.error("❌ API Route: Missing personaId");
-      return NextResponse.json({ error: 'personaId is required' }, { status: 400 });
-    }
-
-    console.log(`🚀 API Route: Fetching Bedrock roles for Persona: ${personaId}, Query: ${query}`);
-
-    // 2. Call the service (this is where the AI matching happens)
-    const roles = await exploreSearchRolesPersonaDriven({
-      q: query,
-      personaId: personaId,
-      limit: 6
-    });
-
-    // 3. Return the real roles found by Bedrock
-    return NextResponse.json(roles);
-    
-  } catch (error: any) {
-    console.error("❌ API Route Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: "Failed to proxy to backend", detail: e.message },
+      { status: 500 }
+    );
   }
 }
