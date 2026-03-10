@@ -68,11 +68,27 @@ function toSafeState(s: any): MindmapViewState {
 
 /**
  * Best-effort user key:
- * - We don't have authentication; use personaId as a stable-ish identifier.
- * - Fallback to "anonymous" (still persists locally).
+ * - We don't have authentication; use personaId as a stable-ish identifier when present.
+ * - Otherwise, generate and persist a stable anonymous id in localStorage so backend persistence
+ *   never receives undefined/empty userId.
  */
 function getUserKey(): string {
-  return loadPersonaId() || 'anonymous';
+  const personaId = loadPersonaId();
+  if (personaId) return personaId;
+
+  // Stable anonymous key per browser.
+  const storageKey = 'career_navigator_anon_user_key';
+  try {
+    const existing = window.localStorage.getItem(storageKey);
+    if (existing && existing.trim()) return existing.trim();
+
+    const created = `anon_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+    window.localStorage.setItem(storageKey, created);
+    return created;
+  } catch {
+    // If localStorage is unavailable, fall back to an always-non-empty value.
+    return `anon_${Date.now()}`;
+  }
 }
 
 // PUBLIC_INTERFACE
