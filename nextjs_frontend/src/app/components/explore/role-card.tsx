@@ -405,7 +405,7 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
             </div>
 
             {/* Bottom action row */}
-            <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <button
                 type="button"
                 className="text-[12px] text-[#1D4ED8] hover:underline self-start"
