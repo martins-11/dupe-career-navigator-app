@@ -63,7 +63,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [query]);
+  }, [query, personaId]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
