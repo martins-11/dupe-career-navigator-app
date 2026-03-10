@@ -270,6 +270,11 @@ export default function MindmapClient() {
   React.useEffect(() => {
     let cancelled = false;
 
+    function looksLikeUuid(v: string): boolean {
+      // Accept standard UUID v4-ish (but don't overfit), case-insensitive.
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+    }
+
     async function run() {
       if (!targetRoleId) {
         setTargetRole(null);
@@ -282,6 +287,18 @@ export default function MindmapClient() {
       setTargetRoleError(null);
 
       try {
+        // Important: /api/roles/search is a text search endpoint and often returns []
+        // when q is a UUID role_id. In that case, use a dedicated by-id lookup.
+        if (looksLikeUuid(targetRoleId)) {
+          const role = await apiFetch(`/api/roles/by-id/${encodeURIComponent(targetRoleId)}`, {
+            method: 'GET',
+            cache: 'no-store',
+          });
+          if (!cancelled) setTargetRole(role ?? null);
+          return;
+        }
+
+        // Fallback: treat targetRoleId as a search query (legacy behavior).
         const qs = new URLSearchParams();
         qs.set('q', targetRoleId);
 
