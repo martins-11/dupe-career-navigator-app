@@ -395,19 +395,29 @@ export default function MindmapClient() {
                     </div>
                   </div>
                 ) : graph ? (
-                  <MindmapCanvas
-                    nodes={graph.nodes}
-                    edges={graph.edges}
-                    centerNodeId={graph.centerNodeId}
-                    selectedNodeId={state.selectedNodeId}
-                    dimmedNodeIds={dimmed}
-                    viewport={viewport}
-                    onViewportChange={setViewport}
-                    onNodeClick={(nodeId) => {
-                      setRightTab('selected');
-                      setState((s) => ({ ...s, selectedNodeId: nodeId }));
-                    }}
-                  />
+                  graph.nodes && graph.nodes.length > 0 ? (
+                    <MindmapCanvas
+                      nodes={graph.nodes}
+                      edges={graph.edges}
+                      centerNodeId={graph.centerNodeId}
+                      selectedNodeId={state.selectedNodeId}
+                      dimmedNodeIds={dimmed}
+                      viewport={viewport}
+                      onViewportChange={setViewport}
+                      onNodeClick={(nodeId) => {
+                        setRightTab('selected');
+                        setState((s) => ({ ...s, selectedNodeId: nodeId }));
+                      }}
+                    />
+                  ) : (
+                    <div className="h-[560px] rounded-2xl border border-slate-200 bg-white flex flex-col items-center justify-center text-slate-600 px-6 text-center">
+                      <div className="text-lg font-semibold text-slate-800">No mind map nodes to show</div>
+                      <div className="mt-2 text-sm text-slate-500 max-w-md">
+                        We couldn’t build a graph from your current role yet. Upload documents to detect your current role,
+                        then return here to explore paths. (Target role selection does not affect the center node.)
+                      </div>
+                    </div>
+                  )
                 ) : (
                   <div className="h-[560px] rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-slate-500">
                     No graph data.
