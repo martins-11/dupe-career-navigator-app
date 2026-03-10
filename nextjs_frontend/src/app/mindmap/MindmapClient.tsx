@@ -127,11 +127,12 @@ export default function MindmapClient() {
         // Try backend last saved target role.
         try {
           const userKey = getUserKey();
-          const res = await apiFetch(`/personas/target-role?userKey=${encodeURIComponent(userKey)}`, { method: 'GET' });
-          const roleId =
-            (res && typeof res === 'object' && (res as any).role_id ? String((res as any).role_id) : null) ||
-            (res && typeof res === 'object' && (res as any).roleId ? String((res as any).roleId) : null) ||
-            null;
+          const res = await apiFetch(`/personas/target-role?user_id=${encodeURIComponent(userKey)}`, { method: 'GET' });
+
+          // Backend returns: { status: "ok", target: { user_id, role_id, time_horizon, ... } }
+          const target = res && typeof res === 'object' ? (res as any).target : null;
+          const roleId = target && typeof target === 'object' && target.role_id ? String(target.role_id) : null;
+
           if (roleId && !cancelled) resolvedCenter = roleId;
         } catch {
           // ignore
