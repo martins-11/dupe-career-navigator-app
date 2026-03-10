@@ -13,12 +13,6 @@ interface SearchBarProps {
   isSticky: boolean;
 }
 
-/**
- * Search bar with autocomplete suggestions.
- *
- * Backend integration:
- * - Suggestions are powered by GET /api/roles/search?q=...&limit=5 (titles extracted client-side).
- */
 export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBarProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -26,24 +20,14 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    /**
-     * Debounced autocomplete:
-     * - Prevents firing a request for every keystroke.
-     * - Helps avoid out-of-order responses updating the UI with stale suggestions.
-     * - Ensures we only ever send a *string* query to the backend.
-     */
     let cancelled = false;
-
     const q = String(query ?? "");
     const trimmed = q.trim();
 
-    // Clear suggestions quickly for very short queries.
     if (trimmed.length < 2) {
       setSuggestions([]);
       setHighlightIndex(-1);
-      return () => {
-        cancelled = true;
-      };
+      return () => { cancelled = true; };
     }
 
     const timer = window.setTimeout(async () => {
@@ -54,7 +38,6 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
           setHighlightIndex(-1);
         }
       } catch {
-        // Autocomplete should never block the UX; if it fails, just hide suggestions.
         if (!cancelled) {
           setSuggestions([]);
           setHighlightIndex(-1);
@@ -101,15 +84,20 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
     }
   }
 
-  function highlightMatch(text: string) {
+  function highlightMatch(text: string | any) {
+    if (!text || typeof text !== 'string') return text || "";
     if (!query) return text;
+
     const idx = text.toLowerCase().indexOf(query.toLowerCase());
     if (idx === -1) return text;
+
     return (
       <>
-        {text.slice(0, idx)}
-        <span className="font-semibold text-primary">{text.slice(idx, idx + query.length)}</span>
-        {text.slice(idx + query.length)}
+        {text.substring(0, idx)}
+        <span className="font-bold text-[#0D9488]">
+          {text.substring(idx, idx + query.length)}
+        </span>
+        {text.substring(idx + query.length)}
       </>
     );
   }
@@ -120,80 +108,45 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
         className={cn("flex items-center border shadow-sm transition-shadow duration-300", isSticky ? "h-12" : "h-14")}
         style={{
           borderRadius: 12,
-          background: "var(--bg-surface)",
-          borderColor: isFocused ? "rgba(23,166,166,0.45)" : "var(--border-subtle)",
-          boxShadow: isFocused ? "var(--ring-teal)" : "none",
+          background: "white",
+          borderColor: isFocused ? "#0D9488" : "#E2E8F0",
+          boxShadow: isFocused ? "0 0 0 2px rgba(13, 148, 136, 0.2)" : "none",
         }}
       >
         <div className="flex items-center justify-center pl-5">
-          <Search className="h-5 w-5" style={{ color: "var(--text-muted)" }} />
+          <Search className="h-5 w-5 text-slate-400" />
         </div>
         <input
           type="text"
           value={query}
           onChange={(e) => {
-            const next = e.target.value;
-            onQueryChange(next);
-
-            // Keep autocomplete responsive even if parent state updates are delayed.
-            // (Debounce is already applied in the effect; this just ensures suggestions
-            // are actually triggered by input changes, per authoritative instructions.)
+            onQueryChange(e.target.value);
             setIsFocused(true);
           }}
           onFocus={() => setIsFocused(true)}
           onKeyDown={handleKeyDown}
           placeholder="Search job title, skills, or industry..."
-          className={cn("flex-1 bg-transparent px-4 focus:outline-none", isSticky ? "text-sm" : "text-base")}
-          style={{ color: "var(--text-strong)" }}
+          className={cn("flex-1 bg-transparent px-4 focus:outline-none text-slate-900", isSticky ? "text-sm" : "text-base")}
         />
         <button
-          onClick={() => {
-            onSearch();
-            setIsFocused(false);
-          }}
-          className={cn(
-            "flex items-center justify-center font-semibold transition-all duration-200 active:scale-95 cursor-pointer mr-1.5",
-            isSticky ? "px-5 py-2 text-sm" : "px-6 py-2.5 text-sm",
-          )}
-          style={{
-            borderRadius: 12,
-            background: "var(--zip-teal)",
-            color: "#fff",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal-hover)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal)";
-          }}
+          onClick={() => { onSearch(); setIsFocused(false); }}
+          className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold px-6 py-2 rounded-xl mr-1.5 transition-all active:scale-95"
         >
           Search
         </button>
       </div>
 
-      {/* Autocomplete dropdown */}
       {isFocused && suggestions.length > 0 && (
-        <div
-          className="absolute top-full left-0 right-0 z-50 mt-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200"
-          style={{
-            borderRadius: 12,
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <ul className="py-2" role="listbox">
+        <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden">
+          <ul className="py-2">
             {suggestions.map((s, i) => (
               <li
                 key={s}
-                role="option"
-                aria-selected={i === highlightIndex}
-                className={cn("flex items-center gap-3 px-5 py-3 text-sm cursor-pointer transition-colors duration-150")}
-                style={{
-                  background: i === highlightIndex ? "rgba(23,166,166,0.10)" : "transparent",
-                  color: "var(--text-strong)",
-                }}
+                className={cn(
+                  "flex items-center gap-3 px-5 py-3 text-sm cursor-pointer",
+                  i === highlightIndex ? "bg-teal-50 text-[#0D9488]" : "text-slate-700 hover:bg-slate-50"
+                )}
                 onMouseEnter={() => setHighlightIndex(i)}
-                onMouseLeave={() => setHighlightIndex(-1)}
                 onClick={() => {
                   onQueryChange(s);
                   setSuggestions([]);
@@ -201,7 +154,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
                   onSearch();
                 }}
               >
-                <Search className="h-4 w-4 shrink-0" style={{ color: "var(--text-muted)" }} />
+                <Search className="h-4 w-4 shrink-0 opacity-50" />
                 <span>{highlightMatch(s)}</span>
               </li>
             ))}
