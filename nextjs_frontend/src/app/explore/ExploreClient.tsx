@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 // Component Imports
 import { RecommendationGrid } from "../components/recommendations/recommendation-grid";
-import { CompatibilityScore } from "../components/explore/compatibility-score";
+
 import { Filters, ActiveFilterTags } from "../components/explore/filters";
 import { SearchBar } from "../components/explore/search-bar";
 import RoleCard from "../components/explore/role-card";
@@ -15,7 +15,6 @@ import { apiFetch } from "../../lib/apiClient";
 
 export default function ExploreClient() {
   // --- UI State ---
-  const [showAnalysis, setShowAnalysis] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,8 +49,22 @@ export default function ExploreClient() {
           apiFetch("/api/roles/industries"),
           apiFetch("/api/roles/skills"),
         ]);
-        setIndustryOptions(Array.isArray(industries) ? industries : []);
-        setSkillsOptions(Array.isArray(skills) ? skills : []);
+
+        // API may return either a raw array or an object envelope { industries: [] } / { skills: [] }.
+        const industriesArr = Array.isArray(industries)
+          ? industries
+          : Array.isArray((industries as any)?.industries)
+            ? (industries as any).industries
+            : [];
+
+        const skillsArr = Array.isArray(skills)
+          ? skills
+          : Array.isArray((skills as any)?.skills)
+            ? (skills as any).skills
+            : [];
+
+        setIndustryOptions(industriesArr);
+        setSkillsOptions(skillsArr);
       } catch (err) {
         console.error("Failed to load filter options:", err);
         setOptionsError("Metadata service unavailable.");
@@ -259,8 +272,6 @@ export default function ExploreClient() {
           ) : (
             <RecommendationGrid
               personaId={effectivePersonaId || ""}
-              showAnalysis={showAnalysis}
-              onViewAnalysis={() => setShowAnalysis(true)}
               filters={{
                 industry: selectedIndustry,
                 skills: selectedSkills,
@@ -269,18 +280,7 @@ export default function ExploreClient() {
             />
           )}
 
-          {/* --- ANALYSIS SECTION --- */}
-          {showAnalysis && (
-            <section className="mt-16 pt-12 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-2 h-8 bg-[#0D9488] rounded-full" />
-                <h2 className="text-2xl font-bold text-slate-800">Compatibility Deep-Dive</h2>
-              </div>
-              <div className="bg-slate-50 rounded-3xl p-10 flex justify-center">
-                 <CompatibilityScore personaId={effectivePersonaId || ""} />
-              </div>
-            </section>
-          )}
+
         </main>
       </div>
     </div>

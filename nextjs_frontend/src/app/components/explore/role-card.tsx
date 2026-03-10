@@ -1,10 +1,12 @@
 "use client";
 
 import React from "react";
+import { useRouter } from "next/navigation";
 import { CompatibilityScore } from "./compatibility-score";
 import { apiFetch } from "../../../lib/apiClient";
 import { loadPersona } from "../../../lib/personaStorage";
 import { getTargetRoleSelection, persistTargetRoleSelection } from "../../../lib/targetRoleStorage";
+import { getLocalMindmapViewState, persistLocalMindmapViewState } from "../../../lib/mindmapViewStateStorage";
 
 function normString(v: unknown): string {
   return String(v ?? "").trim();
@@ -118,6 +120,8 @@ function intersectSkills(params: { personaSkills: string[]; requiredSkills: stri
  * - Persona skills shown are filtered to only those matching the role required skills.
  */
 const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }: RoleCardProps) => {
+  const router = useRouter();
+
   const title = normString(role?.title || role?.role_title) || "Untitled Role";
   const industry = normString(role?.industry) || "—";
   const description = normString(role?.description);
@@ -127,9 +131,14 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
   const masteryAreas = safeStringArray(report?.masteryAreas);
   const growthAreas = safeStringArray(report?.growthAreas);
 
-  // Prefer top-level compatibilityScore, then report.compatibilityScore, then report.score.
+  // Prefer blended overall score first (initial recommendations may provide this even when raw compat is null),
+  // then fall back to raw compatibilityScore and any nested report scores.
   const score = clampPercent(
-    role?.compatibilityScore ?? report?.compatibilityScore ?? report?.score ?? 0
+    role?.finalCompatibilityScore ??
+      role?.compatibilityScore ??
+      report?.compatibilityScore ??
+      report?.score ??
+      0
   );
 
   const requiredSkills = safeStringArray(role?.skills_required ?? role?.required_skills ?? []);
@@ -160,8 +169,22 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
   const [personaSkills, setPersonaSkills] = React.useState<string[]>([]);
 
   React.useEffect(() => {
+    // Initialize from persisted state
     const sel = getTargetRoleSelection();
     setTargetRoleId(sel.roleId);
+
+    // Keep in sync if another tab/page updates localStorage
+    function onStorage(evt: StorageEvent) {
+      if (!evt.key) return;
+      // targetRoleStorage persists under a stable key; but we just re-read defensively.
+      if (evt.key.includes("career_navigator_target_role_id")) {
+        const next = getTargetRoleSelection();
+        setTargetRoleId(next.roleId);
+      }
+    }
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   React.useEffect(() => {
@@ -179,6 +202,38 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
 
   const thisRoleId = roleIdFromRole(role);
   const isTarget = Boolean(thisRoleId) && targetRoleId === thisRoleId;
+
+  // PUBLIC_INTERFACE
+  function handleShowMoreDetails() {
+    /**
+     * Navigate from Explore → Mindmap and open the Target-role details view.
+     *
+     * Implementation notes:
+     * - MindmapClient renders the right-side panel using internal state (`rightTab`).
+     *   The simplest cross-route way to select the correct panel is to seed the persisted
+     *   mindmap view-state before navigation.
+     * - We also set centerRoleId so Mindmap centers on the saved target role immediately.
+     */
+    if (!thisRoleId) return;
+
+    // Seed Mindmap view state so the Mindmap page opens with the correct "Target role details" panel.
+    const prev = getLocalMindmapViewState();
+    const next = {
+      ...(prev && typeof prev === "object" ? prev : null),
+      version: 1,
+      centerRoleId: thisRoleId,
+      selectedNodeId: null,
+      // Custom additive field: MindmapClient will ignore unknown keys; this is safe.
+      // If in future we wire MindmapClient to read it, it's already present.
+      rightTab: "target",
+    } as any;
+
+    persistLocalMindmapViewState(next);
+
+    // Preserve personaId when available (Mindmap uses local persona storage, but this keeps URLs consistent).
+    const url = personaId ? `/mindmap?personaId=${encodeURIComponent(personaId)}` : "/mindmap";
+    router.push(url);
+  }
 
   async function handleSetAsTargetRole() {
     if (!thisRoleId) return;
@@ -400,16 +455,18 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
             </div>
 
             {/* Bottom action row */}
-            <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <button
-                type="button"
-                className="text-[12px] text-[#1D4ED8] hover:underline self-start"
-                onClick={() => {
-                  // Placeholder for future “full details” navigation.
-                }}
-              >
-                More …
-              </button>
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              {isTarget ? (
+                <button
+                  type="button"
+                  className="text-[12px] text-[#1D4ED8] hover:underline self-start"
+                  onClick={handleShowMoreDetails}
+                >
+                  Show more details
+                </button>
+              ) : (
+                <span className="text-[12px] text-transparent select-none self-start">.</span>
+              )}
 
               <div className="flex items-center gap-2 sm:justify-end">
                 {saveError && <span className="text-[11px] text-amber-700">{saveError}</span>}
