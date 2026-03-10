@@ -6,8 +6,16 @@ import RoleCard from "../explore/role-card";
 
 interface RecommendationGridProps {
   personaId: string;
-  showAnalysis: boolean;
-  onViewAnalysis: () => void;
+  /**
+   * Optional legacy prop (Explore previously rendered a "Compatibility Deep-Dive" section).
+   * Kept optional to avoid forcing callers to provide unused analysis state.
+   */
+  showAnalysis?: boolean;
+  /**
+   * Optional legacy callback for the removed analysis section.
+   * When omitted, the "Analyze Career Compatibility" button will not render.
+   */
+  onViewAnalysis?: () => void;
   filters?: {
     industry?: string;
     skills?: string[];
@@ -17,7 +25,7 @@ interface RecommendationGridProps {
 
 export function RecommendationGrid({
   personaId,
-  showAnalysis,
+  showAnalysis = false,
   onViewAnalysis,
   filters = {},
 }: RecommendationGridProps) {
@@ -162,7 +170,7 @@ export function RecommendationGrid({
         })}
       </div>
 
-      {!showAnalysis && (
+      {!showAnalysis && typeof onViewAnalysis === "function" && (
         <div className="flex justify-center pb-10">
           <button
             className="px-10 py-4 bg-[#0D9488] text-white font-bold rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-teal-900/10"
