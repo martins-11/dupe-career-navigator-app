@@ -8,6 +8,7 @@ import { RecommendationGrid } from "../components/recommendations/recommendation
 import { CompatibilityScore } from "../components/explore/compatibility-score";
 import { Filters, ActiveFilterTags } from "../components/explore/filters";
 import { SearchBar } from "../components/explore/search-bar";
+import RoleCard from "../components/explore/role-card";
 // Utility & Storage Imports
 import { loadPersonaId, persistPersonaId } from "../../lib/personaStorage";
 import { apiFetch } from "../../lib/apiClient";
@@ -17,6 +18,12 @@ export default function ExploreClient() {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // --- Search Results State ---
+  // When populated, we render these instead of the persona recommendations grid.
+  const [searchResults, setSearchResults] = useState<any[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   // --- Filter State ---
   const [selectedTitle, setSelectedTitle] = useState("");
@@ -68,10 +75,38 @@ export default function ExploreClient() {
   }, [personaIdQuery, effectivePersonaId]);
 
   // Triggered when user clicks "Search" or selects an autocomplete suggestion
-  const handleManualSearch = () => {
-    // RecommendationGrid already reacts to selectedTitle changes, 
-    // but you can add specific logging or analytics here.
-    console.log("Searching for:", selectedTitle);
+  // IMPORTANT: Autocomplete returns titles-only strings; selecting one must still execute
+  // a full search request so results render.
+  const handleManualSearch = async () => {
+    const q = String(selectedTitle ?? "").trim();
+
+    // If user clears the query, return to the default persona recommendations view.
+    if (q.length === 0) {
+      setSearchResults(null);
+      setSearchError(null);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+
+    try {
+      const qs = new URLSearchParams();
+      qs.set("q", q);
+      if (selectedIndustry) qs.set("industry", selectedIndustry);
+      // Backend schema supports q/industry/salary_range/limit; skills may be ignored by backend,
+      // but we keep it for forward-compatibility if implemented later.
+      if (selectedSkills.length > 0) qs.set("skills", selectedSkills.join(","));
+
+      const data = await apiFetch(`/api/roles/search?${qs.toString()}`);
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      console.error("Role search failed:", e);
+      setSearchResults([]);
+      setSearchError("Role search failed. Please try again.");
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   if (isLoading) {
@@ -159,16 +194,78 @@ export default function ExploreClient() {
           </section>
 
           {/* --- RESULTS GRID --- */}
-          <RecommendationGrid
-            personaId={effectivePersonaId || ""}
-            showAnalysis={showAnalysis}
-            onViewAnalysis={() => setShowAnalysis(true)}
-            filters={{
-              industry: selectedIndustry,
-              skills: selectedSkills,
-              title: selectedTitle
-            }}
-          />
+          {isSearching ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin"></div>
+              <p className="text-slate-500 font-medium animate-pulse">Searching roles...</p>
+            </div>
+          ) : searchError ? (
+            <div className="p-6 bg-red-50 border border-red-100 rounded-xl text-red-600 max-w-2xl mx-auto">
+              <p className="font-semibold">Search Error</p>
+              <p className="text-sm mt-1">{searchError}</p>
+            </div>
+          ) : Array.isArray(searchResults) ? (
+            searchResults.length === 0 ? (
+              <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                <p className="text-slate-400 font-medium text-lg">No roles found for “{selectedTitle}”.</p>
+              </div>
+            ) : (
+              // Keep rendering using the existing RoleCard UI via RecommendationGrid by
+              // temporarily reusing it would require refactor; instead render a minimal grid here.
+              <div className="space-y-6">
+                <div className="text-sm text-slate-500">
+                  Showing {searchResults.length} results for <span className="font-semibold text-slate-700">“{selectedTitle}”</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {searchResults.map((role: any, idx: number) => {
+                    const derivedIdRaw =
+                      role?.id ??
+                      role?.role_id ??
+                      role?.onet_id ??
+                      role?.code ??
+                      role?.title ??
+                      role?.role_title;
+
+                    const derivedId = String(derivedIdRaw ?? "").trim();
+                    const stableUniqueId = derivedId !== "" ? derivedId : `role-${idx}`;
+
+                    const normalizedRole = {
+                      ...role,
+                      id: stableUniqueId,
+                      title: role?.title ?? role?.role_title,
+                    };
+
+                    return (
+                      <RoleCard
+                        key={stableUniqueId}
+                        role={normalizedRole}
+                        // Some RoleCard actions are persona-dependent; pass through when available.
+                        personaId={effectivePersonaId || ""}
+                        // Search results grid doesn't need the accordion behavior used in recommendations;
+                        // leave it collapsed by default.
+                        expanded={false}
+                        onExpandedChange={() => {}}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="text-xs text-slate-400">
+                  Tip: Clear the search to return to AI persona recommendations.
+                </div>
+              </div>
+            )
+          ) : (
+            <RecommendationGrid
+              personaId={effectivePersonaId || ""}
+              showAnalysis={showAnalysis}
+              onViewAnalysis={() => setShowAnalysis(true)}
+              filters={{
+                industry: selectedIndustry,
+                skills: selectedSkills,
+                title: selectedTitle,
+              }}
+            />
+          )}
 
           {/* --- ANALYSIS SECTION --- */}
           {showAnalysis && (

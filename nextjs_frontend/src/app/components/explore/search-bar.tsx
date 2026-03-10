@@ -173,7 +173,8 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
                   onQueryChange(s.title);
                   setSuggestions([]);
                   setIsFocused(false);
-                  onSearch();
+                  // Ensure the parent search reads the updated query (state updates are async).
+                  queueMicrotask(() => onSearch());
                 }}
               >
                 <Search className="h-4 w-4 shrink-0 opacity-50" />
