@@ -48,6 +48,9 @@ const nextConfig = {
       // Mindmap: interactive graph + node details + view-state persistence.
       { source: '/api/mindmap/:path*', destination: `${backend}/api/mindmap/:path*` },
 
+      // Profile: role context, scoring, etc.
+      { source: '/api/profile/:path*', destination: `${backend}/api/profile/:path*` },
+
       // Swagger UI + OpenAPI JSON served by the Express backend.
       { source: '/docs', destination: `${backend}/docs` },
       { source: '/docs/:path*', destination: `${backend}/docs/:path*` },
