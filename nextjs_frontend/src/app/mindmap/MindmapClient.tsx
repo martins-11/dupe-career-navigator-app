@@ -116,23 +116,19 @@ export default function MindmapClient() {
   const personaId = loadPersonaId();
   const persona = React.useMemo(() => (personaId ? loadPersona(personaId) : null), [personaId]);
 
-  // Determine which role to center:
-  // - target role (saved from Explore)
-  // - otherwise: ask backend for last saved target role (if available)
-  // - otherwise: keep UI usable but show an error banner.
-  const [centerRoleId, setCenterRoleId] = React.useState<string | null>(null);
+  // Role context:
+  // - mindmap center MUST be the user's current role (extracted during ingestion)
+  // - target role is separately set from Explore
+  const [currentRoleTitle, setCurrentRoleTitle] = React.useState<string | null>(null);
+  const [targetRoleId, setTargetRoleId] = React.useState<string | null>(null);
 
-  // Boot: load persisted view-state from backend (prefer) then local, and resolve center role.
+  // Boot: load persisted view-state from backend (prefer) then local, and resolve roles.
   React.useEffect(() => {
     let cancelled = false;
 
     async function boot() {
       setIsBooting(true);
       const local = toSafeState(getLocalMindmapViewState());
-
-      // Resolve center role: view-state > local target role > backend saved target role
-      const localTarget = getTargetRoleId();
-      let resolvedCenter: string | null = local.centerRoleId || localTarget || null;
 
       try {
         const userKey = getUserKey();
@@ -141,46 +137,50 @@ export default function MindmapClient() {
           const merged = toSafeState({ ...local, ...remote });
           setState(merged);
           persistLocalMindmapViewState(merged);
-          if (merged.centerRoleId) resolvedCenter = merged.centerRoleId;
         } else if (!cancelled) {
-          // Keep local
           setState(local);
         }
       } catch {
-        // Remote persistence unavailable; keep local
         if (!cancelled) setState(local);
       }
 
-      if (!resolvedCenter) {
-        // Try backend last saved target role.
-        try {
-          const userKey = getUserKey();
-          const res = await apiFetch(`/personas/target-role?user_id=${encodeURIComponent(userKey)}`, { method: 'GET' });
+      // Resolve current+target roles from backend (authoritative when available).
+      try {
+        const userKey = getUserKey();
+        const ctx = await apiFetch(`/api/profile/roles?user_id=${encodeURIComponent(userKey)}`, { method: 'GET' });
 
-          // Backend returns: { status: "ok", target: { user_id, role_id, time_horizon, ... } }
-          const target = res && typeof res === 'object' ? (res as any).target : null;
-          const roleId = target && typeof target === 'object' && target.role_id ? String(target.role_id) : null;
+        const currentTitle =
+          ctx && typeof ctx === 'object' && (ctx as any).currentRole?.currentRoleTitle
+            ? String((ctx as any).currentRole.currentRoleTitle)
+            : null;
 
-          if (roleId && !cancelled) resolvedCenter = roleId;
-        } catch {
-          // ignore
+        const targetId =
+          ctx && typeof ctx === 'object' && (ctx as any).targetRole?.roleId
+            ? String((ctx as any).targetRole.roleId)
+            : null;
+
+        if (!cancelled) {
+          setCurrentRoleTitle(currentTitle);
+          setTargetRoleId(targetId || getTargetRoleId());
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentRoleTitle(null);
+          setTargetRoleId(getTargetRoleId());
         }
       }
 
-      if (!cancelled) {
-        setCenterRoleId(resolvedCenter);
-        setIsBooting(false);
-      }
+      if (!cancelled) setIsBooting(false);
     }
 
     boot();
 
-    // React to updates from Explore in other tabs (or other parts of app)
+    // React to updates from Explore in other tabs (target role changes)
     function onStorage(evt: StorageEvent) {
       if (!evt.key) return;
       if (evt.key.includes('career_navigator_target_role_id')) {
         const next = getTargetRoleId();
-        setCenterRoleId((prev) => next || prev);
+        setTargetRoleId(next);
       }
     }
     window.addEventListener('storage', onStorage);
@@ -191,27 +191,27 @@ export default function MindmapClient() {
     };
   }, []);
 
-  // Whenever the center role changes, ensure state.centerRoleId is updated (so it persists).
+  // Mindmap center is always "current role" node; keep a stable id for persistence.
   React.useEffect(() => {
-    if (!centerRoleId) return;
-    setState((s) => ({ ...s, centerRoleId }));
-  }, [centerRoleId]);
+    setState((s) => ({ ...s, centerRoleId: 'current' }));
+  }, []);
 
-  // Fetch graph whenever filters/center change.
+  // Fetch graph whenever filters/current role change.
   React.useEffect(() => {
     let cancelled = false;
     async function run() {
-      if (!centerRoleId) {
-        setGraph(null);
-        return;
-      }
+      const userKey = getUserKey();
+
       setGraphLoading(true);
       setGraphError(null);
       try {
-        const data = await fetchMindmapGraph({ centerRoleId, filters: state.filters });
+        const data = await fetchMindmapGraph({
+          userId: userKey,
+          currentRoleTitle: currentRoleTitle || undefined,
+          filters: state.filters,
+        });
         if (cancelled) return;
         setGraph(data);
-        // If selected node no longer exists after filtering, clear it.
         if (state.selectedNodeId && !data.nodes.some((n) => n.id === state.selectedNodeId)) {
           setState((s) => ({ ...s, selectedNodeId: null }));
           setDetails(null);
@@ -229,7 +229,7 @@ export default function MindmapClient() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerRoleId, state.filters.salaryMin, state.filters.salaryMax, state.filters.skillSimilarityMin, state.filters.timeHorizon]);
+  }, [currentRoleTitle, state.filters.salaryMin, state.filters.salaryMax, state.filters.skillSimilarityMin, state.filters.timeHorizon]);
 
   // Fetch node details on selection change.
   React.useEffect(() => {
@@ -246,7 +246,7 @@ export default function MindmapClient() {
       setDetailsLoading(true);
       setDetailsError(null);
       try {
-        const d = await fetchMindmapNodeDetails({ nodeId, centerRoleId });
+        const d = await fetchMindmapNodeDetails({ nodeId, centerRoleId: 'current' });
         if (cancelled) return;
         setDetails(d);
       } catch {
@@ -264,12 +264,12 @@ export default function MindmapClient() {
     };
   }, [state.selectedNodeId, centerRoleId]);
 
-  // Fetch target role details (role-card-like fields) whenever centerRoleId changes.
+  // Fetch target role details (role-card-like fields) whenever targetRoleId changes.
   React.useEffect(() => {
     let cancelled = false;
 
     async function run() {
-      if (!centerRoleId) {
+      if (!targetRoleId) {
         setTargetRole(null);
         setTargetRoleError(null);
         setTargetRoleLoading(false);
@@ -280,19 +280,16 @@ export default function MindmapClient() {
       setTargetRoleError(null);
 
       try {
-        // Best-effort: use roles search to retrieve a role record that contains the role-card fields.
-        // This endpoint returns an array (possibly empty). We take the first best match.
         const qs = new URLSearchParams();
-        qs.set('q', centerRoleId);
+        qs.set('q', targetRoleId);
 
-        // Persona id may help backend provide enriched fields (compatibility, reports, etc.)
         const effectivePersonaId = loadPersonaId();
         if (effectivePersonaId) qs.set('personaId', effectivePersonaId);
 
         const res = await apiFetch(`/api/roles/search?${qs.toString()}`, { method: 'GET' });
         const arr = Array.isArray(res) ? res : [];
-
         const best = arr[0] ?? null;
+
         if (!cancelled) setTargetRole(best);
       } catch {
         if (!cancelled) {
@@ -308,7 +305,7 @@ export default function MindmapClient() {
     return () => {
       cancelled = true;
     };
-  }, [centerRoleId]);
+  }, [targetRoleId]);
 
   // Autosave/restore view-state:
   // - persist to localStorage on any change
@@ -355,23 +352,23 @@ export default function MindmapClient() {
               Explore career paths: zoom/pan the graph, click nodes for details, and filter branches dynamically.
             </p>
           </div>
-          <div className="text-xs text-slate-500">
-            Center role:{' '}
-            <span className="font-semibold text-slate-700">{centerRoleId ? centerRoleId : 'Not set'}</span>
+          <div className="text-xs text-slate-500 text-right">
+            <div>
+              Current role:{' '}
+              <span className="font-semibold text-slate-700">
+                {currentRoleTitle ? currentRoleTitle : 'Not detected yet'}
+              </span>
+            </div>
+            <div>
+              Target role:{' '}
+              <span className="font-semibold text-slate-700">{targetRoleId ? targetRoleId : 'Not set'}</span>
+            </div>
           </div>
         </header>
 
         {isBooting ? (
           <div className="py-20 flex items-center justify-center">
             <div className="w-12 h-12 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin mb-4" />
-          </div>
-        ) : !centerRoleId ? (
-          <div className="p-6 rounded-2xl border border-amber-100 bg-amber-50 text-amber-900">
-            <div className="font-bold">No target role selected</div>
-            <div className="mt-1 text-sm text-amber-800">
-              Go to <span className="font-semibold">Explore</span> and choose “Set as target role”, then return here.
-              The mind map centers on your saved role.
-            </div>
           </div>
         ) : (
           <>
