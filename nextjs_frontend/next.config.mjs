@@ -45,6 +45,9 @@ const nextConfig = {
       // Explore: proxy recommendations endpoints (includes /api/recommendations/roles).
       { source: '/api/recommendations/:path*', destination: `${backend}/api/recommendations/:path*` },
 
+      // Mindmap: interactive graph + node details + view-state persistence.
+      { source: '/api/mindmap/:path*', destination: `${backend}/api/mindmap/:path*` },
+
       // Swagger UI + OpenAPI JSON served by the Express backend.
       { source: '/docs', destination: `${backend}/docs` },
       { source: '/docs/:path*', destination: `${backend}/docs/:path*` },
