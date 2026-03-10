@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/apiClient";
-import { CompatibilityScore } from "../explore/compatibility-score";
+import RoleCard from "../explore/role-card";
 
 interface RecommendationGridProps {
   personaId: string;
@@ -112,9 +112,23 @@ export function RecommendationGrid({
   return (
     <div className="space-y-12">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {roles.map((role: any, idx: number) => (
-          <RoleCardDynamic key={role.role_id || idx} role={role} />
-        ))}
+        {roles.map((role: any, idx: number) => {
+          /**
+           * Recommendation payloads sometimes use role_id/role_title naming, while the Explore
+           * RoleCard supports both role_title + title, role_id + id, etc.
+           *
+           * We lightly normalize keys here so:
+           * - React keys are stable
+           * - RoleCard can reliably find identifiers/titles when present
+           */
+          const normalizedRole = {
+            ...role,
+            id: role?.id ?? role?.role_id ?? String(idx),
+            title: role?.title ?? role?.role_title,
+          };
+
+          return <RoleCard key={normalizedRole.id} role={normalizedRole} />;
+        })}
       </div>
 
       {!showAnalysis && (
@@ -127,58 +141,6 @@ export function RecommendationGrid({
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function RoleCardDynamic({ role }: { role: any }) {
-  // Use the data from the Bedrock Service
-  const title = role.role_title || "Untitled Role";
-  const salary = role.salary_range || "Competitive";
-  const report = role.threeTwoReport || {};
-  
-  // Prefer explicit compatibility score when present, otherwise fall back to 3/2 score.
-  const score = role.compatibilityScore ?? report.compatibilityScore ?? report.score ?? 0;
-  const masteryCount = report.masteryAreas?.length || 0;
-  const growthCount = report.growthAreas?.length || 0;
-
-  return (
-    <div className="group relative bg-white border border-slate-200 rounded-2xl p-6 transition-all duration-300 hover:border-[#0D9488]/40 hover:shadow-[0_20px_40px_-15px_rgba(13,148,136,0.1)] flex flex-col h-full">
-      <div className="flex justify-between items-start mb-6">
-        <div className="space-y-1.5 flex-1">
-          <span className="text-[10px] uppercase tracking-[0.15em] text-[#0D9488] font-black">AI Suggestion</span>
-          <h2 className="text-xl font-bold text-slate-900 leading-tight group-hover:text-[#0D9488] transition-colors line-clamp-2">
-            {title}
-          </h2>
-          <p className="text-xs text-slate-400 font-medium">{role.industry || "General Technology"}</p>
-        </div>
-        
-        <div className="scale-75 origin-top-right -mr-4 -mt-2">
-          {/* Provide mastery/growth counts so the UI can render the Day 3 signals */}
-          <CompatibilityScore
-            score={score}
-            masteryCount={masteryCount}
-            growthCount={growthCount}
-          />
-        </div>
-      </div>
-
-      <p className="text-slate-500 text-sm leading-relaxed line-clamp-4 mb-8 flex-grow">
-        {role.description}
-      </p>
-
-      <div className="flex items-center justify-between pt-5 border-t border-slate-50 mt-auto">
-        <div className="flex flex-col">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Est. Range</span>
-          <span className="text-sm font-bold text-slate-700">{salary}</span>
-        </div>
-        
-        <button className="flex items-center justify-center w-10 h-10 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-[#0D9488] group-hover:text-white transition-all duration-300">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </button>
-      </div>
     </div>
   );
 }
