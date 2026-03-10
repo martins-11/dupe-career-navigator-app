@@ -127,7 +127,7 @@ export function RecommendationGrid({
             title: role?.title ?? role?.role_title,
           };
 
-          return <RoleCard key={normalizedRole.id} role={normalizedRole} />;
+          return <RoleCard key={normalizedRole.id} role={normalizedRole} personaId={personaId} />;
         })}
       </div>
 
