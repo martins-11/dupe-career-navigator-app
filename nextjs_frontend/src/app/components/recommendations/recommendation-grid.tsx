@@ -137,8 +137,8 @@ function RoleCardDynamic({ role }: { role: any }) {
   const salary = role.salary_range || "Competitive";
   const report = role.threeTwoReport || {};
   
-  // The score from your updated Fuzzy Match logic
-  const score = role.compatibilityScore ?? report.compatibilityScore ?? 0; 
+  // Prefer explicit compatibility score when present, otherwise fall back to 3/2 score.
+  const score = role.compatibilityScore ?? report.compatibilityScore ?? report.score ?? 0;
   const masteryCount = report.masteryAreas?.length || 0;
   const growthCount = report.growthAreas?.length || 0;
 
@@ -154,9 +154,11 @@ function RoleCardDynamic({ role }: { role: any }) {
         </div>
         
         <div className="scale-75 origin-top-right -mr-4 -mt-2">
-          {/* Ensure CompatibilityScore matches your actual component props */}
-          <CompatibilityScore 
-             score={score} 
+          {/* Provide mastery/growth counts so the UI can render the Day 3 signals */}
+          <CompatibilityScore
+            score={score}
+            masteryCount={masteryCount}
+            growthCount={growthCount}
           />
         </div>
       </div>
