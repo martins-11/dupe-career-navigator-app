@@ -24,32 +24,42 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
     const q = String(query ?? "");
     const trimmed = q.trim();
 
+    // Abort previous in-flight autocomplete request whenever query changes.
+    const controller = new AbortController();
+
     if (trimmed.length < 2) {
       setSuggestions([]);
       setHighlightIndex(-1);
       return () => {
         cancelled = true;
+        controller.abort();
       };
     }
 
+    // Debounce typing to avoid excessive network calls.
+    // (Backend autocomplete is cheap, but still avoid per-keystroke bursts.)
     const timer = window.setTimeout(async () => {
       try {
-        const s = await getRoleSuggestions(trimmed, 5);
+        const s = await getRoleSuggestions(trimmed, 5, { signal: controller.signal });
         if (!cancelled) {
           setSuggestions(s);
           setHighlightIndex(-1);
         }
-      } catch {
+      } catch (err: any) {
+        // Ignore abort errors; they are expected when user types quickly.
+        if (err?.name === "AbortError") return;
+
         if (!cancelled) {
           setSuggestions([]);
           setHighlightIndex(-1);
         }
       }
-    }, 250);
+    }, 400);
 
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      controller.abort();
     };
   }, [query]);
 
