@@ -820,7 +820,8 @@ export default function App() {
       ) {
         // Dynamically import savePersona to avoid SSR import issues
         import('@/lib/personaStorage').then(({ savePersona }) => {
-          savePersona(canonicalPersonaId || extractedPersonaId, personaToPersist);
+          const pid = canonicalPersonaId || extractedPersonaId;
+          if (pid) savePersona(pid, personaToPersist);
         });
       }
 
@@ -943,7 +944,8 @@ export default function App() {
         let personaFinalObj = resp.final || resp.savedFinal || (resp.createdVersion && resp.createdVersion.personaJson);
         if (personaFinalObj && typeof personaFinalObj === 'object') {
           import('@/lib/personaStorage').then(({ savePersona }) => {
-            savePersona(canonical || resp.personaId, personaFinalObj);
+            const pid = canonical || resp.personaId;
+            if (pid) savePersona(pid, personaFinalObj);
           });
         }
       }

@@ -3,9 +3,14 @@
 import { motion } from "framer-motion";
 
 interface CompatibilityScoreProps {
-  score: number;
-  masteryCount: number;
-  growthCount: number;
+  /** Optional: compatibility percent (0-100). Defaults to 0 for placeholder rendering. */
+  score?: number;
+  /** Optional: number of mastery matches. Defaults to 0. */
+  masteryCount?: number;
+  /** Optional: number of growth opportunities. Defaults to 0. */
+  growthCount?: number;
+  /** Optional persona id (passed by ExploreClient for future persona-aware scoring). */
+  personaId?: string;
 }
 
 /**
@@ -16,8 +21,13 @@ interface CompatibilityScoreProps {
  * - Suggested Roles (recommendations)
  * - Search results (roles search)
  */
+/**
+ * NOTE: This component is sometimes rendered as a placeholder (e.g., in ExploreClient's
+ * "Compatibility Deep-Dive") without computed scoring data yet. To keep build/type-checking
+ * strict and the UI stable, props are optional with safe defaults.
+ */
 // PUBLIC_INTERFACE
-export function CompatibilityScore({ score, masteryCount, growthCount }: CompatibilityScoreProps) {
+export function CompatibilityScore({ score = 0, masteryCount = 0, growthCount = 0 }: CompatibilityScoreProps) {
   const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0;
 
   const size = 140;
