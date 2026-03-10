@@ -93,6 +93,7 @@ export default function ExploreClient() {
     try {
       const qs = new URLSearchParams();
       qs.set("q", q);
+      if (effectivePersonaId) qs.set("personaId", effectivePersonaId);
       if (selectedIndustry) qs.set("industry", selectedIndustry);
       // Backend schema supports q/industry/salary_range/limit; skills may be ignored by backend,
       // but we keep it for forward-compatibility if implemented later.
@@ -159,6 +160,7 @@ export default function ExploreClient() {
               onQueryChange={setSelectedTitle}
               onSearch={handleManualSearch}
               isSticky={false}
+              personaId={effectivePersonaId || ""}
             />
           </section>
 

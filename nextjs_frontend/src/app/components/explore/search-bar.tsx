@@ -11,9 +11,11 @@ interface SearchBarProps {
   onQueryChange: (q: string) => void;
   onSearch: () => void;
   isSticky: boolean;
+  /** Optional persona id to enable persona-aware Bedrock autocomplete. */
+  personaId?: string;
 }
 
-export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBarProps) {
+export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId }: SearchBarProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<RoleSuggestion[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -40,7 +42,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
     // (Backend autocomplete is cheap, but still avoid per-keystroke bursts.)
     const timer = window.setTimeout(async () => {
       try {
-        const s = await getRoleSuggestions(trimmed, 5, { signal: controller.signal });
+        const s = await getRoleSuggestions(trimmed, 5, { signal: controller.signal, personaId });
         if (!cancelled) {
           setSuggestions(s);
           setHighlightIndex(-1);
