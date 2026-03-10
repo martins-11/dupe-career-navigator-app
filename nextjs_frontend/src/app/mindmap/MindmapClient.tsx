@@ -5,6 +5,8 @@ import React from 'react';
 import { MindmapCanvas, type MindmapViewport } from '@/app/components/mindmap/MindmapCanvas';
 import { MindmapFiltersBar } from '@/app/components/mindmap/MindmapFilters';
 import { NodeDetailsPanel } from '@/app/components/mindmap/NodeDetailsPanel';
+import { TargetRoleDetailsPanel } from '@/app/components/mindmap/TargetRoleDetailsPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 
 import {
   fetchMindmapGraph,
@@ -17,7 +19,7 @@ import {
   type MindmapViewState,
 } from '@/lib/mindmapApi';
 
-import { loadPersonaId } from '@/lib/personaStorage';
+import { loadPersona, loadPersonaId } from '@/lib/personaStorage';
 import { getTargetRoleId } from '@/lib/targetRoleStorage';
 import { getLocalMindmapViewState, persistLocalMindmapViewState } from '@/lib/mindmapViewStateStorage';
 import { apiFetch } from '@/lib/apiClient';
@@ -88,6 +90,16 @@ export default function MindmapClient() {
   const [detailsError, setDetailsError] = React.useState<string | null>(null);
   const [details, setDetails] = React.useState<MindmapNodeDetailsResponse | null>(null);
 
+  // Target role details panel state
+  const [rightTab, setRightTab] = React.useState<'target' | 'selected'>('target');
+  const [targetRoleLoading, setTargetRoleLoading] = React.useState(false);
+  const [targetRoleError, setTargetRoleError] = React.useState<string | null>(null);
+  const [targetRole, setTargetRole] = React.useState<any | null>(null);
+
+  // Persona (for "your matching skills" in target role details)
+  const personaId = loadPersonaId();
+  const persona = React.useMemo(() => (personaId ? loadPersona(personaId) : null), [personaId]);
+
   // Determine which role to center:
   // - target role (saved from Explore)
   // - otherwise: ask backend for last saved target role (if available)
@@ -146,8 +158,20 @@ export default function MindmapClient() {
     }
 
     boot();
+
+    // React to updates from Explore in other tabs (or other parts of app)
+    function onStorage(evt: StorageEvent) {
+      if (!evt.key) return;
+      if (evt.key.includes('career_navigator_target_role_id')) {
+        const next = getTargetRoleId();
+        setCenterRoleId((prev) => next || prev);
+      }
+    }
+    window.addEventListener('storage', onStorage);
+
     return () => {
       cancelled = true;
+      window.removeEventListener('storage', onStorage);
     };
   }, []);
 
@@ -223,6 +247,52 @@ export default function MindmapClient() {
       cancelled = true;
     };
   }, [state.selectedNodeId, centerRoleId]);
+
+  // Fetch target role details (role-card-like fields) whenever centerRoleId changes.
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      if (!centerRoleId) {
+        setTargetRole(null);
+        setTargetRoleError(null);
+        setTargetRoleLoading(false);
+        return;
+      }
+
+      setTargetRoleLoading(true);
+      setTargetRoleError(null);
+
+      try {
+        // Best-effort: use roles search to retrieve a role record that contains the role-card fields.
+        // This endpoint returns an array (possibly empty). We take the first best match.
+        const qs = new URLSearchParams();
+        qs.set('q', centerRoleId);
+
+        // Persona id may help backend provide enriched fields (compatibility, reports, etc.)
+        const effectivePersonaId = loadPersonaId();
+        if (effectivePersonaId) qs.set('personaId', effectivePersonaId);
+
+        const res = await apiFetch(`/api/roles/search?${qs.toString()}`, { method: 'GET' });
+        const arr = Array.isArray(res) ? res : [];
+
+        const best = arr[0] ?? null;
+        if (!cancelled) setTargetRole(best);
+      } catch {
+        if (!cancelled) {
+          setTargetRole(null);
+          setTargetRoleError('Could not load target role details.');
+        }
+      } finally {
+        if (!cancelled) setTargetRoleLoading(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [centerRoleId]);
 
   // Autosave/restore view-state:
   // - persist to localStorage on any change
@@ -300,7 +370,7 @@ export default function MindmapClient() {
               </div>
             ) : null}
 
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
               <div className="min-h-[560px]">
                 {graphLoading && !graph ? (
                   <div className="h-[560px] rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-center">
@@ -318,7 +388,10 @@ export default function MindmapClient() {
                     dimmedNodeIds={dimmed}
                     viewport={viewport}
                     onViewportChange={setViewport}
-                    onNodeClick={(nodeId) => setState((s) => ({ ...s, selectedNodeId: nodeId }))}
+                    onNodeClick={(nodeId) => {
+                      setRightTab('selected');
+                      setState((s) => ({ ...s, selectedNodeId: nodeId }));
+                    }}
                   />
                 ) : (
                   <div className="h-[560px] rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-slate-500">
@@ -328,13 +401,39 @@ export default function MindmapClient() {
               </div>
 
               <div className="h-[560px]">
-                <NodeDetailsPanel
-                  nodeId={state.selectedNodeId}
-                  details={details}
-                  loading={detailsLoading}
-                  error={detailsError}
-                  onClose={() => setState((s) => ({ ...s, selectedNodeId: null }))}
-                />
+                <div className="h-full flex flex-col">
+                  <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as any)} className="h-full flex flex-col">
+                    <div className="mb-3">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="target">Target role details</TabsTrigger>
+                        <TabsTrigger value="selected">Selected node</TabsTrigger>
+                      </TabsList>
+                    </div>
+
+                    <TabsContent value="target" className="mt-0 flex-1">
+                      <div className="h-full">
+                        <TargetRoleDetailsPanel
+                          role={targetRole}
+                          persona={persona}
+                          loading={targetRoleLoading}
+                          error={targetRoleError}
+                        />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="selected" className="mt-0 flex-1">
+                      <div className="h-full">
+                        <NodeDetailsPanel
+                          nodeId={state.selectedNodeId}
+                          details={details}
+                          loading={detailsLoading}
+                          error={detailsError}
+                          onClose={() => setState((s) => ({ ...s, selectedNodeId: null }))}
+                        />
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </div>
               </div>
             </div>
           </>

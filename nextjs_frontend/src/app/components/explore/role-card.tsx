@@ -165,8 +165,22 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
   const [personaSkills, setPersonaSkills] = React.useState<string[]>([]);
 
   React.useEffect(() => {
+    // Initialize from persisted state
     const sel = getTargetRoleSelection();
     setTargetRoleId(sel.roleId);
+
+    // Keep in sync if another tab/page updates localStorage
+    function onStorage(evt: StorageEvent) {
+      if (!evt.key) return;
+      // targetRoleStorage persists under a stable key; but we just re-read defensively.
+      if (evt.key.includes("career_navigator_target_role_id")) {
+        const next = getTargetRoleSelection();
+        setTargetRoleId(next.roleId);
+      }
+    }
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   React.useEffect(() => {
