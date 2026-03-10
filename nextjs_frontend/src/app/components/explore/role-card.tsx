@@ -127,9 +127,14 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
   const masteryAreas = safeStringArray(report?.masteryAreas);
   const growthAreas = safeStringArray(report?.growthAreas);
 
-  // Prefer top-level compatibilityScore, then report.compatibilityScore, then report.score.
+  // Prefer blended overall score first (initial recommendations may provide this even when raw compat is null),
+  // then fall back to raw compatibilityScore and any nested report scores.
   const score = clampPercent(
-    role?.compatibilityScore ?? report?.compatibilityScore ?? report?.score ?? 0
+    role?.finalCompatibilityScore ??
+      role?.compatibilityScore ??
+      report?.compatibilityScore ??
+      report?.score ??
+      0
   );
 
   const requiredSkills = safeStringArray(role?.skills_required ?? role?.required_skills ?? []);

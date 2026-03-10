@@ -50,8 +50,22 @@ export default function ExploreClient() {
           apiFetch("/api/roles/industries"),
           apiFetch("/api/roles/skills"),
         ]);
-        setIndustryOptions(Array.isArray(industries) ? industries : []);
-        setSkillsOptions(Array.isArray(skills) ? skills : []);
+
+        // API may return either a raw array or an object envelope { industries: [] } / { skills: [] }.
+        const industriesArr = Array.isArray(industries)
+          ? industries
+          : Array.isArray((industries as any)?.industries)
+            ? (industries as any).industries
+            : [];
+
+        const skillsArr = Array.isArray(skills)
+          ? skills
+          : Array.isArray((skills as any)?.skills)
+            ? (skills as any).skills
+            : [];
+
+        setIndustryOptions(industriesArr);
+        setSkillsOptions(skillsArr);
       } catch (err) {
         console.error("Failed to load filter options:", err);
         setOptionsError("Metadata service unavailable.");
