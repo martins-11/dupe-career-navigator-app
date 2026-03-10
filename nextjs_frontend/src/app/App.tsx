@@ -795,6 +795,35 @@ export default function App() {
       const extractedPersonaId = persistPersonaIdFromOrchestrationResponse(runAll);
       const canonicalPersonaId = persistPersonaId(extractedPersonaId);
 
+      // --- FIX: Save the persona JSON in localStorage for ExploreClient ---
+      // Prefer draft/final from orchestration, fallback to API
+      // Try to grab the persona JSON from typical orchestration response paths
+      let personaToPersist = null;
+      // ExploreClient just loads whatever is stored for persona_{id}, so select the correct draft/final object
+      if (runAll?.results?.finalize?.final) {
+        personaToPersist = runAll.results.finalize.final;
+      } else if (runAll?.results?.generate?.persona) {
+        personaToPersist = runAll.results.generate.persona;
+      } else if (runAll?.orchestration?.personaFinal) {
+        personaToPersist = runAll.orchestration.personaFinal;
+      } else if (runAll?.orchestration?.personaDraft) {
+        personaToPersist = runAll.orchestration.personaDraft;
+      } else if (runAll?.orchestration?.artifacts?.finalPersona) {
+        personaToPersist = runAll.orchestration.artifacts.finalPersona;
+      } else if (runAll?.orchestration?.artifacts?.draftPersona) {
+        personaToPersist = runAll.orchestration.artifacts.draftPersona;
+      }
+      if (
+        (canonicalPersonaId || extractedPersonaId) &&
+        personaToPersist &&
+        typeof personaToPersist === 'object'
+      ) {
+        // Dynamically import savePersona to avoid SSR import issues
+        import('@/lib/personaStorage').then(({ savePersona }) => {
+          savePersona(canonicalPersonaId || extractedPersonaId, personaToPersist);
+        });
+      }
+
       // eslint-disable-next-line no-console
       console.log(`[persona][gen:${generationId}] persisted personaId`, {
         extractedPersonaId: extractedPersonaId ?? null,
@@ -908,6 +937,15 @@ export default function App() {
       if (resp?.personaId) {
         const canonical = persistPersonaId(resp.personaId as any);
         setPersonaId((canonical ?? resp.personaId ?? null) as any);
+
+        // Also persist finalized persona JSON in localStorage for ExploreClient
+        // Try typical final paths: resp.final, resp.savedFinal, resp.createdVersion?.personaJson
+        let personaFinalObj = resp.final || resp.savedFinal || (resp.createdVersion && resp.createdVersion.personaJson);
+        if (personaFinalObj && typeof personaFinalObj === 'object') {
+          import('@/lib/personaStorage').then(({ savePersona }) => {
+            savePersona(canonical || resp.personaId, personaFinalObj);
+          });
+        }
       }
 
       setState('finalized');

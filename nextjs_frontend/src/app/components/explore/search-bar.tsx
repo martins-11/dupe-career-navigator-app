@@ -4,69 +4,66 @@ import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/app/components/ui/utils";
-import { getRoleSuggestions } from "@/lib/rolesApi";
+import { getRoleSuggestions, type RoleSuggestion } from "@/lib/rolesApi";
 
 interface SearchBarProps {
   query: string;
   onQueryChange: (q: string) => void;
   onSearch: () => void;
   isSticky: boolean;
+  /** Optional persona id to enable persona-aware Bedrock autocomplete. */
+  personaId?: string;
 }
 
-/**
- * Search bar with autocomplete suggestions.
- *
- * Backend integration:
- * - Suggestions are powered by GET /api/roles/search?q=...&limit=5 (titles extracted client-side).
- */
-export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBarProps) {
+export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId }: SearchBarProps) {
   const [isFocused, setIsFocused] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<RoleSuggestion[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    /**
-     * Debounced autocomplete:
-     * - Prevents firing a request for every keystroke.
-     * - Helps avoid out-of-order responses updating the UI with stale suggestions.
-     * - Ensures we only ever send a *string* query to the backend.
-     */
     let cancelled = false;
-
     const q = String(query ?? "");
     const trimmed = q.trim();
 
-    // Clear suggestions quickly for very short queries.
+    // Abort previous in-flight autocomplete request whenever query changes.
+    const controller = new AbortController();
+
     if (trimmed.length < 2) {
       setSuggestions([]);
       setHighlightIndex(-1);
       return () => {
         cancelled = true;
+        controller.abort();
       };
     }
 
+    // Debounce typing to avoid excessive network calls.
+    // (Backend autocomplete is cheap, but still avoid per-keystroke bursts.)
     const timer = window.setTimeout(async () => {
       try {
-        const s = await getRoleSuggestions(trimmed, 5);
+        const s = await getRoleSuggestions(trimmed, 5, { signal: controller.signal, personaId });
         if (!cancelled) {
           setSuggestions(s);
           setHighlightIndex(-1);
         }
-      } catch {
-        // Autocomplete should never block the UX; if it fails, just hide suggestions.
+      } catch (err: any) {
+        // Ignore abort errors; they are expected when user types quickly.
+        if (err?.name === "AbortError") return;
+
         if (!cancelled) {
           setSuggestions([]);
           setHighlightIndex(-1);
         }
       }
-    }, 250);
+    }, 400);
 
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      controller.abort();
     };
-  }, [query]);
+  }, [query, personaId]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -86,9 +83,12 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
       e.preventDefault();
       setHighlightIndex((prev) => Math.max(prev - 1, -1));
     } else if (e.key === "Enter") {
+      // Prevent implicit form submissions if this component is ever used inside a <form>.
       e.preventDefault();
-      if (highlightIndex >= 0 && suggestions[highlightIndex]) {
-        onQueryChange(suggestions[highlightIndex]);
+
+      const picked = highlightIndex >= 0 ? suggestions[highlightIndex] : undefined;
+      if (picked?.title) {
+        onQueryChange(picked.title);
         setSuggestions([]);
         setIsFocused(false);
         onSearch();
@@ -101,108 +101,86 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky }: SearchBa
     }
   }
 
-  function highlightMatch(text: string) {
+  function highlightMatch(text: string | any) {
+    if (!text || typeof text !== "string") return text || "";
     if (!query) return text;
+
     const idx = text.toLowerCase().indexOf(query.toLowerCase());
     if (idx === -1) return text;
+
     return (
       <>
-        {text.slice(0, idx)}
-        <span className="font-semibold text-primary">{text.slice(idx, idx + query.length)}</span>
-        {text.slice(idx + query.length)}
+        {text.substring(0, idx)}
+        <span className="font-bold text-[#0D9488]">{text.substring(idx, idx + query.length)}</span>
+        {text.substring(idx + query.length)}
       </>
     );
   }
 
   return (
-    <div ref={wrapperRef} className="relative w-full max-w-2xl mx-auto">
+    <div
+      ref={wrapperRef}
+      className="relative w-full max-w-2xl mx-auto"
+      // Defensive: if parent wraps this in a form, this prevents refresh on submit.
+      onSubmit={(e: any) => e?.preventDefault?.()}
+    >
       <div
         className={cn("flex items-center border shadow-sm transition-shadow duration-300", isSticky ? "h-12" : "h-14")}
         style={{
           borderRadius: 12,
-          background: "var(--bg-surface)",
-          borderColor: isFocused ? "rgba(23,166,166,0.45)" : "var(--border-subtle)",
-          boxShadow: isFocused ? "var(--ring-teal)" : "none",
+          background: "white",
+          borderColor: isFocused ? "#0D9488" : "#E2E8F0",
+          boxShadow: isFocused ? "0 0 0 2px rgba(13, 148, 136, 0.2)" : "none",
         }}
       >
         <div className="flex items-center justify-center pl-5">
-          <Search className="h-5 w-5" style={{ color: "var(--text-muted)" }} />
+          <Search className="h-5 w-5 text-slate-400" />
         </div>
         <input
           type="text"
           value={query}
           onChange={(e) => {
-            const next = e.target.value;
-            onQueryChange(next);
-
-            // Keep autocomplete responsive even if parent state updates are delayed.
-            // (Debounce is already applied in the effect; this just ensures suggestions
-            // are actually triggered by input changes, per authoritative instructions.)
+            onQueryChange(e.target.value);
             setIsFocused(true);
           }}
           onFocus={() => setIsFocused(true)}
           onKeyDown={handleKeyDown}
           placeholder="Search job title, skills, or industry..."
-          className={cn("flex-1 bg-transparent px-4 focus:outline-none", isSticky ? "text-sm" : "text-base")}
-          style={{ color: "var(--text-strong)" }}
+          className={cn("flex-1 bg-transparent px-4 focus:outline-none text-slate-900", isSticky ? "text-sm" : "text-base")}
         />
         <button
+          type="button"
           onClick={() => {
             onSearch();
             setIsFocused(false);
           }}
-          className={cn(
-            "flex items-center justify-center font-semibold transition-all duration-200 active:scale-95 cursor-pointer mr-1.5",
-            isSticky ? "px-5 py-2 text-sm" : "px-6 py-2.5 text-sm",
-          )}
-          style={{
-            borderRadius: 12,
-            background: "var(--zip-teal)",
-            color: "#fff",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal-hover)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = "var(--zip-teal)";
-          }}
+          className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold px-6 py-2 rounded-xl mr-1.5 transition-all active:scale-95"
         >
           Search
         </button>
       </div>
 
-      {/* Autocomplete dropdown */}
       {isFocused && suggestions.length > 0 && (
-        <div
-          className="absolute top-full left-0 right-0 z-50 mt-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-200"
-          style={{
-            borderRadius: 12,
-            background: "var(--bg-surface)",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <ul className="py-2" role="listbox">
+        <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden">
+          <ul className="py-2">
             {suggestions.map((s, i) => (
               <li
-                key={s}
-                role="option"
-                aria-selected={i === highlightIndex}
-                className={cn("flex items-center gap-3 px-5 py-3 text-sm cursor-pointer transition-colors duration-150")}
-                style={{
-                  background: i === highlightIndex ? "rgba(23,166,166,0.10)" : "transparent",
-                  color: "var(--text-strong)",
-                }}
+                key={s.id || `${s.title}-${i}`}
+                className={cn(
+                  "flex items-center gap-3 px-5 py-3 text-sm cursor-pointer",
+                  i === highlightIndex ? "bg-teal-50 text-[#0D9488]" : "text-slate-700 hover:bg-slate-50"
+                )}
                 onMouseEnter={() => setHighlightIndex(i)}
-                onMouseLeave={() => setHighlightIndex(-1)}
                 onClick={() => {
-                  onQueryChange(s);
+                  onQueryChange(s.title);
                   setSuggestions([]);
                   setIsFocused(false);
-                  onSearch();
+                  // Ensure the parent search reads the updated query (state updates are async).
+                  queueMicrotask(() => onSearch());
                 }}
               >
-                <Search className="h-4 w-4 shrink-0" style={{ color: "var(--text-muted)" }} />
-                <span>{highlightMatch(s)}</span>
+                <Search className="h-4 w-4 shrink-0 opacity-50" />
+                <span>{highlightMatch(s.title)}</span>
               </li>
             ))}
           </ul>
