@@ -30,33 +30,45 @@ export function RecommendationGrid({
 
     async function loadRoles() {
       if (!personaId) return;
-      
+
       setLoading(true);
       setError(null);
-      
-      try {
-        const queryParams = new URLSearchParams({
-          personaId: personaId,
-        });
 
-        // We pass the search bar text to the 'title' param
-        if (filters.title) queryParams.append("title", filters.title);
-        if (filters.industry) queryParams.append("industry", filters.industry);
-        if (filters.skills && filters.skills.length > 0) {
-          queryParams.append("skills", filters.skills.join(","));
+      try {
+        /**
+         * Explore "suggestions" should be persona-driven Bedrock recommendations.
+         *
+         * Primary endpoint:
+         * - GET /api/recommendations/initial?personaId=...
+         *   Returns { roles: [...] } (exactly 5) with richer fields + scoring.
+         *
+         * Fallback endpoint (older Phase 1 logic-based recommendations):
+         * - GET /api/recommendations/roles?personaId=...
+         *
+         * IMPORTANT:
+         * - We intentionally do NOT call /api/roles/search here because that is a catalog search,
+         *   and was the reason the UI showed demo/scaffolded results instead of AI suggestions.
+         */
+        const queryParams = new URLSearchParams({ personaId });
+
+        // Attempt strict Bedrock "initial" recommendations first.
+        let data: any;
+        try {
+          data = await apiFetch(`/api/recommendations/initial?${queryParams.toString()}`);
+        } catch (initialErr: any) {
+          // If initial recommendations fail (e.g., persona final not ready), fall back.
+          console.warn("Initial Bedrock recommendations failed; falling back to /roles:", initialErr);
+          data = await apiFetch(`/api/recommendations/roles?${queryParams.toString()}`);
         }
 
-        // Fetching from the route we created in Step 1
-        const data = await apiFetch(`/api/roles/search?${queryParams.toString()}`);
-
         if (!cancelled) {
-          // If service returns { roles: [...] } or just [...]
-          const rolesArray = Array.isArray(data) ? data : (data?.roles || []);
-          setRoles(rolesArray);
+          // Accept either { roles: [...] } or just [...].
+          const rolesArray = Array.isArray(data) ? data : data?.roles || [];
+          setRoles(Array.isArray(rolesArray) ? rolesArray : []);
         }
       } catch (e: any) {
         if (!cancelled) {
-          console.error("Bedrock Fetch Failed:", e);
+          console.error("Recommendations fetch failed:", e);
           setError("AI Service temporarily unavailable. Please try again.");
         }
       } finally {
@@ -66,8 +78,10 @@ export function RecommendationGrid({
 
     loadRoles();
 
-    return () => { cancelled = true; };
-  }, [personaId, filters.title, filters.industry, filters.skills]);
+    return () => {
+      cancelled = true;
+    };
+  }, [personaId]);
 
   if (loading) {
     return (
