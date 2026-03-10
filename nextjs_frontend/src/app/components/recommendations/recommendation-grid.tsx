@@ -25,6 +25,9 @@ export function RecommendationGrid({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Only one role card expanded at a time (accordion behavior)
+  const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -127,7 +130,15 @@ export function RecommendationGrid({
             title: role?.title ?? role?.role_title,
           };
 
-          return <RoleCard key={normalizedRole.id} role={normalizedRole} personaId={personaId} />;
+          return (
+            <RoleCard
+              key={normalizedRole.id}
+              role={normalizedRole}
+              personaId={personaId}
+              expanded={expandedRoleId === normalizedRole.id}
+              onExpandedChange={(next) => setExpandedRoleId(next ? normalizedRole.id : null)}
+            />
+          );
         })}
       </div>
 
