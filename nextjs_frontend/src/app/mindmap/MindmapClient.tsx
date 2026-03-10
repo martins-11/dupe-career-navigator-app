@@ -246,7 +246,9 @@ export default function MindmapClient() {
       setDetailsLoading(true);
       setDetailsError(null);
       try {
-        const d = await fetchMindmapNodeDetails({ nodeId, centerRoleId: 'current' });
+        // Mindmap is always centered on the user's current role. After the refactor there is
+        // no standalone `centerRoleId` variable; it's tracked inside view-state instead.
+        const d = await fetchMindmapNodeDetails({ nodeId, centerRoleId: state.centerRoleId ?? 'current' });
         if (cancelled) return;
         setDetails(d);
       } catch {
@@ -262,7 +264,7 @@ export default function MindmapClient() {
     return () => {
       cancelled = true;
     };
-  }, [state.selectedNodeId, centerRoleId]);
+  }, [state.selectedNodeId, state.centerRoleId]);
 
   // Fetch target role details (role-card-like fields) whenever targetRoleId changes.
   React.useEffect(() => {
