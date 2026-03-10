@@ -15,6 +15,25 @@ function safeStringArray(v: unknown): string[] {
   return v.map((x) => normString(x)).filter(Boolean);
 }
 
+function toBulletedSentences(items: string[]): string[] {
+  return items
+    .map((s) =>
+      s
+        // collapse internal whitespace/newlines
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter(Boolean)
+    .map((s) => {
+      // Remove any leading bullet-like prefixes that might come from upstream data
+      const noPrefix = s.replace(/^[-•*]\s+/, "").trim();
+      if (!noPrefix) return "";
+      // Ensure it reads like a sentence.
+      return /[.!?]$/.test(noPrefix) ? noPrefix : `${noPrefix}.`;
+    })
+    .filter(Boolean);
+}
+
 function clampPercent(v: unknown): number {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0;
@@ -114,8 +133,8 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
   );
 
   const requiredSkills = safeStringArray(role?.skills_required ?? role?.required_skills ?? []);
-  const responsibilities = safeStringArray(
-    role?.responsibilities ?? role?.key_responsibilities ?? role?.keyResponsibilities ?? []
+  const responsibilities = toBulletedSentences(
+    safeStringArray(role?.responsibilities ?? role?.key_responsibilities ?? role?.keyResponsibilities ?? [])
   );
   const tags = safeStringArray(role?.tags);
 
@@ -332,14 +351,16 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
                     <div className="text-[11px] font-bold uppercase tracking-[0.10em] text-slate-600">
                       Key responsibilities
                     </div>
-                    <ul className="mt-2 space-y-1">
-                      {(responsibilities.length > 0 ? responsibilities : []).slice(0, 6).map((r) => (
-                        <li key={r} className="text-xs text-slate-700">
+                    <ul className="mt-2 space-y-2 list-disc pl-5">
+                      {responsibilities.slice(0, 6).map((r) => (
+                        <li key={r} className="text-xs text-slate-700 leading-relaxed">
                           {r}
                         </li>
                       ))}
                       {responsibilities.length === 0 && (
-                        <li className="text-xs text-slate-400 italic">Not provided for this role.</li>
+                        <li className="text-xs text-slate-400 italic list-none -ml-5">
+                          Not provided for this role.
+                        </li>
                       )}
                     </ul>
                   </div>

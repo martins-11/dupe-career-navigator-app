@@ -150,7 +150,13 @@ export function RecommendationGrid({
               role={normalizedRole}
               personaId={personaId}
               expanded={expandedRoleId === stableUniqueId}
-              onExpandedChange={(next) => setExpandedRoleId(next ? stableUniqueId : null)}
+              onExpandedChange={(next) => {
+                // Accordion behavior: only one expanded at a time; clicking an expanded card collapses it.
+                setExpandedRoleId((prev) => {
+                  if (next) return stableUniqueId;
+                  return prev === stableUniqueId ? null : prev;
+                });
+              }}
             />
           );
         })}
