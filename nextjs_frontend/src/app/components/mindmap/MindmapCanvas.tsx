@@ -218,14 +218,20 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
         {/* Edges */}
         <g>
           {edges.map((e, idx) => {
-            const s = layout.get(e.source);
-            const t = layout.get(e.target);
+            // Be defensive: some backends use from/to.
+            const sourceId = normString((e as any).source || (e as any).from);
+            const targetId = normString((e as any).target || (e as any).to);
+            if (!sourceId || !targetId) return null;
+
+            const s = layout.get(sourceId);
+            const t = layout.get(targetId);
             if (!s || !t) return null;
 
-            const isDimmed = dimmedNodeIds ? dimmedNodeIds.has(e.source) && dimmedNodeIds.has(e.target) : false;
+            // If either endpoint is dimmed, dim the edge (more intuitive than requiring both).
+            const isDimmed = dimmedNodeIds ? dimmedNodeIds.has(sourceId) || dimmedNodeIds.has(targetId) : false;
 
             return (
-              <g key={`${e.source}-${e.target}-${idx}`}>
+              <g key={`${sourceId}-${targetId}-${idx}`}>
                 <line
                   x1={s.x}
                   y1={s.y}
