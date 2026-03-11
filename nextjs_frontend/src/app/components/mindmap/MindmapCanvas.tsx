@@ -16,40 +16,136 @@ function normString(v: unknown) {
 }
 
 /**
- * Simple radial-ish layout:
- * - center node fixed at (0,0)
- * - remaining nodes distributed on rings
- * This keeps implementation dependency-free while still supporting exploration.
+ * Graph-aware "mindmap" layout (dependency-free):
+ * - BFS levels from center node (outgoing edges as directed by backend)
+ * - Each level placed in a vertical column (x = level * step)
+ * - Nodes within a level stacked vertically (y = index * step)
+ *
+ * This makes the rendering far more readable than a naive ring layout:
+ * edges mostly flow left→right and the tree/branching structure is clearer.
  */
-function computeLayout(params: { nodes: MindmapGraphNode[]; centerNodeId: string }): Map<string, LayoutNode> {
-  const map = new Map<string, LayoutNode>();
+function computeLayout(params: {
+  nodes: MindmapGraphNode[];
+  edges: MindmapGraphEdge[];
+  centerNodeId: string;
+}): Map<string, LayoutNode> {
   const nodes = params.nodes ?? [];
+  const edges = params.edges ?? [];
   const centerId = params.centerNodeId;
 
-  const center = nodes.find((n) => n.id === centerId) ?? nodes[0];
-  if (center) map.set(center.id, { ...center, x: 0, y: 0 });
+  const byId = new Map<string, MindmapGraphNode>();
+  for (const n of nodes) byId.set(n.id, n);
 
-  const others = nodes.filter((n) => n.id !== (center?.id ?? centerId));
-  const ringSize = 10;
-  const radiusStep = 220;
-
-  for (let i = 0; i < others.length; i++) {
-    const ring = Math.floor(i / ringSize) + 1;
-    const idxInRing = i % ringSize;
-    const countInRing = Math.min(ringSize, others.length - (ring - 1) * ringSize);
-    const angle = (2 * Math.PI * idxInRing) / Math.max(1, countInRing);
-
-    const r = ring * radiusStep;
-    const x = Math.cos(angle) * r;
-    const y = Math.sin(angle) * r;
-
-    map.set(others[i].id, { ...others[i], x, y });
+  // Build adjacency (directed). If backend sends "from/to", MindmapApi normalized to source/target,
+  // but we remain defensive here too.
+  const out = new Map<string, string[]>();
+  const inDeg = new Map<string, number>();
+  for (const n of nodes) {
+    out.set(n.id, []);
+    inDeg.set(n.id, 0);
   }
 
-  // Ensure all nodes exist even if center missing
+  for (const e of edges) {
+    const s = normString((e as any).source || (e as any).from);
+    const t = normString((e as any).target || (e as any).to);
+    if (!s || !t) continue;
+    if (!byId.has(s) || !byId.has(t)) continue;
+
+    out.get(s)?.push(t);
+    inDeg.set(t, (inDeg.get(t) ?? 0) + 1);
+  }
+
+  const center = byId.get(centerId) ?? nodes[0];
+  const rootId = center?.id ?? centerId;
+
+  // BFS levels
+  const levelById = new Map<string, number>();
+  const q: string[] = [];
+  if (rootId) {
+    levelById.set(rootId, 0);
+    q.push(rootId);
+  }
+
+  while (q.length) {
+    const cur = q.shift()!;
+    const curLevel = levelById.get(cur) ?? 0;
+    const neighbors = out.get(cur) ?? [];
+    for (const nxt of neighbors) {
+      if (!levelById.has(nxt)) {
+        levelById.set(nxt, curLevel + 1);
+        q.push(nxt);
+      }
+    }
+  }
+
+  // Any disconnected nodes: place them after the connected component.
+  const connectedMax = Math.max(0, ...Array.from(levelById.values()));
+  let spillLevel = connectedMax + 1;
+  for (const n of nodes) {
+    if (!levelById.has(n.id)) {
+      levelById.set(n.id, spillLevel);
+      spillLevel += 1;
+    }
+  }
+
+  // Group by level and stable-sort:
+  // - Prefer lower in-degree first (often "more primary" items)
+  // - Then by title
+  const nodesByLevel = new Map<number, MindmapGraphNode[]>();
+  for (const n of nodes) {
+    const lvl = levelById.get(n.id) ?? 0;
+    const arr = nodesByLevel.get(lvl) ?? [];
+    arr.push(n);
+    nodesByLevel.set(lvl, arr);
+  }
+
+  for (const [lvl, arr] of nodesByLevel.entries()) {
+    arr.sort((a, b) => {
+      const da = inDeg.get(a.id) ?? 0;
+      const db = inDeg.get(b.id) ?? 0;
+      if (da !== db) return da - db;
+      return normString(a.title).localeCompare(normString(b.title));
+    });
+
+    // Ensure center node is first at level 0.
+    if (lvl === 0 && rootId) {
+      const idx = arr.findIndex((n) => n.id === rootId);
+      if (idx > 0) {
+        const [root] = arr.splice(idx, 1);
+        arr.unshift(root);
+      }
+    }
+  }
+
+  // Coordinates
+  const map = new Map<string, LayoutNode>();
+  const xStep = 340;
+  const yStep = 140;
+
+  for (const [lvl, arr] of Array.from(nodesByLevel.entries()).sort((a, b) => a[0] - b[0])) {
+    const x = lvl * xStep;
+
+    // Center the level vertically around y=0
+    const totalH = (arr.length - 1) * yStep;
+    const y0 = -totalH / 2;
+
+    for (let i = 0; i < arr.length; i++) {
+      const n = arr[i];
+      map.set(n.id, { ...n, x, y: y0 + i * yStep });
+    }
+  }
+
+  // Pin root exactly at origin for predictable camera behavior.
+  if (rootId && map.has(rootId)) {
+    const root = map.get(rootId)!;
+    map.set(rootId, { ...root, x: 0, y: 0 });
+  }
+
+  // Ensure all nodes exist
   for (const n of nodes) {
     if (!map.has(n.id)) map.set(n.id, { ...n, x: 0, y: 0 });
   }
+
   return map;
 }
 
@@ -63,6 +159,39 @@ function getNodeStroke(params: { isCenter: boolean; isSelected: boolean; isDimme
   if (params.isDimmed) return '#CBD5E1';
   if (params.isCenter) return '#0F766E';
   return params.isSelected ? '#1D4ED8' : '#CBD5E1';
+}
+
+function wrapLabel(text: string, maxCharsPerLine: number, maxLines: number): string[] {
+  const t = normString(text);
+  if (!t) return [''];
+  const words = t.split(/\s+/).filter(Boolean);
+
+  const lines: string[] = [];
+  let current = '';
+
+  for (const w of words) {
+    const next = current ? `${current} ${w}` : w;
+    if (next.length <= maxCharsPerLine) {
+      current = next;
+      continue;
+    }
+
+    if (current) lines.push(current);
+    current = w;
+
+    if (lines.length >= maxLines - 1) break;
+  }
+
+  if (lines.length < maxLines && current) lines.push(current);
+
+  // If we still have remaining words, indicate truncation.
+  const usedWords = lines.join(' ').split(/\s+/).filter(Boolean).length;
+  if (usedWords < words.length && lines.length) {
+    lines[lines.length - 1] = `${lines[lines.length - 1].slice(0, Math.max(0, maxCharsPerLine - 1))}…`;
+  }
+
+  // Hard truncate extremely long single tokens
+  return lines.map((l) => (l.length > maxCharsPerLine ? `${l.slice(0, maxCharsPerLine - 1)}…` : l));
 }
 
 export type MindmapCanvasProps = {
@@ -91,7 +220,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
   const { nodes, edges, centerNodeId, selectedNodeId, dimmedNodeIds, viewport, onViewportChange, onNodeClick } = props;
 
   const svgRef = React.useRef<SVGSVGElement | null>(null);
-  const layout = React.useMemo(() => computeLayout({ nodes, centerNodeId }), [nodes, centerNodeId]);
+  const layout = React.useMemo(() => computeLayout({ nodes, edges, centerNodeId }), [nodes, edges, centerNodeId]);
 
   const [isPanning, setIsPanning] = React.useState(false);
   const panStart = React.useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
@@ -268,8 +397,14 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
             const fill = getNodeColor({ isCenter, isSelected, isDimmed });
             const stroke = getNodeStroke({ isCenter, isSelected, isDimmed });
 
-            const r = isCenter ? 52 : 44;
+            const r = isCenter ? 56 : 46;
             const title = normString(n.title) || n.id;
+
+            const lines = wrapLabel(title, isCenter ? 18 : 16, 2);
+            const lineHeight = isCenter ? 14 : 13;
+
+            // Vertically center multi-line label around y=0
+            const labelStartY = lines.length === 1 ? 4 : -(lineHeight / 2) + 2;
 
             return (
               <g
@@ -284,16 +419,20 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
               >
                 <circle r={r} fill={fill} stroke={stroke} strokeWidth={isSelected ? 3 : 2} opacity={isDimmed ? 0.45 : 1} />
                 <text
-                  y={-4}
                   fontSize={isCenter ? 13 : 12}
                   fill={isCenter ? '#FFFFFF' : '#0F172A'}
                   textAnchor="middle"
-                  style={{ pointerEvents: 'none' }}
+                  style={{ pointerEvents: 'none', userSelect: 'none' }}
                 >
-                  {title.length > 18 ? `${title.slice(0, 18)}…` : title}
+                  {lines.map((ln, i) => (
+                    <tspan key={i} x={0} y={labelStartY + i * lineHeight}>
+                      {ln}
+                    </tspan>
+                  ))}
                 </text>
+
                 {isCenter ? (
-                  <text y={16} fontSize={10} fill="#ECFEFF" textAnchor="middle" style={{ pointerEvents: 'none' }}>
+                  <text y={r - 14} fontSize={10} fill="#ECFEFF" textAnchor="middle" style={{ pointerEvents: 'none' }}>
                     Current / Center
                   </text>
                 ) : null}
