@@ -171,6 +171,10 @@ export default function MindmapClient() {
   const [detailsError, setDetailsError] = React.useState<string | null>(null);
   const [details, setDetails] = React.useState<MindmapNodeDetailsResponse | null>(null);
 
+  // Increment to force node-details refetch even if the selected node id doesn't change
+  // (e.g., user clicks the same node again).
+  const [detailsFetchNonce, setDetailsFetchNonce] = React.useState(0);
+
   // Target role details panel state
   const [rightTab, setRightTab] = React.useState<'target' | 'selected'>('target');
   const [targetRoleLoading, setTargetRoleLoading] = React.useState(false);
@@ -311,6 +315,7 @@ export default function MindmapClient() {
         if (state.selectedNodeId && !data.nodes.some((n) => n.id === state.selectedNodeId)) {
           setState((s) => ({ ...s, selectedNodeId: null }));
           setDetails(null);
+          setDetailsError(null);
         }
       } catch (e: any) {
         if (cancelled) return;
@@ -368,7 +373,7 @@ export default function MindmapClient() {
     return () => {
       cancelled = true;
     };
-  }, [state.selectedNodeId, state.centerRoleId]);
+  }, [state.selectedNodeId, state.centerRoleId, detailsFetchNonce]);
 
   // Fetch target role details (role-card-like fields) whenever targetRoleId changes.
   React.useEffect(() => {
@@ -574,8 +579,15 @@ export default function MindmapClient() {
                 viewport={viewport}
                 onViewportChange={setViewport}
                 onNodeClick={(nodeId) => {
+                  // Always focus the selected-node panel when a node is clicked.
                   setRightTab('selected');
+
+                  // Clear current panel content immediately so we don't show stale data.
+                  setDetails(null);
+                  setDetailsError(null);
+
                   setState((s) => ({ ...s, selectedNodeId: nodeId }));
+                  setDetailsFetchNonce((n) => n + 1);
                 }}
               />
             )}
