@@ -10,8 +10,8 @@ import { Filters, ActiveFilterTags } from "../components/explore/filters";
 import { SearchBar } from "../components/explore/search-bar";
 import RoleCard from "../components/explore/role-card";
 // Utility & Storage Imports
-import { loadPersonaId, persistPersonaId } from "../../lib/personaStorage";
-import { apiFetch } from "../../lib/apiClient";
+import { loadPersonaId, persistPersonaId } from "@/lib/personaStorage";
+import { apiFetch } from "@/lib/apiClient";
 
 export default function ExploreClient() {
   // --- UI State ---
