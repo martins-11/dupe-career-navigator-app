@@ -303,6 +303,11 @@ export default function MindmapClient() {
 
         setGraph(data);
 
+        // If persisted pan/zoom ends up off-screen (common when layout/viewport changed),
+        // reset to a known-good view so nodes/edges are visible.
+        // Our SVG renderer is centered around world (0,0), so pan=0/zoom=1 is a safe "fit" baseline.
+        setState((s) => ({ ...s, panX: 0, panY: 0, zoom: 1 }));
+
         if (state.selectedNodeId && !data.nodes.some((n) => n.id === state.selectedNodeId)) {
           setState((s) => ({ ...s, selectedNodeId: null }));
           setDetails(null);

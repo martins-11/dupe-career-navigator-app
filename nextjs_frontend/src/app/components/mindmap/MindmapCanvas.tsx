@@ -196,10 +196,10 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
   };
 
   return (
-    <div className="w-full h-full rounded-2xl border border-slate-200 bg-white overflow-hidden">
+    <div className="w-full h-full rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col min-h-0">
       <svg
         ref={svgRef}
-        className="w-full h-full touch-none"
+        className="w-full flex-1 min-h-0 touch-none"
         viewBox={viewBox}
         onWheel={onWheel}
         onPointerDown={onPointerDown}
