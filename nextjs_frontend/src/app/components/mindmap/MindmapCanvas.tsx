@@ -3,9 +3,19 @@
 import React from 'react';
 import type { MindmapGraphEdge, MindmapGraphNode } from '@/lib/mindmapApi';
 
-type LayoutNode = MindmapGraphNode & { x: number; y: number; level: number };
+type LayoutNode = MindmapGraphNode & { x: number; y: number; lane: LayoutLane };
 
 export type MindmapViewport = { panX: number; panY: number; zoom: number };
+
+type LayoutLane =
+  | 'currentCircle'
+  | 'leftPill'
+  | 'leftCallout'
+  | 'stepYellow'
+  | 'rightCircle'
+  | 'rightCallout'
+  | 'rightPill'
+  | 'bottomHidden';
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
@@ -23,14 +33,45 @@ function normString(v: unknown) {
   return String(v ?? '').trim();
 }
 
+function numberOrNull(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
+function extractPercentRange(node: MindmapGraphNode): { left: string; right?: string } | null {
+  // Best-effort: use any backend fields, but never fabricate placeholders.
+  const raw =
+    (node as any).score ??
+    (node as any).matchPercent ??
+    (node as any).match_percentage ??
+    (node as any).similarity ??
+    (node as any).compatibility ??
+    (node as any).percent ??
+    null;
+
+  const n = numberOrNull(raw);
+  if (n !== null) {
+    const p = Math.round(n * (n <= 1 ? 100 : 1));
+    return { left: `${p}%` };
+  }
+
+  const title = normString(node.title);
+  const m = title.match(/(\d{1,3})\s*%(\s*-\s*(\d{1,3})\s*%)?/);
+  if (m) {
+    return m[3] ? { left: `${m[1]}%`, right: `${m[3]}%` } : { left: `${m[1]}%` };
+  }
+
+  return null;
+}
+
 function isLikelyStepNode(n: MindmapGraphNode): boolean {
   // Backend may provide an explicit type; keep heuristics as a fallback.
   const t = normString((n as any).type ?? (n as any).nodeType ?? (n as any).kind).toLowerCase();
-  if (t.includes('step') || t.includes('milestone') || t.includes('transition')) return true;
+  if (t.includes('step') || t.includes('milestone') || t.includes('transition') || t.includes('path')) return true;
 
   const title = normString(n.title).toLowerCase();
   // If the backend provides very short labels for stepping stones, treat as step.
-  if (title && title.length <= 18 && (title.includes('skill') || title.includes('cert') || title.includes('project'))) return true;
+  if (title && title.length <= 22 && (title.includes('skill') || title.includes('cert') || title.includes('project'))) return true;
 
   return false;
 }
@@ -88,20 +129,45 @@ function computeLevels(params: { nodes: MindmapGraphNode[]; edges: MindmapGraphE
   return levelById;
 }
 
+function nodeLane(params: { node: MindmapGraphNode; isCenter: boolean; isRightPrimary: boolean }): LayoutLane {
+  if (params.isCenter) return 'currentCircle';
+
+  // Steps must be the single-path nodes in the middle strip.
+  if (isLikelyStepNode(params.node)) return 'stepYellow';
+
+  const t = normString((params.node as any).type ?? (params.node as any).nodeType ?? (params.node as any).kind).toLowerCase();
+  const title = normString(params.node.title).toLowerCase();
+
+  // Left cluster pills: explicitly match the design's "Skills/Values/Experience" type labels when present.
+  if (title.includes('skill') || title.includes('value') || title.includes('experience')) return 'leftPill';
+
+  // Treat far/right primary as the big target circle.
+  if (params.isRightPrimary || t.includes('target')) return 'rightCircle';
+
+  // Generic callouts.
+  if (t.includes('callout') || t.includes('detail') || t.includes('note')) return 'leftCallout';
+
+  // Remaining nodes: bias them into callouts near left/right, but never create branches.
+  // We'll place them as decorative callouts (still clickable) around clusters.
+  if (title.length <= 20 && (title.includes('salary') || title.includes('timeline') || title.includes('match'))) return 'rightCallout';
+
+  return 'leftCallout';
+}
+
 /**
- * Layout tuned to match the screenshot design:
- * - Left cluster: 3 pill nodes (skills/values/experience) above a teal circle (current role)
- * - Center: dotted pathway with orange step nodes
- * - Right: target role pill + score badge (if present in data)
+ * Design-accurate layout (single-path, no sub-branches):
+ * - Left cluster: current circle + three pills fanning above + 1-2 dark callouts below.
+ * - Middle: CAREER TRANSITION PATHWAY dashed arrow + ~5 yellow step boxes in a single row.
+ * - Right cluster: large target circle + one dark callout above + one green pill below.
  *
- * Because the backend already returns a graph, we still compute a deterministic layout but
- * apply "design lanes" rather than generic columns.
+ * We keep the backend graph as the source of truth for labels/details, but render them in
+ * the fixed design geometry.
  */
 function computeLayout(params: {
   nodes: MindmapGraphNode[];
   edges: MindmapGraphEdge[];
   centerNodeId: string;
-}): Map<string, LayoutNode> {
+}): { layout: Map<string, LayoutNode>; order: { steps: string[]; leftPills: string[] } } {
   const nodes = params.nodes ?? [];
   const edges = params.edges ?? [];
   const centerId = params.centerNodeId;
@@ -114,94 +180,120 @@ function computeLayout(params: {
   const root = byId.get(centerId) ?? nodes[0];
   const rootId = root?.id ?? centerId;
 
-  // Classify nodes
-  const steps: MindmapGraphNode[] = [];
-  const level1: MindmapGraphNode[] = [];
-  const rest: MindmapGraphNode[] = [];
-
-  for (const n of nodes) {
-    if (n.id === rootId) continue;
-    const lvl = levelById.get(n.id) ?? 0;
-    if (isLikelyStepNode(n) || lvl >= 2) steps.push(n);
-    else if (lvl === 1) level1.push(n);
-    else rest.push(n);
-  }
-
-  // Prefer specific left-bubble labels when present
-  function findByKeyword(arr: MindmapGraphNode[], kw: string) {
-    const k = kw.toLowerCase();
-    return arr.find((n) => normString(n.title).toLowerCase().includes(k));
-  }
-
-  const skills = findByKeyword(level1, 'skill');
-  const values = findByKeyword(level1, 'value');
-  const experience = findByKeyword(level1, 'experience');
-
-  const used = new Set<string>();
-  for (const n of [skills, values, experience]) if (n) used.add(n.id);
-
-  const remainingLeft = level1.filter((n) => !used.has(n.id));
-
-  // Decide target node: best-effort choose the farthest level node (highest lvl)
-  let target: MindmapGraphNode | undefined;
+  // Choose "right primary" as the farthest-level node, excluding the center.
+  let rightPrimary: MindmapGraphNode | undefined;
   let bestLevel = -1;
   for (const n of nodes) {
-    const lvl = levelById.get(n.id) ?? 0;
     if (n.id === rootId) continue;
+    const lvl = levelById.get(n.id) ?? 0;
     if (lvl > bestLevel) {
       bestLevel = lvl;
-      target = n;
+      rightPrimary = n;
     }
   }
-  if (target && used.has(target.id)) target = remainingLeft[0] ?? steps[steps.length - 1];
 
-  // Create coordinate map
-  const map = new Map<string, LayoutNode>();
+  // Partition nodes.
+  const leftPills: MindmapGraphNode[] = [];
+  const stepCandidates: MindmapGraphNode[] = [];
+  const others: MindmapGraphNode[] = [];
 
-  // World coordinates (hand-tuned to match screenshot proportions)
-  const leftX = -420;
-  const centerX = 0;
-  const rightX = 520;
-
-  // Root circle in left cluster
-  map.set(rootId, { ...(byId.get(rootId) as any), x: leftX, y: 30, level: 0 });
-
-  // Left pill bubbles (stacked above)
-  const leftBubbles = [skills, values, experience].filter(Boolean) as MindmapGraphNode[];
-  const fallbackBubbles = remainingLeft.slice(0, Math.max(0, 3 - leftBubbles.length));
-  const bubbles = [...leftBubbles, ...fallbackBubbles].slice(0, 3);
-
-  const bubbleY = [-120, -70, -20];
-  for (let i = 0; i < bubbles.length; i++) {
-    const n = bubbles[i];
-    map.set(n.id, { ...(n as any), x: leftX - 140, y: bubbleY[i] ?? -50 + i * 50, level: 1 });
-  }
-
-  // Orange steps row through the center
-  const stepRow = steps.length ? steps : rest;
-  const stepStartX = centerX - 140;
-  const stepY = 70;
-  const stepGap = 95;
-  for (let i = 0; i < stepRow.length; i++) {
-    const n = stepRow[i];
-    map.set(n.id, { ...(n as any), x: stepStartX + i * stepGap, y: stepY, level: 2 });
-  }
-
-  // Put target on the right
-  if (target) {
-    map.set(target.id, { ...(target as any), x: rightX, y: 70, level: bestLevel });
-  }
-
-  // Place any unpositioned nodes in a soft stack below the steps (still selectable)
-  let spillY = 170;
   for (const n of nodes) {
-    if (!map.has(n.id)) {
-      map.set(n.id, { ...(n as any), x: centerX - 180, y: spillY, level: levelById.get(n.id) ?? 99 });
-      spillY += 65;
+    if (n.id === rootId) continue;
+    if (rightPrimary && n.id === rightPrimary.id) continue;
+
+    if (isLikelyStepNode(n) || (levelById.get(n.id) ?? 0) >= 2) stepCandidates.push(n);
+    else {
+      const title = normString(n.title).toLowerCase();
+      if (title.includes('skill') || title.includes('value') || title.includes('experience')) leftPills.push(n);
+      else others.push(n);
     }
   }
 
-  return map;
+  // Enforce exactly 3 left pills (design) by filling from "others" best-effort.
+  const used = new Set<string>(leftPills.map((n) => n.id));
+  const leftPillFill = others.filter((n) => !used.has(n.id)).slice(0, Math.max(0, 3 - leftPills.length));
+  const leftPillsFinal = [...leftPills, ...leftPillFill].slice(0, 3);
+
+  // Steps: choose up to 6 and keep stable order by level then id.
+  const stepsFinal = [...stepCandidates]
+    .sort((a, b) => {
+      const la = levelById.get(a.id) ?? 0;
+      const lb = levelById.get(b.id) ?? 0;
+      if (la !== lb) return la - lb;
+      return a.id.localeCompare(b.id);
+    })
+    .slice(0, 6);
+
+  // Remaining "others" become decorative callouts around clusters (still clickable).
+  const remaining = others.filter((n) => !leftPillsFinal.some((p) => p.id === n.id));
+
+  const layout = new Map<string, LayoutNode>();
+
+  // Fixed world coordinates tuned to the screenshot.
+  const leftX = -520;
+  const rightX = 560;
+  const centerY = 40;
+
+  // Main strip y.
+  const pathwayY = 40;
+
+  // Left big circle (current).
+  if (rootId) {
+    layout.set(rootId, { ...(byId.get(rootId) as any), x: leftX, y: pathwayY, lane: 'currentCircle' });
+  }
+
+  // Left pills (fan/arc above-left).
+  const pillX = leftX - 210;
+  const pillYs = [-155, -105, -55];
+  leftPillsFinal.forEach((n, i) => {
+    layout.set(n.id, { ...(n as any), x: pillX, y: pillYs[i] ?? -90, lane: 'leftPill' });
+  });
+
+  // Left callouts (below-left).
+  const leftCalloutXs = [leftX - 210, leftX - 70];
+  const leftCalloutYs = [140, 195];
+  remaining.slice(0, 2).forEach((n, i) => {
+    layout.set(n.id, { ...(n as any), x: leftCalloutXs[i] ?? leftX - 120, y: leftCalloutYs[i] ?? 160, lane: 'leftCallout' });
+  });
+
+  // Steps (single horizontal path).
+  const stepStartX = -120;
+  const stepGap = 120;
+  stepsFinal.forEach((n, i) => {
+    layout.set(n.id, { ...(n as any), x: stepStartX + i * stepGap, y: pathwayY + 35, lane: 'stepYellow' });
+  });
+
+  // Right big circle.
+  if (rightPrimary) {
+    layout.set(rightPrimary.id, { ...(rightPrimary as any), x: rightX, y: pathwayY + 25, lane: 'rightCircle' });
+  }
+
+  // Right callout above (use next remaining if available).
+  const rightCalloutNode = remaining.slice(2, 3)[0];
+  if (rightCalloutNode) {
+    layout.set(rightCalloutNode.id, { ...(rightCalloutNode as any), x: rightX - 40, y: -120, lane: 'rightCallout' });
+  }
+
+  // Right green pill below (use next remaining if available).
+  const rightGreenNode = remaining.slice(3, 4)[0];
+  if (rightGreenNode) {
+    layout.set(rightGreenNode.id, { ...(rightGreenNode as any), x: rightX - 40, y: 155, lane: 'rightPill' });
+  }
+
+  // Any unpositioned nodes: hide from diagram (still exist in data; details panel works by selection).
+  for (const n of nodes) {
+    if (!layout.has(n.id)) {
+      layout.set(n.id, { ...(n as any), x: 0, y: centerY + 520, lane: 'bottomHidden' });
+    }
+  }
+
+  return {
+    layout,
+    order: {
+      steps: stepsFinal.map((n) => n.id),
+      leftPills: leftPillsFinal.map((n) => n.id),
+    },
+  };
 }
 
 function wrapLabel(text: string, maxCharsPerLine: number, maxLines: number): string[] {
@@ -235,18 +327,6 @@ function wrapLabel(text: string, maxCharsPerLine: number, maxLines: number): str
   return lines.map((l) => (l.length > maxCharsPerLine ? `${l.slice(0, maxCharsPerLine - 1)}…` : l));
 }
 
-function nodeVisualKind(params: { node: MindmapGraphNode; isCenter: boolean }) {
-  if (params.isCenter) return 'currentCircle';
-  if (isLikelyStepNode(params.node)) return 'stepOrange';
-  // heuristic: treat "skills/values/experience" as pills
-  const title = normString(params.node.title).toLowerCase();
-  if (title.includes('skill') || title.includes('value') || title.includes('experience')) return 'leftPill';
-  // far right node becomes target pill
-  const t = normString((params.node as any).type ?? (params.node as any).nodeType).toLowerCase();
-  if (t.includes('target')) return 'targetPill';
-  return 'rolePill';
-}
-
 export type MindmapCanvasProps = {
   nodes: MindmapGraphNode[];
   edges: MindmapGraphEdge[];
@@ -268,19 +348,26 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
    * - drag pan
    * - click nodes (select)
    *
-   * Updated visuals to match design_for_mindmap.jpg, while keeping all interactions unchanged.
+   * This renderer matches design_for_mindmap.jpg:
+   * - Single-path (no sub-branches) horizontal pathway.
+   * - Left and right clusters with decorative callouts.
+   *
+   * Data is always sourced from backend/persona (node titles, details panel, etc).
+   * We do not introduce placeholder labels.
    */
   const { nodes, edges, centerNodeId, selectedNodeId, dimmedNodeIds, viewport, onViewportChange, onNodeClick } = props;
 
   const svgRef = React.useRef<SVGSVGElement | null>(null);
-  const layout = React.useMemo(() => computeLayout({ nodes, edges, centerNodeId }), [nodes, edges, centerNodeId]);
+  const computed = React.useMemo(() => computeLayout({ nodes, edges, centerNodeId }), [nodes, edges, centerNodeId]);
+  const layout = computed.layout;
 
   const [isPanning, setIsPanning] = React.useState(false);
   const panStart = React.useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
 
   const viewBox = React.useMemo(() => {
-    const baseW = 1400;
-    const baseH = 720;
+    // Keep a large viewBox so the diagram matches the screenshot spacing.
+    const baseW = 1600;
+    const baseH = 760;
     const z = clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM);
     const w = baseW / z;
     const h = baseH / z;
@@ -313,8 +400,8 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
 
       const nextZoom = clamp(viewport.zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM);
 
-      const baseW = 1400;
-      const baseH = 720;
+      const baseW = 1600;
+      const baseH = 760;
 
       const wAfter = baseW / nextZoom;
       const hAfter = baseH / nextZoom;
@@ -369,30 +456,25 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
     panStart.current = null;
   };
 
-  // Determine step nodes for the pathway row (for the dotted arrow spanning across).
-  const stepNodes = Array.from(layout.values())
-    .filter((n) => nodeVisualKind({ node: n, isCenter: n.id === centerNodeId }) === 'stepOrange')
-    .sort((a, b) => a.x - b.x);
+  const stepNodes = computed.order.steps
+    .map((id) => layout.get(id))
+    .filter(Boolean)
+    .sort((a, b) => (a!.x ?? 0) - (b!.x ?? 0)) as LayoutNode[];
+
+  const leftCircle = layout.get(centerNodeId);
+  const rightCircle = Array.from(layout.values()).find((n) => n.lane === 'rightCircle');
 
   const dottedLine = React.useMemo(() => {
     if (stepNodes.length === 0) return null;
     const y = stepNodes[0].y;
-    const x1 = stepNodes[0].x - 80;
-    const x2 = stepNodes[stepNodes.length - 1].x + 120;
+    // Span from just right of left circle to just left of right circle to match screenshot.
+    const x1 = (leftCircle?.x ?? -520) + 95;
+    const x2 = (rightCircle?.x ?? 560) - 120;
     return { x1, x2, y };
-  }, [stepNodes]);
+  }, [leftCircle?.x, rightCircle?.x, stepNodes]);
 
   return (
-    <div
-      className="w-full h-full rounded-2xl overflow-hidden flex flex-col min-h-0"
-      style={{ border: '1px solid rgba(0,0,0,0.10)', background: '#fff', boxShadow: 'var(--mindmap-shadow-soft)' }}
-    >
-      <div className="px-4 pt-4">
-        <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-center" style={{ color: 'var(--mindmap-text-muted)' }}>
-          CAREER TRANSITION PATHWAY
-        </div>
-      </div>
-
+    <div className="w-full h-full rounded-2xl overflow-hidden flex flex-col min-h-0" style={{ background: '#fff' }}>
       <svg
         ref={svgRef}
         className="w-full flex-1 min-h-0 touch-none"
@@ -410,7 +492,18 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
           </marker>
         </defs>
 
-        {/* Dotted pathway line behind steps */}
+        {/* Center label (top strip) */}
+        <text
+          x={0}
+          y={-10}
+          textAnchor="middle"
+          fontSize={11}
+          style={{ fill: 'var(--mindmap-text-muted)', fontWeight: 800, letterSpacing: '0.10em' }}
+        >
+          CAREER TRANSITION PATHWAY
+        </text>
+
+        {/* Middle dashed arrow (single path) */}
         {dottedLine ? (
           <line
             x1={dottedLine.x1}
@@ -426,12 +519,9 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
           />
         ) : null}
 
-        {/* Curved connector lines from left pills to current circle (design fan-in) */}
+        {/* Curved connectors from left pills to current circle (fan) */}
         {Array.from(layout.values())
-          .filter((n) => {
-            const kind = nodeVisualKind({ node: n, isCenter: n.id === centerNodeId });
-            return kind === 'leftPill';
-          })
+          .filter((n) => n.lane === 'leftPill')
           .map((n) => {
             const root = layout.get(centerNodeId);
             if (!root) return null;
@@ -441,47 +531,39 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
 
             const x1 = n.x + 70;
             const y1 = n.y;
-            const x2 = root.x - 55;
-            const y2 = root.y;
+            const x2 = root.x - 62;
+            const y2 = root.y - 20;
 
-            // Simple quadratic curve for "arc" look
             const cx = (x1 + x2) / 2;
-            const cy = Math.min(y1, y2) - 90;
+            const cy = Math.min(y1, y2) - 110;
 
             return <path key={`arc-${n.id}`} d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`} fill="none" stroke={stroke} strokeWidth={2} />;
           })}
 
-        {/* Edges (fallback) */}
-        <g opacity={0.55}>
-          {edges.map((e, idx) => {
-            const sourceId = normString((e as any).source || (e as any).from);
-            const targetId = normString((e as any).target || (e as any).to);
-            if (!sourceId || !targetId) return null;
+        {/* Curved connector to right callout */}
+        {(() => {
+          if (!rightCircle) return null;
+          const rightCallout = Array.from(layout.values()).find((n) => n.lane === 'rightCallout');
+          if (!rightCallout) return null;
 
-            const s = layout.get(sourceId);
-            const t = layout.get(targetId);
-            if (!s || !t) return null;
+          const x1 = rightCallout.x - 60;
+          const y1 = rightCallout.y + 12;
+          const x2 = rightCircle.x - 40;
+          const y2 = rightCircle.y - 40;
 
-            // Don't duplicate the curved "fan" lines (those are derived)
-            const sk = nodeVisualKind({ node: s, isCenter: s.id === centerNodeId });
-            const tk = nodeVisualKind({ node: t, isCenter: t.id === centerNodeId });
-            if (sk === 'leftPill' && tk === 'currentCircle') return null;
+          const cx = (x1 + x2) / 2;
+          const cy = Math.min(y1, y2) - 70;
 
-            const isDimmed = dimmedNodeIds ? dimmedNodeIds.has(sourceId) || dimmedNodeIds.has(targetId) : false;
-
-            return (
-              <line
-                key={`${sourceId}-${targetId}-${idx}`}
-                x1={s.x}
-                y1={s.y}
-                x2={t.x}
-                y2={t.y}
-                stroke={isDimmed ? 'rgba(148,163,184,0.25)' : 'rgba(148,163,184,0.75)'}
-                strokeWidth={2}
-              />
-            );
-          })}
-        </g>
+          return (
+            <path
+              d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
+              fill="none"
+              stroke="var(--mindmap-teal-600)"
+              strokeWidth={2}
+              opacity={0.9}
+            />
+          );
+        })()}
 
         {/* Nodes */}
         <g>
@@ -490,21 +572,22 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
             const isSelected = n.id === selectedNodeId;
             const isDimmed = dimmedNodeIds ? dimmedNodeIds.has(n.id) : false;
 
-            const kind = nodeVisualKind({ node: n, isCenter });
+            // Hidden nodes are not drawn to preserve "single path / no branches" fidelity.
+            if (n.lane === 'bottomHidden') return null;
 
             const title = normString(n.title) || n.id;
 
-            // Visual styles
             const stroke = isSelected ? 'rgba(13,148,136,0.9)' : 'rgba(0,0,0,0)';
             const strokeWidth = isSelected ? 3 : 0;
-
             const opacity = isDimmed ? 0.45 : 1;
 
-            if (kind === 'currentCircle') {
-              const r = 34;
-              const lines = wrapLabel(title, 14, 2);
-              const lineHeight = 13;
-              const labelStartY = lines.length === 1 ? 4 : -(lineHeight / 2) + 2;
+            // Left big circle: show percent (if present) + title small (data-driven).
+            if (isCenter || n.lane === 'currentCircle') {
+              const r = 46;
+              const pct = extractPercentRange(n);
+
+              // We keep label text data-driven; if no percent exists, we don't add one.
+              const smallLines = wrapLabel(title, 16, 2);
 
               return (
                 <g
@@ -518,9 +601,20 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                   aria-label={`Role node: ${title}`}
                 >
                   <circle r={r} fill="var(--mindmap-teal-700)" stroke={stroke} strokeWidth={strokeWidth} />
-                  <text fontSize={12} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 700 }}>
-                    {lines.map((ln, i) => (
-                      <tspan key={i} x={0} y={labelStartY + i * lineHeight}>
+                  {pct ? (
+                    <text fontSize={22} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }} y={6}>
+                      {pct.left}
+                    </text>
+                  ) : null}
+                  <text
+                    fontSize={11}
+                    fill="#FFFFFF"
+                    textAnchor="middle"
+                    style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 700, opacity: 0.95 }}
+                    y={pct ? 26 : 12}
+                  >
+                    {smallLines.map((ln, i) => (
+                      <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
                         {ln}
                       </tspan>
                     ))}
@@ -529,11 +623,50 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
               );
             }
 
-            if (kind === 'stepOrange') {
-              const w = 58;
-              const h = 40;
+            if (n.lane === 'rightCircle') {
+              const r = 46;
+              const pct = extractPercentRange(n);
+              const smallLines = wrapLabel(title, 18, 2);
+
+              return (
+                <g
+                  key={n.id}
+                  transform={`translate(${n.x}, ${n.y})`}
+                  onClick={(evt) => {
+                    evt.stopPropagation();
+                    onNodeClick(n.id);
+                  }}
+                  style={{ cursor: 'pointer', opacity }}
+                  aria-label={`Target role node: ${title}`}
+                >
+                  <circle r={r} fill="var(--mindmap-teal-700)" stroke={stroke} strokeWidth={strokeWidth} />
+                  {pct ? (
+                    <text fontSize={16} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 900 }} y={4}>
+                      {pct.right ? `${pct.left} - ${pct.right}` : pct.left}
+                    </text>
+                  ) : null}
+                  <text
+                    fontSize={11}
+                    fill="#FFFFFF"
+                    textAnchor="middle"
+                    style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 700, opacity: 0.95 }}
+                    y={pct ? 24 : 10}
+                  >
+                    {smallLines.map((ln, i) => (
+                      <tspan key={i} x={0} dy={i === 0 ? 0 : 12}>
+                        {ln}
+                      </tspan>
+                    ))}
+                  </text>
+                </g>
+              );
+            }
+
+            if (n.lane === 'stepYellow') {
+              const w = 86;
+              const h = 52;
               const rx = 10;
-              const lines = wrapLabel(title, 12, 2);
+              const lines = wrapLabel(title, 14, 2);
               const lineHeight = 12;
               const labelStartY = lines.length === 1 ? 4 : -(lineHeight / 2) + 2;
 
@@ -546,7 +679,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                     onNodeClick(n.id);
                   }}
                   style={{ cursor: 'pointer', opacity }}
-                  aria-label={`Pathway step: ${title}`}
+                  aria-label={`Transition step: ${title}`}
                 >
                   <rect
                     x={-w / 2}
@@ -554,11 +687,14 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                     width={w}
                     height={h}
                     rx={rx}
-                    fill="var(--mindmap-step-orange)"
-                    stroke={stroke}
-                    strokeWidth={strokeWidth}
+                    fill="var(--mindmap-step-yellow)"
+                    stroke="var(--mindmap-step-yellow-border)"
+                    strokeWidth={1.5}
                   />
-                  <text fontSize={11} fill="#1E2B32" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 700 }}>
+                  {isSelected ? (
+                    <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={rx} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
+                  ) : null}
+                  <text fontSize={11} fill="#1E2B32" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }}>
                     {lines.map((ln, i) => (
                       <tspan key={i} x={0} y={labelStartY + i * lineHeight}>
                         {ln}
@@ -569,16 +705,38 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
               );
             }
 
-            // Default: pill node
-            const pillW = kind === 'targetPill' ? 170 : kind === 'leftPill' ? 120 : 150;
-            const pillH = kind === 'leftPill' ? 34 : 52;
-            const rx = kind === 'leftPill' ? 999 : 16;
+            if (n.lane === 'rightPill') {
+              const w = 160;
+              const h = 32;
+              const rx = 999;
+              const lines = wrapLabel(title, 22, 1);
 
-            const fill =
-              kind === 'leftPill' || kind === 'targetPill' || kind === 'rolePill' ? 'var(--mindmap-teal-900)' : 'var(--mindmap-teal-900)';
+              return (
+                <g
+                  key={n.id}
+                  transform={`translate(${n.x}, ${n.y})`}
+                  onClick={(evt) => {
+                    evt.stopPropagation();
+                    onNodeClick(n.id);
+                  }}
+                  style={{ cursor: 'pointer', opacity }}
+                  aria-label={`Callout: ${title}`}
+                >
+                  <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={rx} fill="var(--mindmap-green-pill)" stroke={stroke} strokeWidth={strokeWidth} />
+                  <text fontSize={11} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }} y={4}>
+                    {lines[0]}
+                  </text>
+                </g>
+              );
+            }
 
-            const lines = wrapLabel(title, kind === 'leftPill' ? 14 : 18, kind === 'leftPill' ? 1 : 2);
-            const lineHeight = kind === 'leftPill' ? 12 : 13;
+            // Dark callouts + left pills
+            const isPill = n.lane === 'leftPill';
+            const w = isPill ? 124 : 170;
+            const h = isPill ? 34 : 54;
+            const rx = isPill ? 999 : 14;
+            const lines = wrapLabel(title, isPill ? 16 : 22, isPill ? 1 : 2);
+            const lineHeight = isPill ? 12 : 13;
             const labelStartY = lines.length === 1 ? 4 : -(lineHeight / 2) + 2;
 
             return (
@@ -593,16 +751,16 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                 aria-label={`Node: ${title}`}
               >
                 <rect
-                  x={-pillW / 2}
-                  y={-pillH / 2}
-                  width={pillW}
-                  height={pillH}
+                  x={-w / 2}
+                  y={-h / 2}
+                  width={w}
+                  height={h}
                   rx={rx}
-                  fill={fill}
+                  fill="var(--mindmap-charcoal)"
                   stroke={stroke}
                   strokeWidth={strokeWidth}
                 />
-                <text fontSize={12} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 700 }}>
+                <text fontSize={12} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }}>
                   {lines.map((ln, i) => (
                     <tspan key={i} x={0} y={labelStartY + i * lineHeight}>
                       {ln}
@@ -613,9 +771,22 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
             );
           })}
         </g>
+
+        {/* Decorative nav chevrons (to match screenshot chrome) */}
+        <g opacity={0.9} aria-hidden="true">
+          <text x={720} y={-40} fontSize={18} style={{ fill: 'var(--mindmap-control-icon)', fontWeight: 900 }}>
+            ▶
+          </text>
+          <text x={720} y={40} fontSize={18} style={{ fill: 'var(--mindmap-control-icon)', fontWeight: 900 }}>
+            ◀
+          </text>
+          <text x={-720} y={160} fontSize={18} style={{ fill: 'var(--mindmap-control-icon)', fontWeight: 900 }}>
+            ◀
+          </text>
+        </g>
       </svg>
 
-      {/* Controls (kept functional; simplified visual to match design chrome) */}
+      {/* Controls (kept functional; subtle like design) */}
       <div className="px-4 py-3 flex items-center justify-end gap-2 text-xs" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
         <button
           type="button"
@@ -653,7 +824,10 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
         </button>
 
         <div className="tabular-nums ml-2" style={{ color: 'var(--mindmap-text-meta)' }}>
-          Zoom: <span className="font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>{Math.round(clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) * 100)}%</span>
+          Zoom:{' '}
+          <span className="font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>
+            {Math.round(clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) * 100)}%
+          </span>
         </div>
       </div>
     </div>

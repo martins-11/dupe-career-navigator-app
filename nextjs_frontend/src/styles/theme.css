@@ -94,12 +94,19 @@
   --mindmap-cta-green: #2ead6e;
   --mindmap-cta-green-hover: #279b61;
 
+  /* Updated to match design_for_mindmap.jpg exactly */
+  --mindmap-charcoal: #2d3136; /* dark pill/callout nodes */
+  --mindmap-step-yellow: #f4c84a; /* pathway step boxes */
+  --mindmap-step-yellow-border: #d6a93a;
+  --mindmap-green-pill: #37b36b;
+
+  /* Keep older orange tokens (used elsewhere / backward compatibility) */
   --mindmap-step-orange: #f0a33a;
   --mindmap-step-orange-2: #f6b04e;
 
   --mindmap-detail-grey: #6f7882;
 
-  --mindmap-control-icon: #b7c3cc;
+  --mindmap-control-icon: #c7cdd4;
 
   --mindmap-r-pill: 999px;
   --mindmap-r-card: 10px;
