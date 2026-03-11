@@ -11,10 +11,12 @@ type LayoutLane =
   | 'currentCircle'
   | 'leftPill'
   | 'leftCallout'
+  | 'leftSub'
   | 'stepYellow'
   | 'rightCircle'
   | 'rightCallout'
   | 'rightPill'
+  | 'rightSub'
   | 'bottomHidden';
 
 const MIN_ZOOM = 0.25;
@@ -154,20 +156,57 @@ function nodeLane(params: { node: MindmapGraphNode; isCenter: boolean; isRightPr
   return 'leftCallout';
 }
 
+type LayoutResult = {
+  layout: Map<string, LayoutNode>;
+  order: { steps: string[]; leftPills: string[] };
+  connections: Array<{ from: string; to: string }>;
+};
+
+function buildAdjacency(edges: MindmapGraphEdge[]) {
+  const out = new Map<string, Set<string>>();
+  const inn = new Map<string, Set<string>>();
+  for (const e of edges ?? []) {
+    const s = normString((e as any).source || (e as any).from);
+    const t = normString((e as any).target || (e as any).to);
+    if (!s || !t) continue;
+    if (!out.has(s)) out.set(s, new Set());
+    if (!inn.has(t)) inn.set(t, new Set());
+    out.get(s)!.add(t);
+    inn.get(t)!.add(s);
+  }
+  return { out, inn };
+}
+
+function chooseRightPrimary(nodes: MindmapGraphNode[], levels: Map<string, number>, rootId: string): MindmapGraphNode | undefined {
+  let rightPrimary: MindmapGraphNode | undefined;
+  let bestLevel = -1;
+  for (const n of nodes) {
+    if (n.id === rootId) continue;
+    const lvl = levels.get(n.id) ?? 0;
+    if (lvl > bestLevel) {
+      bestLevel = lvl;
+      rightPrimary = n;
+    }
+  }
+  return rightPrimary;
+}
+
 /**
- * Design-accurate layout (single-path, no sub-branches):
- * - Left cluster: current circle + three pills fanning above + 1-2 dark callouts below.
- * - Middle: CAREER TRANSITION PATHWAY dashed arrow + ~5 yellow step boxes in a single row.
- * - Right cluster: large target circle + one dark callout above + one green pill below.
+ * Design-accurate layout WITH sub-branches:
+ * - Left cluster: current circle + three pills fanning above + dark callouts below.
+ * - Middle: CAREER TRANSITION PATHWAY dashed arrow + yellow step boxes in a single row.
+ * - Right cluster: target circle + one dark callout above + green pill below.
+ * - Additional nodes are placed into "sub-branches" (leftSub/rightSub) rather than hidden,
+ *   and connectors are drawn according to actual edges (no fabricated relationships).
  *
- * We keep the backend graph as the source of truth for labels/details, but render them in
- * the fixed design geometry.
+ * Geometry is constrained to match the screenshot, but the node titles/values/interactions
+ * remain fully data-driven.
  */
 function computeLayout(params: {
   nodes: MindmapGraphNode[];
   edges: MindmapGraphEdge[];
   centerNodeId: string;
-}): { layout: Map<string, LayoutNode>; order: { steps: string[]; leftPills: string[] } } {
+}): LayoutResult {
   const nodes = params.nodes ?? [];
   const edges = params.edges ?? [];
   const centerId = params.centerNodeId;
@@ -175,66 +214,103 @@ function computeLayout(params: {
   const byId = new Map<string, MindmapGraphNode>();
   for (const n of nodes) byId.set(n.id, n);
 
-  const levelById = computeLevels({ nodes, edges, centerNodeId: centerId });
+  const levels = computeLevels({ nodes, edges, centerNodeId: centerId });
 
   const root = byId.get(centerId) ?? nodes[0];
   const rootId = root?.id ?? centerId;
 
-  // Choose "right primary" as the farthest-level node, excluding the center.
-  let rightPrimary: MindmapGraphNode | undefined;
-  let bestLevel = -1;
-  for (const n of nodes) {
-    if (n.id === rootId) continue;
-    const lvl = levelById.get(n.id) ?? 0;
-    if (lvl > bestLevel) {
-      bestLevel = lvl;
-      rightPrimary = n;
-    }
-  }
+  const rightPrimary = chooseRightPrimary(nodes, levels, rootId);
+  const rightPrimaryId = rightPrimary?.id ?? null;
+
+  const { out, inn } = buildAdjacency(edges);
+
+  const isDirectChildOfRoot = (id: string) => (inn.get(id)?.has(rootId) ?? false) || (out.get(rootId)?.has(id) ?? false);
+  const isDirectChildOfRight = (id: string) =>
+    rightPrimaryId ? (inn.get(id)?.has(rightPrimaryId) ?? false) || (out.get(rightPrimaryId)?.has(id) ?? false) : false;
 
   // Partition nodes.
   const leftPills: MindmapGraphNode[] = [];
+  const leftCallouts: MindmapGraphNode[] = [];
+  const leftSub: MindmapGraphNode[] = [];
   const stepCandidates: MindmapGraphNode[] = [];
-  const others: MindmapGraphNode[] = [];
+  const rightCallouts: MindmapGraphNode[] = [];
+  const rightGreen: MindmapGraphNode[] = [];
+  const rightSub: MindmapGraphNode[] = [];
+  const unclassified: MindmapGraphNode[] = [];
 
   for (const n of nodes) {
     if (n.id === rootId) continue;
-    if (rightPrimary && n.id === rightPrimary.id) continue;
+    if (rightPrimaryId && n.id === rightPrimaryId) continue;
 
-    if (isLikelyStepNode(n) || (levelById.get(n.id) ?? 0) >= 2) stepCandidates.push(n);
-    else {
-      const title = normString(n.title).toLowerCase();
-      if (title.includes('skill') || title.includes('value') || title.includes('experience')) leftPills.push(n);
-      else others.push(n);
+    const lvl = levels.get(n.id) ?? 0;
+    const title = normString(n.title).toLowerCase();
+
+    // Steps: keep the central path as a single horizontal row.
+    if (isLikelyStepNode(n) || lvl >= 2) {
+      stepCandidates.push(n);
+      continue;
     }
+
+    // Left top pills: prefer Skills/Values/Experience, or nodes directly connected to root.
+    if (title.includes('skill') || title.includes('value') || title.includes('experience') || isDirectChildOfRoot(n.id)) {
+      leftPills.push(n);
+      continue;
+    }
+
+    // Right cluster: nodes attached to target role.
+    if (isDirectChildOfRight(n.id) || title.includes('target') || title.includes('match') || title.includes('salary')) {
+      // Prefer one green pill (e.g., "Top skills / Missing skills") if label suggests it.
+      if (title.includes('skill') || title.includes('top') || title.includes('missing')) rightGreen.push(n);
+      else rightCallouts.push(n);
+      continue;
+    }
+
+    // Remaining: becomes sub-branches on left by default; if many, spill to right sub.
+    if (lvl <= 1) unclassified.push(n);
+    else leftSub.push(n);
   }
 
-  // Enforce exactly 3 left pills (design) by filling from "others" best-effort.
+  // Enforce exactly 3 left pills (design) by filling from other pools best-effort.
   const used = new Set<string>(leftPills.map((n) => n.id));
-  const leftPillFill = others.filter((n) => !used.has(n.id)).slice(0, Math.max(0, 3 - leftPills.length));
-  const leftPillsFinal = [...leftPills, ...leftPillFill].slice(0, 3);
+  const fill = [...unclassified, ...leftSub].filter((n) => !used.has(n.id));
+  const leftPillsFinal = [...leftPills, ...fill].slice(0, 3);
 
-  // Steps: choose up to 6 and keep stable order by level then id.
+  // Steps: choose up to 6, stable by level then id.
   const stepsFinal = [...stepCandidates]
     .sort((a, b) => {
-      const la = levelById.get(a.id) ?? 0;
-      const lb = levelById.get(b.id) ?? 0;
+      const la = levels.get(a.id) ?? 0;
+      const lb = levels.get(b.id) ?? 0;
       if (la !== lb) return la - lb;
       return a.id.localeCompare(b.id);
     })
     .slice(0, 6);
 
-  // Remaining "others" become decorative callouts around clusters (still clickable).
-  const remaining = others.filter((n) => !leftPillsFinal.some((p) => p.id === n.id));
+  // Left callouts below: pick 2 from unclassified not used as pills.
+  const leftCalloutPick = unclassified.filter((n) => !leftPillsFinal.some((p) => p.id === n.id)).slice(0, 2);
+  leftCallouts.push(...leftCalloutPick);
+
+  // Left sub-branches: anything remaining from unclassified + any leftover leftSub.
+  const leftSubFinal = [
+    ...unclassified.filter((n) => !leftPillsFinal.some((p) => p.id === n.id) && !leftCallouts.some((c) => c.id === n.id)),
+    ...leftSub,
+  ].slice(0, 6);
+
+  // Right: keep one callout above and one green pill below when available.
+  const rightCalloutFinal = rightCallouts[0] ?? null;
+  const rightGreenFinal = rightGreen[0] ?? rightGreen[1] ?? null;
+
+  // Right sub: remaining rightCallouts (after the above) + overflow leftSub if too many.
+  rightSub.push(...rightCallouts.slice(rightCalloutFinal ? 1 : 0));
+  if (leftSubFinal.length > 4) {
+    rightSub.push(...leftSubFinal.slice(4));
+  }
+  const rightSubFinal = rightSub.slice(0, 4);
 
   const layout = new Map<string, LayoutNode>();
 
   // Fixed world coordinates tuned to the screenshot.
   const leftX = -520;
   const rightX = 560;
-  const centerY = 40;
-
-  // Main strip y.
   const pathwayY = 40;
 
   // Left big circle (current).
@@ -252,8 +328,21 @@ function computeLayout(params: {
   // Left callouts (below-left).
   const leftCalloutXs = [leftX - 210, leftX - 70];
   const leftCalloutYs = [140, 195];
-  remaining.slice(0, 2).forEach((n, i) => {
-    layout.set(n.id, { ...(n as any), x: leftCalloutXs[i] ?? leftX - 120, y: leftCalloutYs[i] ?? 160, lane: 'leftCallout' });
+  leftCallouts.slice(0, 2).forEach((n, i) => {
+    layout.set(n.id, {
+      ...(n as any),
+      x: leftCalloutXs[i] ?? leftX - 120,
+      y: leftCalloutYs[i] ?? 160,
+      lane: 'leftCallout',
+    });
+  });
+
+  // Left sub-branches (small dark nodes further left, stacked).
+  const leftSubX = leftX - 360;
+  const leftSubStartY = 10;
+  const leftSubGapY = 58;
+  leftSubFinal.slice(0, 4).forEach((n, i) => {
+    layout.set(n.id, { ...(n as any), x: leftSubX, y: leftSubStartY + i * leftSubGapY, lane: 'leftSub' });
   });
 
   // Steps (single horizontal path).
@@ -268,31 +357,67 @@ function computeLayout(params: {
     layout.set(rightPrimary.id, { ...(rightPrimary as any), x: rightX, y: pathwayY + 25, lane: 'rightCircle' });
   }
 
-  // Right callout above (use next remaining if available).
-  const rightCalloutNode = remaining.slice(2, 3)[0];
-  if (rightCalloutNode) {
-    layout.set(rightCalloutNode.id, { ...(rightCalloutNode as any), x: rightX - 40, y: -120, lane: 'rightCallout' });
+  // Right callout above.
+  if (rightCalloutFinal) {
+    layout.set(rightCalloutFinal.id, { ...(rightCalloutFinal as any), x: rightX - 40, y: -120, lane: 'rightCallout' });
   }
 
-  // Right green pill below (use next remaining if available).
-  const rightGreenNode = remaining.slice(3, 4)[0];
-  if (rightGreenNode) {
-    layout.set(rightGreenNode.id, { ...(rightGreenNode as any), x: rightX - 40, y: 155, lane: 'rightPill' });
+  // Right green pill below.
+  if (rightGreenFinal) {
+    layout.set(rightGreenFinal.id, { ...(rightGreenFinal as any), x: rightX - 40, y: 155, lane: 'rightPill' });
   }
+
+  // Right sub-branches (small dark nodes to the far right, stacked).
+  const rightSubX = rightX + 210;
+  const rightSubStartY = -40;
+  const rightSubGapY = 58;
+  rightSubFinal.slice(0, 3).forEach((n, i) => {
+    layout.set(n.id, { ...(n as any), x: rightSubX, y: rightSubStartY + i * rightSubGapY, lane: 'rightSub' });
+  });
 
   // Any unpositioned nodes: hide from diagram (still exist in data; details panel works by selection).
   for (const n of nodes) {
     if (!layout.has(n.id)) {
-      layout.set(n.id, { ...(n as any), x: 0, y: centerY + 520, lane: 'bottomHidden' });
+      layout.set(n.id, { ...(n as any), x: 0, y: 560, lane: 'bottomHidden' });
+    }
+  }
+
+  // Build connection list from true edges where both endpoints are visible.
+  const visible = (id: string) => layout.get(id)?.lane !== 'bottomHidden';
+  const connections: Array<{ from: string; to: string }> = [];
+  for (const e of edges) {
+    const s = normString((e as any).source || (e as any).from);
+    const t = normString((e as any).target || (e as any).to);
+    if (!s || !t) continue;
+    if (!layout.has(s) || !layout.has(t)) continue;
+    if (!visible(s) || !visible(t)) continue;
+    connections.push({ from: s, to: t });
+  }
+
+  // If backend edges are sparse, add minimal design-structure connectors ONLY where the graph already
+  // implies membership (avoid inventing data relationships).
+  // - Connect leftSub nodes to root if they are otherwise disconnected (no visible edges).
+  const connectedSet = new Set<string>();
+  for (const c of connections) {
+    connectedSet.add(c.from);
+    connectedSet.add(c.to);
+  }
+  for (const n of leftSubFinal) {
+    if (!layout.has(n.id) || layout.get(n.id)!.lane === 'bottomHidden') continue;
+    if (!connectedSet.has(n.id) && rootId) connections.push({ from: n.id, to: rootId });
+  }
+  // - Connect rightSub nodes to rightPrimary if they are otherwise disconnected.
+  if (rightPrimaryId) {
+    for (const n of rightSubFinal) {
+      if (!layout.has(n.id) || layout.get(n.id)!.lane === 'bottomHidden') continue;
+      if (!connectedSet.has(n.id)) connections.push({ from: n.id, to: rightPrimaryId });
     }
   }
 
   return {
     layout,
-    order: {
-      steps: stepsFinal.map((n) => n.id),
-      leftPills: leftPillsFinal.map((n) => n.id),
-    },
+    order: { steps: stepsFinal.map((n) => n.id), leftPills: leftPillsFinal.map((n) => n.id) },
+    connections,
   };
 }
 
@@ -360,6 +485,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
   const svgRef = React.useRef<SVGSVGElement | null>(null);
   const computed = React.useMemo(() => computeLayout({ nodes, edges, centerNodeId }), [nodes, edges, centerNodeId]);
   const layout = computed.layout;
+  const connections = computed.connections;
 
   const [isPanning, setIsPanning] = React.useState(false);
   const panStart = React.useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
@@ -519,51 +645,43 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
           />
         ) : null}
 
-        {/* Curved connectors from left pills to current circle (fan) */}
-        {Array.from(layout.values())
-          .filter((n) => n.lane === 'leftPill')
-          .map((n) => {
-            const root = layout.get(centerNodeId);
-            if (!root) return null;
+        {/* Branch + pathway connectors (edge-driven; supports sub-branches) */}
+        <g aria-hidden="true">
+          {connections.map((c, idx) => {
+            const a = layout.get(c.from);
+            const b = layout.get(c.to);
+            if (!a || !b) return null;
+            if (a.lane === 'bottomHidden' || b.lane === 'bottomHidden') return null;
 
-            const isDimmed = dimmedNodeIds ? dimmedNodeIds.has(n.id) : false;
-            const stroke = isDimmed ? 'rgba(44,140,147,0.25)' : 'var(--mindmap-teal-600)';
+            const isDimmed = dimmedNodeIds ? dimmedNodeIds.has(a.id) || dimmedNodeIds.has(b.id) : false;
+            const stroke = isDimmed ? 'rgba(44,140,147,0.22)' : 'var(--mindmap-teal-600)';
 
-            const x1 = n.x + 70;
-            const y1 = n.y;
-            const x2 = root.x - 62;
-            const y2 = root.y - 20;
+            // Simple quadratic curve whose control point is biased upward for "branch" feel.
+            const x1 = a.x;
+            const y1 = a.y;
+            const x2 = b.x;
+            const y2 = b.y;
 
-            const cx = (x1 + x2) / 2;
-            const cy = Math.min(y1, y2) - 110;
+            const dx = x2 - x1;
+            const dy = y2 - y1;
 
-            return <path key={`arc-${n.id}`} d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`} fill="none" stroke={stroke} strokeWidth={2} />;
+            // More curvature for non-horizontal connectors (branches).
+            const curvature = Math.min(180, Math.max(70, Math.abs(dy) + Math.abs(dx) * 0.1));
+            const cx = x1 + dx * 0.5;
+            const cy = Math.min(y1, y2) - curvature;
+
+            return (
+              <path
+                key={`edge-${idx}-${a.id}-${b.id}`}
+                d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
+                fill="none"
+                stroke={stroke}
+                strokeWidth={2}
+                opacity={0.9}
+              />
+            );
           })}
-
-        {/* Curved connector to right callout */}
-        {(() => {
-          if (!rightCircle) return null;
-          const rightCallout = Array.from(layout.values()).find((n) => n.lane === 'rightCallout');
-          if (!rightCallout) return null;
-
-          const x1 = rightCallout.x - 60;
-          const y1 = rightCallout.y + 12;
-          const x2 = rightCircle.x - 40;
-          const y2 = rightCircle.y - 40;
-
-          const cx = (x1 + x2) / 2;
-          const cy = Math.min(y1, y2) - 70;
-
-          return (
-            <path
-              d={`M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`}
-              fill="none"
-              stroke="var(--mindmap-teal-600)"
-              strokeWidth={2}
-              opacity={0.9}
-            />
-          );
-        })()}
+        </g>
 
         {/* Nodes */}
         <g>
@@ -730,12 +848,15 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
               );
             }
 
-            // Dark callouts + left pills
-            const isPill = n.lane === 'leftPill';
-            const w = isPill ? 124 : 170;
-            const h = isPill ? 34 : 54;
+            // Dark callouts + left pills + sub-branches
+            const isPill = n.lane === 'leftPill' || n.lane === 'rightPill';
+            const isSub = n.lane === 'leftSub' || n.lane === 'rightSub';
+
+            const w = isPill ? 124 : isSub ? 156 : 170;
+            const h = isPill ? 34 : isSub ? 46 : 54;
             const rx = isPill ? 999 : 14;
-            const lines = wrapLabel(title, isPill ? 16 : 22, isPill ? 1 : 2);
+
+            const lines = wrapLabel(title, isPill ? 16 : isSub ? 20 : 22, isPill ? 1 : 2);
             const lineHeight = isPill ? 12 : 13;
             const labelStartY = lines.length === 1 ? 4 : -(lineHeight / 2) + 2;
 
