@@ -7,6 +7,10 @@ type LayoutNode = MindmapGraphNode & { x: number; y: number };
 
 export type MindmapViewport = { panX: number; panY: number; zoom: number };
 
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 3;
+const DEFAULT_ZOOM = 2.3;
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -230,7 +234,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
     // We create a camera by translating/zooming the viewBox.
     const baseW = 1600;
     const baseH = 1000;
-    const z = clamp(viewport.zoom, 0.25, 3);
+    const z = clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM);
     const w = baseW / z;
     const h = baseH / z;
     const x = -w / 2 - viewport.panX;
@@ -266,7 +270,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
       // World point under cursor BEFORE zoom
       const before = { x: vx + nx * vw, y: vy + ny * vh };
 
-      const nextZoom = clamp(viewport.zoom * zoomFactor, 0.25, 3);
+      const nextZoom = clamp(viewport.zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM);
 
       // Our camera model:
       // viewBox = [ -w/2 - panX, -h/2 - panY, w, h ] where w=baseW/zoom, h=baseH/zoom
@@ -315,8 +319,8 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
     const dy = evt.clientY - panStart.current.y;
 
     // Convert screen pixels to world units based on zoom.
-    const worldDx = dx / clamp(viewport.zoom, 0.25, 3);
-    const worldDy = dy / clamp(viewport.zoom, 0.25, 3);
+    const worldDx = dx / clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM);
+    const worldDy = dy / clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM);
 
     onViewportChange({
       ...viewport,
@@ -449,8 +453,43 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
           <span>Scroll to zoom</span>
           <span>Click a node for details</span>
         </div>
-        <div className="tabular-nums">
-          Zoom: <span className="font-semibold text-slate-800">{Math.round(clamp(viewport.zoom, 0.25, 3) * 100)}%</span>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="px-2 py-1 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
+            onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.12, MIN_ZOOM, MAX_ZOOM) })}
+            disabled={clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) <= MIN_ZOOM + 1e-6}
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            −
+          </button>
+
+          <button
+            type="button"
+            className="px-2 py-1 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
+            onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom * 1.12, MIN_ZOOM, MAX_ZOOM) })}
+            disabled={clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) >= MAX_ZOOM - 1e-6}
+            aria-label="Zoom in"
+            title="Zoom in"
+          >
+            +
+          </button>
+
+          <button
+            type="button"
+            className="px-2 py-1 rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            onClick={() => onViewportChange({ ...viewport, zoom: DEFAULT_ZOOM, panX: 0, panY: 0 })}
+            aria-label="Reset view"
+            title="Reset view"
+          >
+            Reset
+          </button>
+
+          <div className="tabular-nums ml-2">
+            Zoom: <span className="font-semibold text-slate-800">{Math.round(clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) * 100)}%</span>
+          </div>
         </div>
       </div>
     </div>

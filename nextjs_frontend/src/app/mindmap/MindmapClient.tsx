@@ -41,7 +41,8 @@ function defaultState(): MindmapViewState {
     version: 1,
     panX: 0,
     panY: 0,
-    zoom: 1,
+    // Default zoom per acceptance criteria request: 230%
+    zoom: 2.3,
     selectedNodeId: null,
     expandedNodeIds: [],
     filters: defaultFilters(),
@@ -307,10 +308,14 @@ export default function MindmapClient() {
 
         setGraph(data);
 
-        // If persisted pan/zoom ends up off-screen (common when layout/viewport changed),
-        // reset to a known-good view so nodes/edges are visible.
-        // Our SVG renderer is centered around world (0,0), so pan=0/zoom=1 is a safe "fit" baseline.
-        setState((s) => ({ ...s, panX: 0, panY: 0, zoom: 1 }));
+        // Preserve restored pan/zoom.
+        // Only sanitize the viewport if it is invalid (NaN/Infinity/out of supported bounds).
+        setState((s) => {
+          const zoom = Number.isFinite(s.zoom) ? clamp(s.zoom, 0.25, 3) : 2.3;
+          const panX = Number.isFinite(s.panX) ? s.panX : 0;
+          const panY = Number.isFinite(s.panY) ? s.panY : 0;
+          return { ...s, zoom, panX, panY };
+        });
 
         if (state.selectedNodeId && !data.nodes.some((n) => n.id === state.selectedNodeId)) {
           setState((s) => ({ ...s, selectedNodeId: null }));
