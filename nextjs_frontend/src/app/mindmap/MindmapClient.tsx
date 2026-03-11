@@ -23,6 +23,7 @@ import { loadPersona, loadPersonaId } from '@/lib/personaStorage';
 import { getTargetRoleId } from '@/lib/targetRoleStorage';
 import { getLocalMindmapViewState, persistLocalMindmapViewState } from '@/lib/mindmapViewStateStorage';
 import { apiFetch } from '@/lib/apiClient';
+import { getPersonaDerivedCurrentRoleTitle } from '@/lib/personaRoleDerivation';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -144,12 +145,21 @@ export default function MindmapClient() {
         if (!cancelled) setState(local);
       }
 
-      // Resolve current+target roles from backend (authoritative when available).
+      // Resolve current+target roles:
+      // - Current role MUST come from persona data (ingestion output stored locally).
+      // - Target role selection behavior remains unchanged (Explore -> localStorage, optionally backend).
+      const personaDerivedCurrentTitle = getPersonaDerivedCurrentRoleTitle();
+
+      // Initialize from persona first (so we never show a hardcoded placeholder as "current role").
+      if (!cancelled) setCurrentRoleTitle(personaDerivedCurrentTitle);
+
+      // Then best-effort fetch backend context (may augment/override target role; current role is only used
+      // if backend provides a value AND persona-derived value is missing).
       try {
         const userKey = getUserKey();
         const ctx = await apiFetch(`/api/profile/roles?user_id=${encodeURIComponent(userKey)}`, { method: 'GET' });
 
-        const currentTitle =
+        const backendCurrentTitle =
           ctx && typeof ctx === 'object' && (ctx as any).currentRole?.currentRoleTitle
             ? String((ctx as any).currentRole.currentRoleTitle)
             : null;
@@ -160,12 +170,13 @@ export default function MindmapClient() {
             : null;
 
         if (!cancelled) {
-          setCurrentRoleTitle(currentTitle);
+          // Only use backend current role if persona didn't yield anything.
+          setCurrentRoleTitle(personaDerivedCurrentTitle || backendCurrentTitle || null);
           setTargetRoleId(targetId || getTargetRoleId());
         }
       } catch {
         if (!cancelled) {
-          setCurrentRoleTitle(null);
+          setCurrentRoleTitle(personaDerivedCurrentTitle);
           setTargetRoleId(getTargetRoleId());
         }
       }
