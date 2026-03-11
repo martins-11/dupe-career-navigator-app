@@ -3,6 +3,18 @@ const nextConfig = {
   reactStrictMode: true,
 
   /**
+   * Silence Next.js dev warning:
+   * "Cross origin request detected ... you will need to explicitly configure allowedDevOrigins"
+   *
+   * In Kavia preview/dev environments the UI may be served from a vscode-internal*.cloud.kavia.ai origin.
+   */
+  allowedDevOrigins: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://vscode-internal-29588-beta.beta01.cloud.kavia.ai',
+  ],
+
+  /**
    * Proxy backend API calls when the frontend is served separately from the Express backend.
    *
    * Note: rewrite destinations are evaluated on the Next.js *server*.
