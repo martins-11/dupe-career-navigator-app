@@ -125,46 +125,59 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
     return { x: vx + nx * vw, y: vy + ny * vh };
   }
 
-  const onWheel = (evt: React.WheelEvent<SVGSVGElement>) => {
-    evt.preventDefault();
-    const dir = evt.deltaY > 0 ? -1 : 1;
-    const zoomFactor = dir > 0 ? 1.12 : 0.9;
+  const onWheel = React.useCallback(
+    (evt: WheelEvent) => {
+      // Important: this handler is attached with `{ passive: false }` (see effect below),
+      // so preventDefault is allowed and will not trigger the console warning.
+      evt.preventDefault();
 
-    const before = clientPointToWorld(evt);
-    const nextZoom = clamp(viewport.zoom * zoomFactor, 0.25, 3);
+      const dir = evt.deltaY > 0 ? -1 : 1;
+      const zoomFactor = dir > 0 ? 1.12 : 0.9;
 
-    if (!before) {
-      onViewportChange({ ...viewport, zoom: nextZoom });
-      return;
-    }
+      // Convert the native WheelEvent into the minimal shape our helper expects.
+      const svg = svgRef.current;
+      if (!svg) return;
 
-    // Preserve cursor point by adjusting pan after zoom.
-    const baseW = 1600;
-    const baseH = 1000;
+      const rect = svg.getBoundingClientRect();
+      const cx = evt.clientX - rect.left;
+      const cy = evt.clientY - rect.top;
+      const nx = cx / rect.width;
+      const ny = cy / rect.height;
 
-    const wBefore = baseW / clamp(viewport.zoom, 0.25, 3);
-    const hBefore = baseH / clamp(viewport.zoom, 0.25, 3);
-    const xBefore = -wBefore / 2 - viewport.panX;
-    const yBefore = -hBefore / 2 - viewport.panY;
+      const parts = viewBox.split(' ').map(Number);
+      const [vx, vy, vw, vh] = parts;
+      const before = { x: vx + nx * vw, y: vy + ny * vh };
 
-    const wAfter = baseW / nextZoom;
-    const hAfter = baseH / nextZoom;
-    const xAfter = -wAfter / 2;
-    const yAfter = -hAfter / 2;
+      const nextZoom = clamp(viewport.zoom * zoomFactor, 0.25, 3);
 
-    // world point within old box -> normalized -> world point in new box
-    const nx = (before.x - xBefore) / wBefore;
-    const ny = (before.y - yBefore) / hBefore;
-    const worldAfter = { x: xAfter + nx * wAfter, y: yAfter + ny * hAfter };
+      // Preserve cursor point by adjusting pan after zoom.
+      const baseW = 1600;
+      const baseH = 1000;
 
-    // We want worldAfter == before, solve for panX/panY in new viewBox equation:
-    // x = -w/2 - panX, so panX = -w/2 - x
-    const nextPanX = -wAfter / 2 - before.x;
-    const nextPanY = -hAfter / 2 - before.y;
+      const wAfter = baseW / nextZoom;
+      const hAfter = baseH / nextZoom;
 
-    // But our formula uses x = -w/2 - panX (already includes panX), so set to match:
-    onViewportChange({ panX: nextPanX, panY: nextPanY, zoom: nextZoom });
-  };
+      // In our camera model: viewBox.x = -w/2 - panX, so panX = -w/2 - viewBox.x.
+      // We want the world point under cursor to stay fixed => solve pan directly.
+      const nextPanX = -wAfter / 2 - before.x;
+      const nextPanY = -hAfter / 2 - before.y;
+
+      onViewportChange({ panX: nextPanX, panY: nextPanY, zoom: nextZoom });
+    },
+    [onViewportChange, viewBox, viewport.zoom]
+  );
+
+  React.useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    // Attach as non-passive so we can call preventDefault() without warnings.
+    svg.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      svg.removeEventListener('wheel', onWheel as EventListener);
+    };
+  }, [onWheel]);
 
   const onPointerDown = (evt: React.PointerEvent<SVGSVGElement>) => {
     if (evt.button !== 0) return;
@@ -201,7 +214,6 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
         ref={svgRef}
         className="w-full flex-1 min-h-0 touch-none"
         viewBox={viewBox}
-        onWheel={onWheel}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
