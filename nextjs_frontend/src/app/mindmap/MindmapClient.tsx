@@ -132,7 +132,7 @@ export default function MindmapClient() {
 
       try {
         const userKey = getUserKey();
-        const remote = await loadMindmapViewState({ userKey });
+        const remote = await loadMindmapViewState({ userId: userKey });
         if (!cancelled && remote) {
           const merged = toSafeState({ ...local, ...remote });
           setState(merged);
@@ -337,7 +337,7 @@ export default function MindmapClient() {
     const userKey = getUserKey();
     const t = window.setTimeout(async () => {
       try {
-        await saveMindmapViewState({ userKey, state });
+        await saveMindmapViewState({ userId: userKey, state });
       } catch {
         // backend persistence is best-effort; localStorage already has state
       }
