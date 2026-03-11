@@ -109,22 +109,6 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
     return `${x} ${y} ${w} ${h}`;
   }, [viewport.panX, viewport.panY, viewport.zoom]);
 
-  function clientPointToWorld(evt: React.WheelEvent<SVGSVGElement>) {
-    const svg = svgRef.current;
-    if (!svg) return null;
-    const rect = svg.getBoundingClientRect();
-    const cx = evt.clientX - rect.left;
-    const cy = evt.clientY - rect.top;
-    // Map to normalized [0..1]
-    const nx = cx / rect.width;
-    const ny = cy / rect.height;
-
-    // Convert to current world coordinates within viewBox.
-    const parts = viewBox.split(' ').map(Number);
-    const [vx, vy, vw, vh] = parts;
-    return { x: vx + nx * vw, y: vy + ny * vh };
-  }
-
   const onWheel = React.useCallback(
     (evt: WheelEvent) => {
       // Important: this handler is attached with `{ passive: false }` (see effect below),
@@ -134,33 +118,43 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
       const dir = evt.deltaY > 0 ? -1 : 1;
       const zoomFactor = dir > 0 ? 1.12 : 0.9;
 
-      // Convert the native WheelEvent into the minimal shape our helper expects.
       const svg = svgRef.current;
       if (!svg) return;
 
+      // Cursor position in the SVG element (screen pixels)
       const rect = svg.getBoundingClientRect();
       const cx = evt.clientX - rect.left;
       const cy = evt.clientY - rect.top;
-      const nx = cx / rect.width;
-      const ny = cy / rect.height;
 
+      // Normalized cursor position within the SVG [0..1]
+      const nx = rect.width > 0 ? cx / rect.width : 0.5;
+      const ny = rect.height > 0 ? cy / rect.height : 0.5;
+
+      // Current viewBox in world coords
       const parts = viewBox.split(' ').map(Number);
       const [vx, vy, vw, vh] = parts;
+
+      // World point under cursor BEFORE zoom
       const before = { x: vx + nx * vw, y: vy + ny * vh };
 
       const nextZoom = clamp(viewport.zoom * zoomFactor, 0.25, 3);
 
-      // Preserve cursor point by adjusting pan after zoom.
+      // Our camera model:
+      // viewBox = [ -w/2 - panX, -h/2 - panY, w, h ] where w=baseW/zoom, h=baseH/zoom
+      // We want the same world point to remain under the cursor after zoom:
+      // before.x == viewBoxAfter.x + nx * wAfter
       const baseW = 1600;
       const baseH = 1000;
 
       const wAfter = baseW / nextZoom;
       const hAfter = baseH / nextZoom;
 
-      // In our camera model: viewBox.x = -w/2 - panX, so panX = -w/2 - viewBox.x.
-      // We want the world point under cursor to stay fixed => solve pan directly.
-      const nextPanX = -wAfter / 2 - before.x;
-      const nextPanY = -hAfter / 2 - before.y;
+      const viewBoxAfterX = before.x - nx * wAfter;
+      const viewBoxAfterY = before.y - ny * hAfter;
+
+      // Convert desired viewBoxAfter.x/y back into panX/panY.
+      const nextPanX = -wAfter / 2 - viewBoxAfterX;
+      const nextPanY = -hAfter / 2 - viewBoxAfterY;
 
       onViewportChange({ panX: nextPanX, panY: nextPanY, zoom: nextZoom });
     },
