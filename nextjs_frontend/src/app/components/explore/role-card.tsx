@@ -3,10 +3,10 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { CompatibilityScore } from "./compatibility-score";
-import { apiFetch } from "../../../lib/apiClient";
-import { loadPersona } from "../../../lib/personaStorage";
-import { getTargetRoleSelection, persistTargetRoleSelection } from "../../../lib/targetRoleStorage";
-import { getLocalMindmapViewState, persistLocalMindmapViewState } from "../../../lib/mindmapViewStateStorage";
+import { apiFetch } from "@/lib/apiClient";
+import { loadPersona } from "@/lib/personaStorage";
+import { getTargetRoleSelection, persistTargetRoleSelection } from "@/lib/targetRoleStorage";
+import { getLocalMindmapViewState, persistLocalMindmapViewState } from "@/lib/mindmapViewStateStorage";
 
 function normString(v: unknown): string {
   return String(v ?? "").trim();
