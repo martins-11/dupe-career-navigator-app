@@ -22,8 +22,11 @@ import {
 import { loadPersona, loadPersonaId } from '@/lib/personaStorage';
 import { getTargetRoleId } from '@/lib/targetRoleStorage';
 import { getLocalMindmapViewState, persistLocalMindmapViewState } from '@/lib/mindmapViewStateStorage';
-import { apiFetch } from '@/lib/apiClient';
+import { apiFetch, ApiError } from '@/lib/apiClient';
 import { getPersonaDerivedCurrentRoleTitle } from '@/lib/personaRoleDerivation';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('MindmapClient');
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -67,6 +70,13 @@ function toSafeState(s: any): MindmapViewState {
   };
 }
 
+function safeErrorMessage(e: unknown): string {
+  if (!e) return 'Unknown error';
+  if (e instanceof ApiError) return `${e.message} (HTTP ${e.status})`;
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
 /**
  * Best-effort user key:
  * - We don't have authentication; use personaId as a stable-ish identifier when present.
@@ -77,7 +87,6 @@ function getUserKey(): string {
   const personaId = loadPersonaId();
   if (personaId) return personaId;
 
-  // Stable anonymous key per browser.
   const storageKey = 'career_navigator_anon_user_key';
   try {
     const existing = window.localStorage.getItem(storageKey);
@@ -87,9 +96,62 @@ function getUserKey(): string {
     window.localStorage.setItem(storageKey, created);
     return created;
   } catch {
-    // If localStorage is unavailable, fall back to an always-non-empty value.
     return `anon_${Date.now()}`;
   }
+}
+
+function computeEmptyStateReason(params: {
+  isBooting: boolean;
+  graphLoading: boolean;
+  graphError: string | null;
+  currentRoleTitle: string | null;
+  graph: MindmapGraphResponse | null;
+}): { title: string; details: string } | null {
+  if (params.isBooting) {
+    return { title: 'Loading mind map…', details: 'Initializing view state and role context.' };
+  }
+
+  if (params.graphError) {
+    return { title: 'Could not load mind map', details: params.graphError };
+  }
+
+  if (params.graphLoading) {
+    return { title: 'Building your mind map…', details: 'Fetching graph data from the backend.' };
+  }
+
+  if (!params.currentRoleTitle || !params.currentRoleTitle.trim()) {
+    return {
+      title: 'Current role not detected',
+      details:
+        'The mind map is centered on your current role, which is derived from your persona. Upload documents and generate a persona first, then return here.',
+    };
+  }
+
+  if (!params.graph) {
+    return {
+      title: 'No graph data returned',
+      details: 'The backend returned no graph payload. Use the debug panel to inspect request/response.',
+    };
+  }
+
+  if (!Array.isArray(params.graph.nodes) || params.graph.nodes.length === 0) {
+    return {
+      title: 'No mind map nodes to show',
+      details:
+        'The backend responded, but no nodes were produced. Try loosening filters, or verify the backend graph endpoint is returning nodes.',
+    };
+  }
+
+  return null;
+}
+
+function DebugRow(props: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[160px_1fr] gap-2 py-1 border-b border-slate-100 last:border-b-0">
+      <div className="text-slate-500">{props.label}</div>
+      <div className="text-slate-800 break-words">{props.value}</div>
+    </div>
+  );
 }
 
 // PUBLIC_INTERFACE
@@ -102,6 +164,8 @@ export default function MindmapClient() {
 
   const [graphLoading, setGraphLoading] = React.useState(false);
   const [graphError, setGraphError] = React.useState<string | null>(null);
+  const [lastGraphReq, setLastGraphReq] = React.useState<any | null>(null);
+  const [lastGraphRes, setLastGraphRes] = React.useState<any | null>(null);
 
   const [detailsLoading, setDetailsLoading] = React.useState(false);
   const [detailsError, setDetailsError] = React.useState<string | null>(null);
@@ -123,6 +187,9 @@ export default function MindmapClient() {
   const [currentRoleTitle, setCurrentRoleTitle] = React.useState<string | null>(null);
   const [targetRoleId, setTargetRoleId] = React.useState<string | null>(null);
 
+  // Debug UI state
+  const [debugOpen, setDebugOpen] = React.useState(false);
+
   // Boot: load persisted view-state from backend (prefer) then local, and resolve roles.
   React.useEffect(() => {
     let cancelled = false;
@@ -141,22 +208,19 @@ export default function MindmapClient() {
         } else if (!cancelled) {
           setState(local);
         }
-      } catch {
+      } catch (e) {
+        log.warn('Failed to load remote view-state; using local', safeErrorMessage(e));
         if (!cancelled) setState(local);
       }
 
       // Resolve current+target roles:
-      // - Current role MUST come from persona data (ingestion output stored locally).
-      // - Target role selection behavior remains unchanged (Explore -> localStorage, optionally backend).
       const personaDerivedCurrentTitle = getPersonaDerivedCurrentRoleTitle();
-
-      // Initialize from persona first (so we never show a hardcoded placeholder as "current role").
       if (!cancelled) setCurrentRoleTitle(personaDerivedCurrentTitle);
 
-      // Then best-effort fetch backend context (may augment/override target role; current role is only used
-      // if backend provides a value AND persona-derived value is missing).
+      // Best-effort fetch backend context (may augment/override target role; current role only if persona missing).
       try {
         const userKey = getUserKey();
+        // NOTE: This endpoint may not exist in all backends; failures are non-fatal.
         const ctx = await apiFetch(`/api/profile/roles?user_id=${encodeURIComponent(userKey)}`, { method: 'GET' });
 
         const backendCurrentTitle =
@@ -165,16 +229,17 @@ export default function MindmapClient() {
             : null;
 
         const targetId =
-          ctx && typeof ctx === 'object' && (ctx as any).targetRole?.roleId
-            ? String((ctx as any).targetRole.roleId)
-            : null;
+          ctx && typeof ctx === 'object' && (ctx as any).targetRole?.roleId ? String((ctx as any).targetRole.roleId) : null;
 
         if (!cancelled) {
-          // Only use backend current role if persona didn't yield anything.
           setCurrentRoleTitle(personaDerivedCurrentTitle || backendCurrentTitle || null);
           setTargetRoleId(targetId || getTargetRoleId());
         }
-      } catch {
+      } catch (e) {
+        log.info('Backend roles context not available; falling back to local storage', safeErrorMessage(e), {
+          throttleMs: 5000,
+          key: 'ctx-fail',
+        });
         if (!cancelled) {
           setCurrentRoleTitle(personaDerivedCurrentTitle);
           setTargetRoleId(getTargetRoleId());
@@ -210,31 +275,56 @@ export default function MindmapClient() {
   // Fetch graph whenever filters/current role change.
   React.useEffect(() => {
     let cancelled = false;
+
     async function run() {
       const userKey = getUserKey();
 
+      const reqPayload = {
+        userId: userKey,
+        currentRoleTitle: currentRoleTitle || undefined,
+        filters: state.filters,
+      };
+      setLastGraphReq(reqPayload);
+
       setGraphLoading(true);
       setGraphError(null);
+
       try {
-        const data = await fetchMindmapGraph({
-          userId: userKey,
-          currentRoleTitle: currentRoleTitle || undefined,
-          filters: state.filters,
-        });
+        const data = await fetchMindmapGraph(reqPayload);
         if (cancelled) return;
+
+        setLastGraphRes({
+          ok: true,
+          nodes: Array.isArray(data?.nodes) ? data.nodes.length : null,
+          edges: Array.isArray(data?.edges) ? data.edges.length : null,
+          centerNodeId: data?.centerNodeId,
+          meta: (data as any)?.meta,
+        });
+
         setGraph(data);
+
         if (state.selectedNodeId && !data.nodes.some((n) => n.id === state.selectedNodeId)) {
           setState((s) => ({ ...s, selectedNodeId: null }));
           setDetails(null);
         }
       } catch (e: any) {
         if (cancelled) return;
+
         setGraph(null);
-        setGraphError('Mind map service unavailable. Please try again.');
+        const msg = safeErrorMessage(e);
+        setGraphError(msg);
+
+        setLastGraphRes({
+          ok: false,
+          error: msg,
+          status: e instanceof ApiError ? e.status : undefined,
+          payload: e instanceof ApiError ? e.payload : undefined,
+        });
       } finally {
         if (!cancelled) setGraphLoading(false);
       }
     }
+
     run();
     return () => {
       cancelled = true;
@@ -257,15 +347,13 @@ export default function MindmapClient() {
       setDetailsLoading(true);
       setDetailsError(null);
       try {
-        // Mindmap is always centered on the user's current role. After the refactor there is
-        // no standalone `centerRoleId` variable; it's tracked inside view-state instead.
         const d = await fetchMindmapNodeDetails({ nodeId, centerRoleId: state.centerRoleId ?? 'current' });
         if (cancelled) return;
         setDetails(d);
-      } catch {
+      } catch (e) {
         if (cancelled) return;
         setDetails(null);
-        setDetailsError('Could not load role details.');
+        setDetailsError(`Could not load role details. (${safeErrorMessage(e)})`);
       } finally {
         if (!cancelled) setDetailsLoading(false);
       }
@@ -282,7 +370,6 @@ export default function MindmapClient() {
     let cancelled = false;
 
     function looksLikeUuid(v: string): boolean {
-      // Accept standard UUID v4-ish (but don't overfit), case-insensitive.
       return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
     }
 
@@ -298,8 +385,6 @@ export default function MindmapClient() {
       setTargetRoleError(null);
 
       try {
-        // Important: /api/roles/search is a text search endpoint and often returns []
-        // when q is a UUID role_id. In that case, use a dedicated by-id lookup.
         if (looksLikeUuid(targetRoleId)) {
           const role = await apiFetch(`/api/roles/by-id/${encodeURIComponent(targetRoleId)}`, {
             method: 'GET',
@@ -309,7 +394,6 @@ export default function MindmapClient() {
           return;
         }
 
-        // Fallback: treat targetRoleId as a search query (legacy behavior).
         const qs = new URLSearchParams();
         qs.set('q', targetRoleId);
 
@@ -321,10 +405,10 @@ export default function MindmapClient() {
         const best = arr[0] ?? null;
 
         if (!cancelled) setTargetRole(best);
-      } catch {
+      } catch (e) {
         if (!cancelled) {
           setTargetRole(null);
-          setTargetRoleError('Could not load target role details.');
+          setTargetRoleError(`Could not load target role details. (${safeErrorMessage(e)})`);
         }
       } finally {
         if (!cancelled) setTargetRoleLoading(false);
@@ -349,8 +433,12 @@ export default function MindmapClient() {
     const t = window.setTimeout(async () => {
       try {
         await saveMindmapViewState({ userId: userKey, state });
-      } catch {
+      } catch (e) {
         // backend persistence is best-effort; localStorage already has state
+        log.info('saveMindmapViewState failed (non-fatal)', safeErrorMessage(e), {
+          throttleMs: 5000,
+          key: 'save-view-state-fail',
+        });
       }
     }, 900);
 
@@ -363,14 +451,12 @@ export default function MindmapClient() {
     setState((s) => ({ ...s, panX: v.panX, panY: v.panY, zoom: clamp(v.zoom, 0.25, 3) }));
   }
 
-  // Dim nodes not currently visible according to backend filtering is handled server-side.
-  // Still, when graph is null we dim everything.
   const dimmed = React.useMemo(() => {
     if (!graph) return new Set<string>();
-    // If backend returns a field that indicates hidden nodes in meta, we could dim here.
-    // For now, keep all returned nodes undimmed.
     return new Set<string>();
   }, [graph]);
+
+  const emptyState = computeEmptyStateReason({ isBooting, graphLoading, graphError, currentRoleTitle, graph });
 
   return (
     <div className="px-8 py-8 bg-white min-h-screen font-sans">
@@ -382,115 +468,145 @@ export default function MindmapClient() {
               Explore career paths: zoom/pan the graph, click nodes for details, and filter branches dynamically.
             </p>
           </div>
-          <div className="text-xs text-slate-500 text-right">
-            <div>
-              Current role:{' '}
-              <span className="font-semibold text-slate-700">
-                {currentRoleTitle ? currentRoleTitle : 'Not detected yet'}
-              </span>
+
+          <div className="flex items-start gap-3">
+            <div className="text-xs text-slate-500 text-right">
+              <div>
+                Current role:{' '}
+                <span className="font-semibold text-slate-700">{currentRoleTitle ? currentRoleTitle : 'Not detected yet'}</span>
+              </div>
+              <div>
+                Target role: <span className="font-semibold text-slate-700">{targetRoleId ? targetRoleId : 'Not set'}</span>
+              </div>
             </div>
-            <div>
-              Target role:{' '}
-              <span className="font-semibold text-slate-700">{targetRoleId ? targetRoleId : 'Not set'}</span>
-            </div>
+
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-md border border-slate-200 text-xs text-slate-700 hover:bg-slate-50"
+              onClick={() => setDebugOpen((v) => !v)}
+              aria-expanded={debugOpen}
+            >
+              {debugOpen ? 'Hide debug' : 'Show debug'}
+            </button>
           </div>
         </header>
 
-        {isBooting ? (
-          <div className="py-20 flex items-center justify-center">
-            <div className="w-12 h-12 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin mb-4" />
-          </div>
-        ) : (
-          <>
-            <MindmapFiltersBar
-              value={state.filters}
-              onChange={(next) => setState((s) => ({ ...s, filters: next }))}
-            />
+        {debugOpen ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold text-slate-800">Mindmap Debug Panel</div>
+              <div className="text-slate-500">Use this to understand why the graph is blank.</div>
+            </div>
 
-            {graphError ? (
-              <div className="p-6 bg-red-50 border border-red-100 rounded-xl text-red-600" role="alert">
-                {graphError}
-              </div>
-            ) : null}
-
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
-              <div className="min-h-[560px]">
-                {graphLoading && !graph ? (
-                  <div className="h-[560px] rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin" />
-                      <div className="text-sm text-slate-500">Rendering your mind map…</div>
-                    </div>
-                  </div>
-                ) : graph ? (
-                  graph.nodes && graph.nodes.length > 0 ? (
-                    <MindmapCanvas
-                      nodes={graph.nodes}
-                      edges={graph.edges}
-                      centerNodeId={graph.centerNodeId}
-                      selectedNodeId={state.selectedNodeId}
-                      dimmedNodeIds={dimmed}
-                      viewport={viewport}
-                      onViewportChange={setViewport}
-                      onNodeClick={(nodeId) => {
-                        setRightTab('selected');
-                        setState((s) => ({ ...s, selectedNodeId: nodeId }));
-                      }}
-                    />
-                  ) : (
-                    <div className="h-[560px] rounded-2xl border border-slate-200 bg-white flex flex-col items-center justify-center text-slate-600 px-6 text-center">
-                      <div className="text-lg font-semibold text-slate-800">No mind map nodes to show</div>
-                      <div className="mt-2 text-sm text-slate-500 max-w-md">
-                        We couldn’t build a graph from your current role yet. Upload documents to detect your current role,
-                        then return here to explore paths. (Target role selection does not affect the center node.)
-                      </div>
-                    </div>
-                  )
-                ) : (
-                  <div className="h-[560px] rounded-2xl border border-slate-200 bg-white flex items-center justify-center text-slate-500">
-                    No graph data.
-                  </div>
-                )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="rounded-lg bg-white border border-slate-200 p-3">
+                <div className="font-semibold text-slate-700 mb-1">Context</div>
+                <DebugRow label="userKey" value={getUserKey()} />
+                <DebugRow label="personaId" value={personaId ?? 'null'} />
+                <DebugRow label="currentRoleTitle" value={currentRoleTitle ?? 'null'} />
+                <DebugRow label="targetRoleId" value={targetRoleId ?? 'null'} />
               </div>
 
-              <div className="h-[560px]">
-                <div className="h-full flex flex-col">
-                  <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as any)} className="h-full flex flex-col">
-                    <div className="mb-3">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="target">Target role details</TabsTrigger>
-                        <TabsTrigger value="selected">Selected node</TabsTrigger>
-                      </TabsList>
-                    </div>
+              <div className="rounded-lg bg-white border border-slate-200 p-3">
+                <div className="font-semibold text-slate-700 mb-1">Graph fetch</div>
+                <DebugRow label="status" value={graphLoading ? 'loading' : graphError ? 'error' : graph ? 'ok' : 'idle'} />
+                <DebugRow label="error" value={graphError ?? 'null'} />
+                <DebugRow label="nodes" value={graph?.nodes ? graph.nodes.length : 'null'} />
+                <DebugRow label="edges" value={graph?.edges ? graph.edges.length : 'null'} />
+                <DebugRow label="centerNodeId" value={graph?.centerNodeId ?? 'null'} />
+              </div>
 
-                    <TabsContent value="target" className="mt-0 flex-1">
-                      <div className="h-full">
-                        <TargetRoleDetailsPanel
-                          role={targetRole}
-                          persona={persona}
-                          loading={targetRoleLoading}
-                          error={targetRoleError}
-                        />
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="selected" className="mt-0 flex-1">
-                      <div className="h-full">
-                        <NodeDetailsPanel
-                          nodeId={state.selectedNodeId}
-                          details={details}
-                          loading={detailsLoading}
-                          error={detailsError}
-                          onClose={() => setState((s) => ({ ...s, selectedNodeId: null }))}
-                        />
-                      </div>
-                    </TabsContent>
-                  </Tabs>
+              <div className="rounded-lg bg-white border border-slate-200 p-3 lg:col-span-2">
+                <div className="font-semibold text-slate-700 mb-2">Last request/response (summary)</div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-slate-500 mb-1">Request</div>
+                    <pre className="bg-slate-900 text-slate-50 rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap">
+                      {JSON.stringify(lastGraphReq, null, 2)}
+                    </pre>
+                  </div>
+                  <div>
+                    <div className="text-slate-500 mb-1">Response</div>
+                    <pre className="bg-slate-900 text-slate-50 rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap">
+                      {JSON.stringify(lastGraphRes, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               </div>
             </div>
-          </>
-        )}
+          </div>
+        ) : null}
+
+        <MindmapFiltersBar value={state.filters} onChange={(next) => setState((s) => ({ ...s, filters: next }))} />
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
+          <div className="min-h-[560px]">
+            {emptyState ? (
+              <div
+                className="h-[560px] rounded-2xl border border-slate-200 bg-white flex flex-col items-center justify-center text-slate-600 px-6 text-center"
+                role={graphError ? 'alert' : 'status'}
+              >
+                {graphLoading ? <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin" /> : null}
+                <div className="text-lg font-semibold text-slate-800 mt-3">{emptyState.title}</div>
+                <div className="mt-2 text-sm text-slate-500 max-w-md">{emptyState.details}</div>
+                {!debugOpen ? (
+                  <button
+                    type="button"
+                    className="mt-4 px-4 py-2 rounded-md bg-[#0D9488] text-white text-sm hover:bg-[#0F766E]"
+                    onClick={() => setDebugOpen(true)}
+                  >
+                    Open debug panel
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <MindmapCanvas
+                nodes={graph!.nodes}
+                edges={graph!.edges}
+                centerNodeId={graph!.centerNodeId}
+                selectedNodeId={state.selectedNodeId}
+                dimmedNodeIds={dimmed}
+                viewport={viewport}
+                onViewportChange={setViewport}
+                onNodeClick={(nodeId) => {
+                  setRightTab('selected');
+                  setState((s) => ({ ...s, selectedNodeId: nodeId }));
+                }}
+              />
+            )}
+          </div>
+
+          <div className="h-[560px]">
+            <div className="h-full flex flex-col">
+              <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as any)} className="h-full flex flex-col">
+                <div className="mb-3">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="target">Target role details</TabsTrigger>
+                    <TabsTrigger value="selected">Selected node</TabsTrigger>
+                  </TabsList>
+                </div>
+
+                <TabsContent value="target" className="mt-0 flex-1">
+                  <div className="h-full">
+                    <TargetRoleDetailsPanel role={targetRole} persona={persona} loading={targetRoleLoading} error={targetRoleError} />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="selected" className="mt-0 flex-1">
+                  <div className="h-full">
+                    <NodeDetailsPanel
+                      nodeId={state.selectedNodeId}
+                      details={details}
+                      loading={detailsLoading}
+                      error={detailsError}
+                      onClose={() => setState((s) => ({ ...s, selectedNodeId: null }))}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
