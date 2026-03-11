@@ -39,14 +39,8 @@ export function NodeDetailsPanel(props: {
 
       <div className="flex-1 overflow-auto px-5 py-4">
         {!nodeId ? (
-          <div className="text-sm text-slate-500 leading-relaxed">
-            Click on any role node in the mind map to see:
-            <ul className="mt-3 list-disc pl-5 space-y-1">
-              <li>Required skills</li>
-              <li>Average salary</li>
-              <li>Transition timeline</li>
-              <li>Skill gap vs your current position</li>
-            </ul>
+          <div className="text-sm leading-relaxed" style={{ color: 'var(--mindmap-text-muted)' }}>
+            Select a node to view its details.
           </div>
         ) : loading ? (
           <div className="space-y-4">

@@ -78,6 +78,33 @@
   --shadow-card-hover: 0 10px 24px rgba(23, 166, 166, 0.1);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
   --ring-teal: 0 0 0 3px rgba(23, 166, 166, 0.35);
+
+  /* Career Navigator Mindmap (design_for_mindmap.jpg) - additive tokens */
+  --mindmap-bg-canvas: #ffffff;
+
+  --mindmap-text-title: #1f6b66;
+  --mindmap-text-muted: #7e8d98;
+  --mindmap-text-meta: #8a97a3;
+
+  --mindmap-teal-900: #1f4f57; /* dark node pills */
+  --mindmap-teal-700: #1f8a8a; /* circles + score badges */
+  --mindmap-teal-600: #2c8c93; /* connector strokes */
+  --mindmap-path-stroke: #2e6f86;
+
+  --mindmap-cta-green: #2ead6e;
+  --mindmap-cta-green-hover: #279b61;
+
+  --mindmap-step-orange: #f0a33a;
+  --mindmap-step-orange-2: #f6b04e;
+
+  --mindmap-detail-grey: #6f7882;
+
+  --mindmap-control-icon: #b7c3cc;
+
+  --mindmap-r-pill: 999px;
+  --mindmap-r-card: 10px;
+  --mindmap-r-bubble: 14px;
+  --mindmap-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .dark {

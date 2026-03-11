@@ -34,65 +34,57 @@ export function MindmapFiltersBar(props: {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white">
-      <div className="px-5 py-4">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 font-semibold">Filters</div>
-            <div className="mt-1 text-sm font-semibold text-slate-900">
-              Refine visible branches (center role stays fixed)
+    <div
+      className="rounded-2xl border bg-white"
+      style={{ borderColor: 'rgba(0,0,0,0.10)', boxShadow: 'var(--mindmap-shadow-soft)' }}
+    >
+      <div className="px-4 py-3">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div
+              className="text-[10px] uppercase tracking-[0.16em] font-semibold"
+              style={{ color: 'var(--mindmap-text-meta)' }}
+            >
+              Filters
             </div>
           </div>
 
-          <Button variant="ghost" size="sm" onClick={clear} className="text-slate-600">
+          <Button variant="ghost" size="sm" onClick={clear} className="h-7 px-2 text-[11px]" style={{ color: 'var(--mindmap-text-meta)' }}>
             Reset
           </Button>
         </div>
 
-        <Separator className="my-4" />
+        <Separator className="my-3" />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Salary range */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">Salary range</span>
-              <span className="text-xs font-semibold text-slate-800">{`₹${salaryMin}L – ₹${salaryMax}L`}</span>
+              <span className="text-[11px]" style={{ color: 'var(--mindmap-text-meta)' }}>
+                Salary range
+              </span>
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>{`₹${salaryMin}L – ₹${salaryMax}L`}</span>
             </div>
-            <Slider
-              min={0}
-              max={60}
-              step={1}
-              value={[salaryMin, salaryMax]}
-              onValueChange={(v) => setSalary(v as [number, number])}
-            />
+            <Slider min={0} max={60} step={1} value={[salaryMin, salaryMax]} onValueChange={(v) => setSalary(v as [number, number])} />
           </div>
 
-          {/* Skill similarity */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500">Skill similarity</span>
-              <span className="text-xs font-semibold text-slate-800">{similarityPct}%+</span>
+              <span className="text-[11px]" style={{ color: 'var(--mindmap-text-meta)' }}>
+                Skill similarity
+              </span>
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>
+                {similarityPct}%+
+              </span>
             </div>
-            <Slider
-              min={0}
-              max={100}
-              step={1}
-              value={[similarityPct]}
-              onValueChange={(v) => setSimilarity(((v as number[])[0] ?? 30) / 100)}
-            />
-            <div className="text-[11px] text-slate-500">
-              Higher similarity shows roles closer to your current skill set.
-            </div>
+            <Slider min={0} max={100} step={1} value={[similarityPct]} onValueChange={(v) => setSimilarity(((v as number[])[0] ?? 30) / 100)} />
           </div>
 
-          {/* Time horizon */}
           <div className="flex flex-col gap-2">
-            <div className="text-xs text-slate-500">Time horizon</div>
-            <Select
-              value={(value.timeHorizon ?? 'Any') as any}
-              onValueChange={(v) => onChange({ ...value, timeHorizon: v as any })}
-            >
-              <SelectTrigger className="w-full" style={{ borderRadius: 12 }}>
+            <div className="text-[11px]" style={{ color: 'var(--mindmap-text-meta)' }}>
+              Time horizon
+            </div>
+            <Select value={(value.timeHorizon ?? 'Any') as any} onValueChange={(v) => onChange({ ...value, timeHorizon: v as any })}>
+              <SelectTrigger className="w-full h-9" style={{ borderRadius: 12 }}>
                 <SelectValue placeholder="Any" />
               </SelectTrigger>
               <SelectContent>
@@ -102,7 +94,6 @@ export function MindmapFiltersBar(props: {
                 <SelectItem value="Far">Far</SelectItem>
               </SelectContent>
             </Select>
-            <div className="text-[11px] text-slate-500">Show transitions by expected timeframe.</div>
           </div>
         </div>
       </div>

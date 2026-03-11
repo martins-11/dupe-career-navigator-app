@@ -41,8 +41,11 @@ function defaultState(): MindmapViewState {
     version: 1,
     panX: 0,
     panY: 0,
-    // Default zoom per acceptance criteria request: 230%
-    zoom: 2.3,
+    /**
+     * Default zoom adjusted for the new "centered diagram with generous margins" layout.
+     * We still preserve any saved zoom/pan from local/remote view-state.
+     */
+    zoom: 1.35,
     selectedNodeId: null,
     expandedNodeIds: [],
     filters: defaultFilters(),
@@ -474,158 +477,223 @@ export default function MindmapClient() {
   const emptyState = computeEmptyStateReason({ isBooting, graphLoading, graphError, currentRoleTitle, graph });
 
   return (
-    <div className="px-8 py-8 bg-white min-h-screen font-sans">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-slate-100 pb-6">
-          <div>
-            <h1 className="text-4xl font-extrabold text-[#0D9488] tracking-tight">Mind Map</h1>
-            <p className="text-slate-500 mt-2 text-lg">
-              Explore career paths: zoom/pan the graph, click nodes for details, and filter branches dynamically.
-            </p>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="text-xs text-slate-500 text-right">
-              <div>
-                Current role:{' '}
-                <span className="font-semibold text-slate-700">{currentRoleTitle ? currentRoleTitle : 'Not detected yet'}</span>
-              </div>
-              <div>
-                Target role: <span className="font-semibold text-slate-700">{targetRoleId ? targetRoleId : 'Not set'}</span>
-              </div>
+    <div className="min-h-screen font-sans" style={{ background: 'var(--mindmap-bg-canvas)' }}>
+      <div className="px-6 py-6">
+        <div className="max-w-[1200px] mx-auto">
+          {/* Header row (matches design: title left, meta right) */}
+          <header className="flex items-start justify-between gap-4 mb-4">
+            <div className="min-w-0">
+              <h1 className="text-[26px] font-extrabold tracking-tight" style={{ color: 'var(--mindmap-text-title)' }}>
+                Career Navigator
+              </h1>
             </div>
 
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded-md border border-slate-200 text-xs text-slate-700 hover:bg-slate-50"
-              onClick={() => setDebugOpen((v) => !v)}
-              aria-expanded={debugOpen}
-            >
-              {debugOpen ? 'Hide debug' : 'Show debug'}
-            </button>
-          </div>
-        </header>
-
-        {debugOpen ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs">
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-semibold text-slate-800">Mindmap Debug Panel</div>
-              <div className="text-slate-500">Use this to understand why the graph is blank.</div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="rounded-lg bg-white border border-slate-200 p-3">
-                <div className="font-semibold text-slate-700 mb-1">Context</div>
-                <DebugRow label="userKey" value={getUserKey()} />
-                <DebugRow label="personaId" value={personaId ?? 'null'} />
-                <DebugRow label="currentRoleTitle" value={currentRoleTitle ?? 'null'} />
-                <DebugRow label="targetRoleId" value={targetRoleId ?? 'null'} />
-              </div>
-
-              <div className="rounded-lg bg-white border border-slate-200 p-3">
-                <div className="font-semibold text-slate-700 mb-1">Graph fetch</div>
-                <DebugRow label="status" value={graphLoading ? 'loading' : graphError ? 'error' : graph ? 'ok' : 'idle'} />
-                <DebugRow label="error" value={graphError ?? 'null'} />
-                <DebugRow label="nodes" value={graph?.nodes ? graph.nodes.length : 'null'} />
-                <DebugRow label="edges" value={graph?.edges ? graph.edges.length : 'null'} />
-                <DebugRow label="centerNodeId" value={graph?.centerNodeId ?? 'null'} />
-              </div>
-
-              <div className="rounded-lg bg-white border border-slate-200 p-3 lg:col-span-2">
-                <div className="font-semibold text-slate-700 mb-2">Last request/response (summary)</div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-slate-500 mb-1">Request</div>
-                    <pre className="bg-slate-900 text-slate-50 rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap">
-                      {JSON.stringify(lastGraphReq, null, 2)}
-                    </pre>
-                  </div>
-                  <div>
-                    <div className="text-slate-500 mb-1">Response</div>
-                    <pre className="bg-slate-900 text-slate-50 rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap">
-                      {JSON.stringify(lastGraphRes, null, 2)}
-                    </pre>
-                  </div>
+            <div className="flex items-start gap-3">
+              <div className="text-right text-[11px] font-medium" style={{ color: 'var(--mindmap-text-meta)' }}>
+                <div className="truncate max-w-[520px]">
+                  Current role:{' '}
+                  <span className="font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>
+                    {currentRoleTitle ? currentRoleTitle : 'Not detected yet'}
+                  </span>
+                </div>
+                <div className="truncate max-w-[520px]">
+                  Target role:{' '}
+                  <span className="font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>
+                    {targetRoleId ? targetRoleId : 'Not set'}
+                  </span>
                 </div>
               </div>
-            </div>
-          </div>
-        ) : null}
 
-        <MindmapFiltersBar value={state.filters} onChange={(next) => setState((s) => ({ ...s, filters: next }))} />
-
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
-          <div className="min-h-[560px]">
-            {emptyState ? (
-              <div
-                className="h-[560px] rounded-2xl border border-slate-200 bg-white flex flex-col items-center justify-center text-slate-600 px-6 text-center"
-                role={graphError ? 'alert' : 'status'}
+              {/* Keep debug toggle (functional; subtle) */}
+              <button
+                type="button"
+                className="px-2.5 py-1 rounded-md border text-[11px]"
+                style={{ borderColor: 'rgba(0,0,0,0.10)', color: 'var(--mindmap-text-meta)' }}
+                onClick={() => setDebugOpen((v) => !v)}
+                aria-expanded={debugOpen}
               >
-                {graphLoading ? <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin" /> : null}
-                <div className="text-lg font-semibold text-slate-800 mt-3">{emptyState.title}</div>
-                <div className="mt-2 text-sm text-slate-500 max-w-md">{emptyState.details}</div>
-                {!debugOpen ? (
-                  <button
-                    type="button"
-                    className="mt-4 px-4 py-2 rounded-md bg-[#0D9488] text-white text-sm hover:bg-[#0F766E]"
-                    onClick={() => setDebugOpen(true)}
-                  >
-                    Open debug panel
-                  </button>
-                ) : null}
+                {debugOpen ? 'Hide debug' : 'Show debug'}
+              </button>
+            </div>
+          </header>
+
+          {debugOpen ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-semibold text-slate-800">Mindmap Debug Panel</div>
+                <div className="text-slate-500">Use this to understand why the graph is blank.</div>
               </div>
-            ) : (
-              <MindmapCanvas
-                nodes={graph!.nodes}
-                edges={graph!.edges}
-                centerNodeId={graph!.centerNodeId}
-                selectedNodeId={state.selectedNodeId}
-                dimmedNodeIds={dimmed}
-                viewport={viewport}
-                onViewportChange={setViewport}
-                onNodeClick={(nodeId) => {
-                  // Always focus the selected-node panel when a node is clicked.
-                  setRightTab('selected');
 
-                  // Clear current panel content immediately so we don't show stale data.
-                  setDetails(null);
-                  setDetailsError(null);
-
-                  setState((s) => ({ ...s, selectedNodeId: nodeId }));
-                  setDetailsFetchNonce((n) => n + 1);
-                }}
-              />
-            )}
-          </div>
-
-          <div className="h-[560px]">
-            <div className="h-full flex flex-col">
-              <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as any)} className="h-full flex flex-col">
-                <div className="mb-3">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="target">Target role details</TabsTrigger>
-                    <TabsTrigger value="selected">Selected node</TabsTrigger>
-                  </TabsList>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-lg bg-white border border-slate-200 p-3">
+                  <div className="font-semibold text-slate-700 mb-1">Context</div>
+                  <DebugRow label="userKey" value={getUserKey()} />
+                  <DebugRow label="personaId" value={personaId ?? 'null'} />
+                  <DebugRow label="currentRoleTitle" value={currentRoleTitle ?? 'null'} />
+                  <DebugRow label="targetRoleId" value={targetRoleId ?? 'null'} />
                 </div>
 
-                <TabsContent value="target" className="mt-0 flex-1">
-                  <div className="h-full">
-                    <TargetRoleDetailsPanel role={targetRole} persona={persona} loading={targetRoleLoading} error={targetRoleError} />
-                  </div>
-                </TabsContent>
+                <div className="rounded-lg bg-white border border-slate-200 p-3">
+                  <div className="font-semibold text-slate-700 mb-1">Graph fetch</div>
+                  <DebugRow label="status" value={graphLoading ? 'loading' : graphError ? 'error' : graph ? 'ok' : 'idle'} />
+                  <DebugRow label="error" value={graphError ?? 'null'} />
+                  <DebugRow label="nodes" value={graph?.nodes ? graph.nodes.length : 'null'} />
+                  <DebugRow label="edges" value={graph?.edges ? graph.edges.length : 'null'} />
+                  <DebugRow label="centerNodeId" value={graph?.centerNodeId ?? 'null'} />
+                </div>
 
-                <TabsContent value="selected" className="mt-0 flex-1">
-                  <div className="h-full">
-                    <NodeDetailsPanel
-                      nodeId={state.selectedNodeId}
-                      details={details}
-                      loading={detailsLoading}
-                      error={detailsError}
-                      onClose={() => setState((s) => ({ ...s, selectedNodeId: null }))}
-                    />
+                <div className="rounded-lg bg-white border border-slate-200 p-3 lg:col-span-2">
+                  <div className="font-semibold text-slate-700 mb-2">Last request/response (summary)</div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-slate-500 mb-1">Request</div>
+                      <pre className="bg-slate-900 text-slate-50 rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap">
+                        {JSON.stringify(lastGraphReq, null, 2)}
+                      </pre>
+                    </div>
+                    <div>
+                      <div className="text-slate-500 mb-1">Response</div>
+                      <pre className="bg-slate-900 text-slate-50 rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap">
+                        {JSON.stringify(lastGraphRes, null, 2)}
+                      </pre>
+                    </div>
                   </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Filters remain fully functional; visually de-emphasized in the new layout */}
+          <div className="mb-4">
+            <MindmapFiltersBar value={state.filters} onChange={(next) => setState((s) => ({ ...s, filters: next }))} />
+          </div>
+
+          {/* Main area: centered diagram + right details */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
+            <div className="min-h-[520px] relative">
+              {emptyState ? (
+                <div
+                  className="h-[520px] rounded-2xl border flex flex-col items-center justify-center px-6 text-center"
+                  style={{ borderColor: 'rgba(0,0,0,0.10)', background: '#fff', boxShadow: 'var(--mindmap-shadow-soft)' }}
+                  role={graphError ? 'alert' : 'status'}
+                >
+                  {graphLoading ? (
+                    <div
+                      className="w-10 h-10 border-4 rounded-full animate-spin"
+                      style={{ borderColor: 'rgba(31,138,138,0.2)', borderTopColor: 'var(--mindmap-teal-700)' }}
+                    />
+                  ) : null}
+                  <div className="text-lg font-semibold mt-3" style={{ color: 'var(--mindmap-text-title)' }}>
+                    {emptyState.title}
+                  </div>
+                  <div className="mt-2 text-sm max-w-md" style={{ color: 'var(--mindmap-text-muted)' }}>
+                    {emptyState.details}
+                  </div>
+                  {!debugOpen ? (
+                    <button
+                      type="button"
+                      className="mt-4 px-4 py-2 rounded-full text-white text-sm"
+                      style={{ background: 'var(--mindmap-cta-green)' }}
+                      onClick={() => setDebugOpen(true)}
+                    >
+                      Open debug panel
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <MindmapCanvas
+                  nodes={graph!.nodes}
+                  edges={graph!.edges}
+                  centerNodeId={graph!.centerNodeId}
+                  selectedNodeId={state.selectedNodeId}
+                  dimmedNodeIds={dimmed}
+                  viewport={viewport}
+                  onViewportChange={setViewport}
+                  onNodeClick={(nodeId) => {
+                    setRightTab('selected');
+                    setDetails(null);
+                    setDetailsError(null);
+                    setState((s) => ({ ...s, selectedNodeId: nodeId }));
+                    setDetailsFetchNonce((n) => n + 1);
+                  }}
+                />
+              )}
+
+              {/* Right-side floating chevrons (decorative; mirrors design chrome) */}
+              <div className="hidden lg:block absolute right-2 top-[88px] select-none" aria-hidden="true">
+                <div className="w-8 h-8 grid place-items-center" style={{ color: 'var(--mindmap-control-icon)' }}>
+                  ▶
+                </div>
+              </div>
+              <div className="hidden lg:block absolute right-2 top-[220px] select-none" aria-hidden="true">
+                <div className="w-8 h-8 grid place-items-center" style={{ color: 'var(--mindmap-control-icon)' }}>
+                  ◀
+                </div>
+              </div>
+
+              {/* Bottom lane (visual-only lane to match design; CTA reuses existing navigation intent) */}
+              <div className="mt-4 rounded-2xl border px-4 py-3 flex items-center justify-between gap-4"
+                   style={{ borderColor: 'rgba(0,0,0,0.10)', background: '#fff', boxShadow: 'var(--mindmap-shadow-soft)' }}>
+                <div className="text-[12px] font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>
+                  Analyze Deep Dive
+                </div>
+                <div className="flex-1 px-4">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-center"
+                       style={{ color: 'var(--mindmap-text-muted)' }}>
+                    CAREER TRANSITION PATHWAY
+                  </div>
+                  <div className="mt-2 w-full h-[2px] relative">
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        backgroundImage:
+                          'repeating-linear-gradient(to right, var(--mindmap-path-stroke) 0 6px, transparent 6px 12px)',
+                      }}
+                    />
+                    <div className="absolute right-0 -top-[6px]" style={{ color: 'var(--mindmap-path-stroke)' }}>
+                      ▶
+                    </div>
+                  </div>
+                </div>
+                <a
+                  href="/explore"
+                  className="px-4 py-2 rounded-full text-white text-sm whitespace-nowrap"
+                  style={{ background: 'var(--mindmap-cta-green)' }}
+                >
+                  Explore Roles
+                </a>
+              </div>
+            </div>
+
+            <div className="h-[520px]">
+              <div className="h-full flex flex-col">
+                <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as any)} className="h-full flex flex-col">
+                  <div className="mb-3">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="target">Target role details</TabsTrigger>
+                      <TabsTrigger value="selected">Selected node</TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  <TabsContent value="target" className="mt-0 flex-1">
+                    <div className="h-full">
+                      <TargetRoleDetailsPanel role={targetRole} persona={persona} loading={targetRoleLoading} error={targetRoleError} />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="selected" className="mt-0 flex-1">
+                    <div className="h-full">
+                      <NodeDetailsPanel
+                        nodeId={state.selectedNodeId}
+                        details={details}
+                        loading={detailsLoading}
+                        error={detailsError}
+                        onClose={() => setState((s) => ({ ...s, selectedNodeId: null }))}
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
             </div>
           </div>
         </div>
