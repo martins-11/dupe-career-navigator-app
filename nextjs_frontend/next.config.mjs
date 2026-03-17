@@ -20,6 +20,24 @@ const nextConfig = {
   reactStrictMode: true,
 
   /**
+   * Ensure the dev client uses the current browser origin for the HMR websocket.
+   * This can reduce HMR WS failures in proxied preview environments where host/port
+   * inference differs between the dev server and the outer proxy layer.
+   *
+   * Safe: dev-only; ignored in production builds.
+   */
+  experimental: {
+    ...(process.env.NODE_ENV === 'development'
+      ? {
+          // Let Next derive from the active origin; avoids hardcoding preview hosts.
+          // (If the preview proxy still blocks websockets, HMR will remain unavailable,
+          // but the app should continue to run.)
+          websocketUrl: 'auto',
+        }
+      : {}),
+  },
+
+  /**
    * Silence Next.js dev warning:
    * "Cross origin request detected ... you will need to explicitly configure allowedDevOrigins"
    *
