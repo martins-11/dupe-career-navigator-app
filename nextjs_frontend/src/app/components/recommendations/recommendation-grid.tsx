@@ -74,8 +74,53 @@ export function RecommendationGrid({
 
         if (!cancelled) {
           // Accept either { roles: [...] } or just [...].
-          const rolesArray = Array.isArray(data) ? data : data?.roles || [];
-          setRoles(Array.isArray(rolesArray) ? rolesArray : []);
+          const primaryRoles = (Array.isArray(data) ? data : data?.roles || []).filter(
+            Boolean,
+          );
+
+          // Ensure minimum of 5 displayed roles.
+          // If Bedrock initial returns fewer (validation/dedupe/etc.), fill from the legacy
+          // recommendations endpoint.
+          const MIN_ROLES = 5;
+          let merged = Array.isArray(primaryRoles) ? [...primaryRoles] : [];
+
+          if (merged.length < MIN_ROLES) {
+            try {
+              const fallbackData = await apiFetch(
+                `/api/recommendations/roles?${queryParams.toString()}&limit=${MIN_ROLES}`,
+              );
+              const fallbackRoles = (
+                Array.isArray(fallbackData)
+                  ? fallbackData
+                  : (fallbackData as any)?.roles || []
+              ).filter(Boolean);
+
+              const seenTitles = new Set(
+                merged
+                  .map((r: any) =>
+                    String(r?.title ?? r?.role_title ?? "")
+                      .trim()
+                      .toLowerCase(),
+                  )
+                  .filter(Boolean),
+              );
+
+              for (const r of fallbackRoles) {
+                if (merged.length >= MIN_ROLES) break;
+                const titleKey = String(r?.title ?? r?.role_title ?? "")
+                  .trim()
+                  .toLowerCase();
+                if (titleKey && seenTitles.has(titleKey)) continue;
+                if (titleKey) seenTitles.add(titleKey);
+                merged.push(r);
+              }
+            } catch (fallbackErr) {
+              // If fallback also fails, still render what we have.
+              console.warn("Fallback /api/recommendations/roles failed:", fallbackErr);
+            }
+          }
+
+          setRoles(merged.slice(0, MIN_ROLES));
         }
       } catch (e: any) {
         if (!cancelled) {
