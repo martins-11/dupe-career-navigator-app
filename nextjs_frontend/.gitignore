@@ -28,5 +28,9 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# Ensure frontend source libraries are not ignored by broad patterns.
+!src/lib/
+!src/lib/**
+
 # TypeScript build info
 *.tsbuildinfo

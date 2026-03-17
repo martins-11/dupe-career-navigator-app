@@ -37,7 +37,7 @@ export default function ExploreClient() {
   const [optionsError, setOptionsError] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
-  const personaIdQuery = searchParams.get("personaId");
+  const personaIdQuery = searchParams?.get("personaId") ?? null;
   const effectivePersonaId = personaIdQuery || loadPersonaId();
 
   // 1. Fetch Filter Options (Industries/Skills) on Mount

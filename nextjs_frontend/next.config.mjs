@@ -11,6 +11,11 @@ const nextConfig = {
   allowedDevOrigins: [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
+
+    // Kavia preview origin (must include port because Next.js compares full origin).
+    'https://vscode-internal-17827-beta.beta01.cloud.kavia.ai:3000',
+
+    // Older/other preview origins we have seen in this workspace.
     'https://vscode-internal-29588-beta.beta01.cloud.kavia.ai',
   ],
 
