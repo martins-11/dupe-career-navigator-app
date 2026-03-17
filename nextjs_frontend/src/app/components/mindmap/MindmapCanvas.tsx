@@ -849,7 +849,8 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
             }
 
             // Dark callouts + left pills + sub-branches
-            const isPill = n.lane === 'leftPill' || n.lane === 'rightPill';
+            // NOTE: rightPill is rendered in a dedicated branch above; do not include it here.
+            const isPill = n.lane === 'leftPill';
             const isSub = n.lane === 'leftSub' || n.lane === 'rightSub';
 
             const w = isPill ? 124 : isSub ? 156 : 170;
