@@ -37,7 +37,17 @@ const nextConfig = {
     ...(frontendOriginFromEnv ? [frontendOriginFromEnv] : []),
 
     /**
-     * Known preview origins (kept as fallbacks; not relied upon).
+     * Preview environment (Kavia):
+     * The vscode-internal host changes between sessions, so hardcoding a single hostname is brittle.
+     * Next.js (>=14) supports wildcard patterns here.
+     *
+     * This allows:
+     *   https://vscode-internal-<anything>.cloud.kavia.ai:3000
+     */
+    'https://vscode-internal-*.cloud.kavia.ai:3000',
+
+    /**
+     * Explicit fallbacks (kept for extra safety; not relied upon).
      * Always include explicit port when using https.
      */
     'https://vscode-internal-17827-beta.beta01.cloud.kavia.ai:3000',
