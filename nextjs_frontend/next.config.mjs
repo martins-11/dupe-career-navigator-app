@@ -12,11 +12,21 @@ const nextConfig = {
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 
-    // Kavia preview origin (must include port because Next.js compares full origin).
+    /**
+     * Kavia preview origin.
+     *
+     * IMPORTANT: Next.js compares the full origin (scheme + host + port).
+     * If the browser page is served from a different origin than the Next dev server,
+     * the Next dev server must explicitly allow that browser origin so `/_next/*`
+     * asset requests are not blocked.
+     */
     'https://vscode-internal-17827-beta.beta01.cloud.kavia.ai:3000',
 
-    // Older/other preview origins we have seen in this workspace.
-    'https://vscode-internal-29588-beta.beta01.cloud.kavia.ai',
+    /**
+     * Back-compat: we have seen cases where the browser origin changes across sessions.
+     * Keep known variants here (always include explicit port when using https).
+     */
+    'https://vscode-internal-29588-beta.beta01.cloud.kavia.ai:3000',
   ],
 
   /**
