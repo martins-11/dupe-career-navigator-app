@@ -28,12 +28,20 @@ const nextConfig = {
    */
   experimental: {
     ...(process.env.NODE_ENV === 'development'
-      ? {
-          // Let Next derive from the active origin; avoids hardcoding preview hosts.
-          // (If the preview proxy still blocks websockets, HMR will remain unavailable,
-          // but the app should continue to run.)
-          websocketUrl: 'auto',
-        }
+      ? (() => {
+          /**
+           * Prefer an explicit websocket URL when we know the active frontend origin (preview).
+           * This helps when "auto" mis-infers ws:// vs wss:// or hostnames behind proxies.
+           *
+           * If the preview layer still blocks websockets entirely, HMR will remain unavailable,
+           * but the application will continue to run.
+           */
+          const wsFromOrigin = frontendOriginFromEnv
+            ? frontendOriginFromEnv.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+            : null;
+
+          return { websocketUrl: wsFromOrigin || 'auto' };
+        })()
       : {}),
   },
 
