@@ -1,4 +1,21 @@
 /** @type {import('next').NextConfig} */
+function toOrigin(value) {
+  try {
+    if (!value) return null;
+    // Accept either a full URL (https://host:port/path) or a bare origin (https://host:port)
+    const url = value.includes('://') ? new URL(value) : new URL(`https://${value}`);
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+const frontendOriginFromEnv =
+  toOrigin(process.env.NEXT_PUBLIC_FRONTEND_URL) ||
+  toOrigin(process.env.REACT_APP_FRONTEND_URL) ||
+  null;
+
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
 
@@ -6,26 +23,24 @@ const nextConfig = {
    * Silence Next.js dev warning:
    * "Cross origin request detected ... you will need to explicitly configure allowedDevOrigins"
    *
-   * In Kavia preview/dev environments the UI may be served from a vscode-internal*.cloud.kavia.ai origin.
+   * IMPORTANT:
+   * - Next.js compares the *full origin* (scheme + host + port).
+   * - In Kavia preview environments, the vscode-internal host can change between sessions.
+   * - Hardcoding a single preview host is brittle, so we also allow the active origin via env.
    */
   allowedDevOrigins: [
+    // Local dev defaults
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 
-    /**
-     * Kavia preview origin.
-     *
-     * IMPORTANT: Next.js compares the full origin (scheme + host + port).
-     * If the browser page is served from a different origin than the Next dev server,
-     * the Next dev server must explicitly allow that browser origin so `/_next/*`
-     * asset requests are not blocked.
-     */
-    'https://vscode-internal-17827-beta.beta01.cloud.kavia.ai:3000',
+    // Allow the actively configured preview/frontend origin when provided.
+    ...(frontendOriginFromEnv ? [frontendOriginFromEnv] : []),
 
     /**
-     * Back-compat: we have seen cases where the browser origin changes across sessions.
-     * Keep known variants here (always include explicit port when using https).
+     * Known preview origins (kept as fallbacks; not relied upon).
+     * Always include explicit port when using https.
      */
+    'https://vscode-internal-17827-beta.beta01.cloud.kavia.ai:3000',
     'https://vscode-internal-29588-beta.beta01.cloud.kavia.ai:3000',
   ],
 
