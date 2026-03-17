@@ -44,9 +44,20 @@ const nextConfig = {
      * Observed host patterns include BOTH:
      * - https://vscode-internal-<id>.cloud.kavia.ai:3000
      * - https://vscode-internal-<id>-beta.beta01.cloud.kavia.ai:3000
+     *
+     * Some preview layers may expose the dev server over http (or normalize origins differently),
+     * so we allow both http and https wildcard forms.
      */
     'https://vscode-internal-*.cloud.kavia.ai:3000',
     'https://vscode-internal-*.beta.beta01.cloud.kavia.ai:3000',
+    'http://vscode-internal-*.cloud.kavia.ai:3000',
+    'http://vscode-internal-*.beta.beta01.cloud.kavia.ai:3000',
+
+    // Extra safety: allow origin patterns without an explicit port (some proxies strip it).
+    'https://vscode-internal-*.cloud.kavia.ai',
+    'https://vscode-internal-*.beta.beta01.cloud.kavia.ai',
+    'http://vscode-internal-*.cloud.kavia.ai',
+    'http://vscode-internal-*.beta.beta01.cloud.kavia.ai',
 
     /**
      * Explicit fallbacks (kept for extra safety; not relied upon).
