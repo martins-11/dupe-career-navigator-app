@@ -62,6 +62,11 @@ export function RecommendationGrid({
          */
         const queryParams = new URLSearchParams({ personaId });
 
+        // Explicit policy: only enable backend padding when the deployment explicitly opts in.
+        if (process.env.NEXT_PUBLIC_RECOMMENDATIONS_ALLOW_PADDING === "true") {
+          queryParams.set("allowPadding", "true");
+        }
+
         // Attempt strict Bedrock "initial" recommendations first.
         let data: any;
         try {
@@ -74,53 +79,13 @@ export function RecommendationGrid({
 
         if (!cancelled) {
           // Accept either { roles: [...] } or just [...].
-          const primaryRoles = (Array.isArray(data) ? data : data?.roles || []).filter(
-            Boolean,
-          );
+          const primaryRoles = (Array.isArray(data) ? data : data?.roles || []).filter(Boolean);
 
-          // Ensure minimum of 5 displayed roles.
-          // If Bedrock initial returns fewer (validation/dedupe/etc.), fill from the legacy
-          // recommendations endpoint.
+          // Do NOT mix in fallback roles by default.
+          // The backend is responsible for meeting the minimum-5 requirement either via Bedrock retries
+          // or via explicit padding policy (allowPadding=true).
           const MIN_ROLES = 5;
-          let merged = Array.isArray(primaryRoles) ? [...primaryRoles] : [];
-
-          if (merged.length < MIN_ROLES) {
-            try {
-              const fallbackData = await apiFetch(
-                `/api/recommendations/roles?${queryParams.toString()}&limit=${MIN_ROLES}`,
-              );
-              const fallbackRoles = (
-                Array.isArray(fallbackData)
-                  ? fallbackData
-                  : (fallbackData as any)?.roles || []
-              ).filter(Boolean);
-
-              const seenTitles = new Set(
-                merged
-                  .map((r: any) =>
-                    String(r?.title ?? r?.role_title ?? "")
-                      .trim()
-                      .toLowerCase(),
-                  )
-                  .filter(Boolean),
-              );
-
-              for (const r of fallbackRoles) {
-                if (merged.length >= MIN_ROLES) break;
-                const titleKey = String(r?.title ?? r?.role_title ?? "")
-                  .trim()
-                  .toLowerCase();
-                if (titleKey && seenTitles.has(titleKey)) continue;
-                if (titleKey) seenTitles.add(titleKey);
-                merged.push(r);
-              }
-            } catch (fallbackErr) {
-              // If fallback also fails, still render what we have.
-              console.warn("Fallback /api/recommendations/roles failed:", fallbackErr);
-            }
-          }
-
-          setRoles(merged.slice(0, MIN_ROLES));
+          setRoles(primaryRoles.slice(0, MIN_ROLES));
         }
       } catch (e: any) {
         if (!cancelled) {
