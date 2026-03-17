@@ -41,10 +41,12 @@ const nextConfig = {
      * The vscode-internal host changes between sessions, so hardcoding a single hostname is brittle.
      * Next.js (>=14) supports wildcard patterns here.
      *
-     * This allows:
-     *   https://vscode-internal-<anything>.cloud.kavia.ai:3000
+     * Observed host patterns include BOTH:
+     * - https://vscode-internal-<id>.cloud.kavia.ai:3000
+     * - https://vscode-internal-<id>-beta.beta01.cloud.kavia.ai:3000
      */
     'https://vscode-internal-*.cloud.kavia.ai:3000',
+    'https://vscode-internal-*.beta.beta01.cloud.kavia.ai:3000',
 
     /**
      * Explicit fallbacks (kept for extra safety; not relied upon).
