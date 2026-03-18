@@ -287,7 +287,8 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                   <path
                     d={d}
                     fill="none"
-                    stroke={`rgba(var(--cn-primary-rgb), 0.85)`}
+                    /* Violet halo behind the black stroke for selected-node connected edges. */
+                    stroke="var(--explore-mindmap-selected-edge-halo)"
                     strokeOpacity={1}
                     strokeWidth={haloStrokeWidth}
                     strokeLinecap="round"

@@ -157,6 +157,10 @@
    * Explore mindmap tokens (defaults; Explore page overrides via .cn-explore-theme)
    * --------------------------------------------------------------------- */
   --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.35);
+
+  /* Selected-edge halo/accent (behind the black stroke) */
+  --explore-mindmap-selected-edge-halo: rgba(139, 92, 246, 0.85);
+
   --explore-mindmap-node-rec-fill: var(--cn-slate);
   --explore-mindmap-node-rec-stroke: rgba(0, 0, 0, 0);
   --explore-mindmap-node-rec-text: rgba(var(--cn-white-rgb), 0.92);
