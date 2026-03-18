@@ -224,8 +224,8 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                 key={`${e.source}-${e.target}-${idx}`}
                 d={`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`}
                 fill="none"
-                stroke={`rgba(var(--cn-primary-rgb), 0.35)`}
-                strokeWidth={2}
+                stroke="var(--explore-mindmap-edge-stroke)"
+                strokeWidth={2.5}
               />
             );
           })}
@@ -312,16 +312,16 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                   width={w}
                   height={h}
                   rx={rx}
-                  fill="var(--cn-slate)"
-                  stroke={isSelected ? `rgba(var(--cn-primary-rgb), 0.95)` : 'rgba(0,0,0,0)'}
-                  strokeWidth={isSelected ? 3 : 0}
-                  opacity={0.96}
+                  fill="var(--explore-mindmap-node-rec-fill)"
+                  stroke={isSelected ? `rgba(var(--cn-primary-rgb), 0.90)` : 'var(--explore-mindmap-node-rec-stroke)'}
+                  strokeWidth={isSelected ? 3 : 2}
+                  opacity={1}
                 />
                 <text
                   fontSize={12}
-                  fill="var(--cn-white)"
+                  fill="var(--explore-mindmap-node-rec-text)"
                   textAnchor="middle"
-                  style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }}
+                  style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 900 }}
                 >
                   {lines.map((ln, i) => (
                     <tspan key={i} x={0} y={labelStartY + i * lineHeight}>

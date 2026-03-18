@@ -213,7 +213,7 @@ export default function ExploreClient() {
   }
 
   return (
-    <div className="px-8 py-8 bg-transparent min-h-screen font-sans text-foreground">
+    <div className="px-8 py-8 bg-transparent min-h-screen font-sans text-foreground cn-explore-theme">
       <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-end mb-10 border-b border-border pb-8">
           <div>
