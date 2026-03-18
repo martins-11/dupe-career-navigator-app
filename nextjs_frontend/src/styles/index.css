@@ -183,3 +183,157 @@
   }
 }
 
+@layer components {
+  /*
+    Document Ingestion (initial step) — three upload containers
+    Scope: only the 3 upload cards inside the ingestion upload section.
+  */
+
+  .cn-upload-card-group {
+    padding: 16px;
+    border-radius: 12px;
+    background: #f9fafb; /* surface-2 */
+    border: 1px solid #edf0f5; /* border-faint */
+  }
+
+  .cn-upload-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  @media (max-width: 1200px) {
+    .cn-upload-card-grid {
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+    }
+  }
+
+  @media (max-width: 900px) {
+    .cn-upload-card-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .cn-upload-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 200px;
+    padding: 14px 14px 12px;
+    border-radius: 10px;
+    border: 1px solid #dfe3ea; /* border-subtle */
+    background: #ffffff; /* surface-1 */
+    box-shadow: 0 1px 0 rgba(16, 24, 40, 0.04);
+  }
+
+  .cn-upload-card-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    text-align: center;
+  }
+
+  .cn-upload-card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827; /* text-primary */
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
+
+  .cn-upload-card-desc {
+    font-size: 12px;
+    font-weight: 400;
+    color: #4b5563; /* text-secondary */
+    line-height: 1.35;
+    margin-bottom: 10px;
+  }
+
+  .cn-upload-card-hint {
+    font-size: 11px;
+    color: #6b7280; /* text-tertiary */
+    line-height: 1.35;
+    margin-bottom: 12px;
+  }
+
+  .cn-upload-card-file {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    margin-bottom: 12px;
+
+    /* file row looks better left-aligned while the rest stays centered */
+    text-align: left;
+  }
+
+  .cn-upload-card-file-meta {
+    min-width: 0;
+  }
+
+  .cn-upload-card-file-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cn-upload-card-file-type {
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 2px;
+  }
+
+  .cn-upload-card-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 9999px;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+  }
+
+  .cn-upload-card-remove:hover {
+    background: rgba(17, 24, 39, 0.06);
+  }
+
+  .cn-upload-card-actions {
+    margin-top: auto; /* pin button to consistent bottom edge */
+    display: flex;
+    justify-content: center;
+  }
+
+  .cn-upload-card-button {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: none;
+
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffffff;
+    background: var(--primary);
+
+    cursor: pointer;
+    transition: background-color 200ms ease, opacity 200ms ease;
+  }
+
+  .cn-upload-card-button:hover {
+    background: var(--primary-hover);
+  }
+
+  .cn-upload-card-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.85;
+  }
+}

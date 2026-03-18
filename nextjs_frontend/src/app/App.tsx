@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, Loader2, X, Edit3, Plus, CheckCircle2, Camera, Award, Compass } from 'lucide-react';
+import { Upload, Loader2, X, Edit3, Plus, CheckCircle2, Camera, Award } from 'lucide-react';
 import {
   generateDraftForBuild,
   getBuildStatus,
@@ -75,6 +75,11 @@ interface PersonaData {
 interface UploadedFileData {
   id: string;
   file: File;
+  /**
+   * Optional user-facing display name.
+   * (We keep this for backward compatibility with earlier UI behavior.)
+   */
+  displayName?: string;
 }
 
 function asStringArray(value: unknown): string[] {
@@ -419,6 +424,8 @@ export default function App() {
   const profileImageInputRef = useRef<HTMLInputElement>(null);
   const newSkillInputRef = useRef<HTMLInputElement>(null);
 
+
+
   /**
    * Guard against re-entrant file-picker triggering.
    */
@@ -511,6 +518,8 @@ export default function App() {
     [openHiddenFileInput]
   );
 
+
+
   // Helps correlate logs across multiple async flows; increments per draft generation.
   const generationIdRef = useRef<number>(0);
 
@@ -542,6 +551,8 @@ export default function App() {
   const personaSummary = personaData?.summary ?? '';
 
   const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.txt'];
+
+  // Restored behavior: single upload area that supports multiple documents.
   const MAX_FILES = 5;
 
   const validateFile = (file: File): boolean => {
@@ -553,24 +564,31 @@ export default function App() {
     setUploadError('');
     setBackendError('');
 
+    if (!files || files.length === 0) return;
+
+    // Validate up-front
     const invalidFiles = files.filter((file) => !validateFile(file));
     if (invalidFiles.length > 0) {
       setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
       return;
     }
 
-    const currentCount = uploadedFiles.length;
-    if (currentCount + files.length > MAX_FILES) {
-      setUploadError(`Maximum ${MAX_FILES} documents allowed.`);
-      return;
-    }
+    setUploadedFiles((prev) => {
+      if (prev.length + files.length > MAX_FILES) {
+        setUploadError(`Maximum ${MAX_FILES} documents allowed.`);
+        return prev;
+      }
 
-    const newUploadedFiles = files.map((file) => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-    }));
+      const next: UploadedFileData[] = [
+        ...prev,
+        ...files.map((file) => ({
+          id: Math.random().toString(36).substr(2, 9),
+          file,
+        })),
+      ];
 
-    setUploadedFiles((prev) => [...prev, ...newUploadedFiles]);
+      return next;
+    });
   };
 
   /**
@@ -618,56 +636,35 @@ export default function App() {
     // Some browsers can fire a change event with a null/empty file list (e.g., cancel).
     if (!list || list.length === 0) return;
 
-    // CRITICAL: snapshot as a real array NOW (do not retain FileList reference).
+    // Snapshot as a real array now (do not retain FileList reference).
     const newFiles = Array.from(list);
 
     // Ensure the input can trigger future selections of the same file.
-    // NOTE: do this AFTER snapshotting.
     e.target.value = '';
-
-    // Validate up-front so we don't accept files that the UI will reject anyway.
-    const invalidFiles = newFiles.filter((file) => !validateFile(file));
-    if (invalidFiles.length > 0) {
-      setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
-      return;
-    }
 
     const newBytes = newFiles.reduce((sum, f) => sum + (f.size ?? 0), 0);
 
     // Defer UI state updates to next tick to reduce chance of freezes.
     window.setTimeout(() => {
-      setUploadedFiles((prev) => {
-        const existingBytes = prev.reduce((sum, f) => sum + (f.file?.size ?? 0), 0);
+      const existingBytes = uploadedFiles.reduce((sum, f) => sum + (f.file?.size ?? 0), 0);
 
-        if (existingBytes + newBytes > MAX_TOTAL_UPLOAD_BYTES) {
-          setUploadError(
-            `Selected files are too large for in-browser processing. Please keep total upload size under ${Math.round(
-              MAX_TOTAL_UPLOAD_BYTES / (1024 * 1024)
-            )}MB.`
-          );
-          return prev;
-        }
+      if (existingBytes + newBytes > MAX_TOTAL_UPLOAD_BYTES) {
+        setUploadError(
+          `Selected files are too large for in-browser processing. Please keep total upload size under ${Math.round(
+            MAX_TOTAL_UPLOAD_BYTES / (1024 * 1024)
+          )}MB.`
+        );
+        return;
+      }
 
-        if (prev.length + newFiles.length > MAX_FILES) {
-          setUploadError(`Maximum ${MAX_FILES} documents allowed.`);
-          return prev;
-        }
-
-        setUploadError('');
-        setBackendError('');
-
-        const newUploadedFiles = newFiles.map((file) => ({
-          id: Math.random().toString(36).substr(2, 9),
-          file,
-        }));
-
-        return [...prev, ...newUploadedFiles];
-      });
+      addFiles(newFiles);
     }, 0);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
+
     if (e.dataTransfer.files) {
       const newFiles = Array.from(e.dataTransfer.files);
       addFiles(newFiles);
@@ -712,6 +709,10 @@ export default function App() {
     try {
       setState('processing');
 
+      if (uploadedFiles.length === 0) {
+        throw new Error('Please upload at least one document before generating your persona.');
+      }
+
       const files = uploadedFiles.map((f) => f.file);
 
       // eslint-disable-next-line no-console
@@ -728,23 +729,39 @@ export default function App() {
         // eslint-disable-next-line no-console
         console.log(`[draft][gen:${generationId}] uploadDocuments response summary:`, {
           uploadId: (uploadResp as any)?.uploadId,
-          receivedFilesCount: Array.isArray((uploadResp as any)?.receivedFiles) ? (uploadResp as any).receivedFiles.length : undefined,
+          receivedFilesCount: Array.isArray((uploadResp as any)?.receivedFiles)
+            ? (uploadResp as any).receivedFiles.length
+            : undefined,
           message: (uploadResp as any)?.message,
         });
       });
 
       // CRITICAL: Do NOT rely on backend “useLatestCategoryDocs” auto-selection for anonymous sessions,
-      // because userId is typically null in this UI and the backend may pick up older anonymous docs
-      // (e.g., an archived/stale persona source like “Rossini”).
+      // because userId is typically null in this UI and the backend may pick up older anonymous docs.
       //
-      // Instead, explicitly fetch the newest documents and pass their ids to orchestration.
+      // Instead, explicitly fetch documents and pick the ones that correspond to our uploaded filenames.
       const { listDocuments } = await import('@/lib/apiClient');
-      const docs = await listDocuments({ limit: 50, offset: 0 });
-      const newestDocIds = docs
-        .slice()
-        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
-        .slice(0, files.length) // pick as many as we just uploaded
-        .map((d) => d.id);
+      const docs = await listDocuments({ limit: 75, offset: 0 });
+
+      const docsByNewest = docs.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+      // Pick the best matching doc id for each uploaded file (by filename, newest-first).
+      const usedDocIds = new Set<string>();
+      const selectedDocIds: string[] = [];
+
+      for (const f of files) {
+        const hit = docsByNewest.find((d) => d.originalFilename === f.name && !usedDocIds.has(d.id));
+        if (hit) {
+          usedDocIds.add(hit.id);
+          selectedDocIds.push(hit.id);
+        }
+      }
+
+      // Fallback if matching fails (e.g., backend renames filenames).
+      const newestDocIds =
+        selectedDocIds.length === files.length
+          ? selectedDocIds
+          : docsByNewest.slice(0, files.length).map((d) => d.id);
 
       if (newestDocIds.length === 0) {
         throw new Error('Upload succeeded but no documents are available for orchestration. Please retry.');
@@ -1331,7 +1348,6 @@ export default function App() {
     setHasUnsavedChanges(true);
   };
 
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHoveringHeading, setIsHoveringHeading] = useState(false);
 
 
@@ -1355,15 +1371,6 @@ export default function App() {
     setHasUnsavedChanges(true);
   };
 
-  /**
-   * Header avatar initials:
-   * - Prefer role/designation (personaTitle) since we are not exposing user name near the headline.
-   * - Fall back to name if role not available (still safe; just initials).
-   */
-  const avatarInitials = useMemo(() => {
-    return getInitials((personaTitle || personaName).trim());
-  }, [personaTitle, personaName]);
-
   const personaCardInitials = useMemo(() => {
     return getInitials((personaTitle || personaName).trim());
   }, [personaTitle, personaName]);
@@ -1372,6 +1379,10 @@ export default function App() {
   const step1Complete = state === 'draft' || state === 'finalized';
   const step2Complete = state === 'finalized';
   const step3Complete = state === 'finalized';
+
+  const hasAllRequiredUploads = useMemo(() => {
+    return uploadedFiles.length > 0;
+  }, [uploadedFiles.length]);
 
   const getFileType = (fileName: string): string => {
     const extension = fileName.split('.').pop()?.toUpperCase();
@@ -1387,84 +1398,7 @@ export default function App() {
         fontFamily: 'Inter, sans-serif',
       }}
     >
-      {/* Header */}
-      <header className="bg-white border-b" style={{ borderColor: '#D1D5DB' }}>
-        <div style={{ padding: '16px 32px' }} className="flex items-center justify-between">
-          {/* LEFT - Logo */}
-          <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center"
-              style={{
-                backgroundColor: 'var(--primary)',
-                boxShadow: '0 2px 4px rgba(var(--cn-primary-rgb), 0.15)',
-              }}
-            >
-              <Compass size={20} style={{ color: 'white' }} />
-            </div>
-
-            <div className="flex flex-col">
-              <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#1F2937', margin: 0 }}>Career Navigator</h1>
-
-              {/* Per requirement: NOTHING under the "Career Navigator" headline */}
-            </div>
-          </div>
-
-
-
-          {/* RIGHT - Profile Circle + role/designation */}
-          <div className="relative flex items-center gap-3">
-            {/* Role/Designation derived from persona/documents */}
-            <div className="min-w-0 text-right">
-              <div
-                style={{
-                  fontSize: '12px',
-                  color: '#6B7280',
-                  fontWeight: 600,
-                  lineHeight: '1.1',
-                }}
-                className="truncate"
-                title={personaTitle || ''}
-              >
-                {personaTitle || ''}
-              </div>
-            </div>
-
-            <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200"
-              style={{
-                backgroundColor: 'var(--primary)',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 600,
-              }}
-              aria-label="Open profile menu"
-              title={personaTitle || 'Your profile'}
-            >
-              {avatarInitials}
-            </button>
-
-            <AnimatePresence>
-              {!isFileDialogActive && isProfileOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute right-0 top-full mt-2 w-40 bg-white rounded-lg"
-                  style={{
-                    border: '1px solid #D1D5DB',
-                    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.08)',
-                  }}
-                >
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-50">Profile Settings</button>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-50 text-red-600">Logout</button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </header>
+      {/* Header removed per updated UI requirements (Document Ingestion should start with the step progress bar). */}
 
       {/* Step Progress */}
       <div className="bg-white" style={{ padding: '24px 32px', borderBottom: '1px solid #D1D5DB' }}>
@@ -1573,7 +1507,6 @@ export default function App() {
             <input
               ref={fileInputRef}
               type="file"
-              multiple
               accept=".pdf,.docx,.txt"
               onChange={handleFileChange}
               style={{
@@ -1604,49 +1537,54 @@ export default function App() {
               }}
             >
               <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                className="border-2 border-dashed rounded-xl p-12 transition-colors hover:bg-gray-50"
+                className="border-2 border-dashed rounded-xl p-6 transition-colors hover:bg-gray-50"
                 style={{
                   borderColor: '#D1D5DB',
                   backgroundColor: uploadedFiles.length > 0 ? 'rgba(var(--cn-primary-rgb), 0.05)' : 'transparent',
+                  cursor: isFileDialogActive ? 'not-allowed' : 'pointer',
                 }}
-                role="region"
-                aria-label="Upload documents (drag and drop)"
+                role="button"
+                tabIndex={0}
+                aria-label="Upload documents (click to browse or drag and drop)"
+                onClick={(e) => openFilePicker(e)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') openFilePicker(e as any);
+                }}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
               >
-                <Upload className="mx-auto mb-4" size={48} style={{ color: 'var(--primary)' }} />
-                <p style={{ fontSize: '16px', fontWeight: 500, color: '#1F2937', marginBottom: '8px' }}>
-                  {uploadedFiles.length > 0 ? `${uploadedFiles.length} file(s) uploaded` : 'Upload your Documents '}
-                </p>
-                <p style={{ fontSize: '14px', color: '#6B7280' }}>Resume, Job Description, Performance Review, Certifications</p>
-                <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '12px' }}>Supported formats: PDF, DOCX, TXT (Max {MAX_FILES} files)</p>
+                <div className="mb-5">
+                  <Upload className="mx-auto mb-3" size={44} style={{ color: 'var(--primary)' }} />
+                  <p style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '6px' }}>
+                    Upload your Documents
+                  </p>
+                  <p style={{ fontSize: '14px', color: '#6B7280' }}>
+                    Drag & drop your documents here, or browse to upload (up to {MAX_FILES}).
+                  </p>
+                  <p style={{ fontSize: '14px', color: '#6B7280', marginTop: '8px' }}>
+                    Supported formats: PDF, DOCX, TXT
+                  </p>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={openFilePicker}
-                  disabled={isFileDialogActive}
-                  className="inline-flex items-center justify-center rounded-lg transition-all duration-200"
-                  style={{
-                    backgroundColor: 'var(--primary)',
-                    color: 'white',
-                    padding: '10px 14px',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: isFileDialogActive ? 'not-allowed' : 'pointer',
-                    opacity: isFileDialogActive ? 0.85 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!shouldAllowHoverEffects()) return;
-                    e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!shouldAllowHoverEffects()) return;
-                    e.currentTarget.style.backgroundColor = 'var(--primary)';
-                  }}
-                >
-                  Select Files
-                </button>
+                <div className="flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={(e) => openFilePicker(e)}
+                    disabled={isFileDialogActive}
+                    className="rounded-lg transition-all duration-200"
+                    style={{
+                      backgroundColor: isFileDialogActive ? '#D1D5DB' : 'var(--primary)',
+                      color: isFileDialogActive ? '#6B7280' : 'white',
+                      padding: '10px 16px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: isFileDialogActive ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Browse Files
+                  </button>
+                </div>
               </div>
 
               {uploadError && (
@@ -1664,8 +1602,14 @@ export default function App() {
                 </motion.p>
               )}
 
+              {/* Uploaded files list (restored single-upload behavior). */}
               {uploadedFiles.length > 0 && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mt-6 space-y-2">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="mt-6 space-y-2"
+                >
                   {uploadedFiles.map((fileData) => (
                     <div
                       key={fileData.id}
@@ -1674,12 +1618,15 @@ export default function App() {
                         e.stopPropagation();
                       }}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.1)', color: 'var(--primary)' }}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className="px-2 py-1 rounded text-xs font-medium"
+                          style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.08)', color: '#0F766E' }}
+                        >
                           {getFileType(fileData.file.name)}
                         </span>
-                        <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: 500 }}>
-                          {(fileData as any).displayName || fileData.file.name}
+                        <span className="truncate" style={{ fontSize: '14px', color: '#1F2937', fontWeight: 600 }}>
+                          {fileData.displayName || fileData.file.name}
                         </span>
                       </div>
                       <button
@@ -1688,7 +1635,8 @@ export default function App() {
                           removeFile(fileData.id);
                         }}
                         className="p-1 rounded hover:bg-gray-200 transition-colors"
-                        style={{ color: '#6B7280' }}
+                        style={{ color: '#6B7280', flexShrink: 0 }}
+                        aria-label={`Remove ${fileData.file.name}`}
                       >
                         <X size={16} />
                       </button>
@@ -1700,22 +1648,22 @@ export default function App() {
 
             <button
               onClick={handleGenerateDraft}
-              disabled={uploadedFiles.length === 0}
+              disabled={!hasAllRequiredUploads}
               className="rounded-lg transition-all duration-200"
               style={{
-                backgroundColor: uploadedFiles.length > 0 ? 'var(--primary)' : '#D1D5DB',
-                color: uploadedFiles.length > 0 ? 'white' : '#6B7280',
+                backgroundColor: hasAllRequiredUploads ? 'var(--primary)' : '#D1D5DB',
+                color: hasAllRequiredUploads ? 'white' : '#6B7280',
                 padding: '12px 20px',
                 fontSize: '14px',
                 fontWeight: 500,
                 border: 'none',
-                cursor: uploadedFiles.length > 0 ? 'pointer' : 'not-allowed',
+                cursor: hasAllRequiredUploads ? 'pointer' : 'not-allowed',
               }}
               onMouseEnter={(e) => {
-                if (uploadedFiles.length > 0) e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+                if (hasAllRequiredUploads) e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
               }}
               onMouseLeave={(e) => {
-                if (uploadedFiles.length > 0) e.currentTarget.style.backgroundColor = 'var(--primary)';
+                if (hasAllRequiredUploads) e.currentTarget.style.backgroundColor = 'var(--primary)';
               }}
             >
               Generate Draft Persona

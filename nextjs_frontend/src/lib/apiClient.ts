@@ -298,18 +298,46 @@ export async function listDocuments(params: { limit?: number; offset?: number } 
 }
 
 // PUBLIC_INTERFACE
-export async function uploadDocuments(params: { files: File[]; userId?: UUID; category?: string }): Promise<any> {
+export async function uploadDocuments(params: {
+  files: File[];
+  userId?: UUID;
+  /**
+   * Apply a single category to ALL uploaded files.
+   * Canonical values: resume | job_description | performance_review
+   */
+  category?: string;
+  /**
+   * Per-file categories aligned with `files` order.
+   * Canonical values: resume | job_description | performance_review
+   */
+  categories?: string[];
+  /**
+   * If true, the backend validates that at least one file for EACH canonical category is present.
+   */
+  requireCategories?: boolean;
+}): Promise<any> {
   /**
    * Upload documents via POST /api/uploads/documents (multipart/form-data).
    *
    * Backend expects multipart field name `files`.
+   * Supports category tagging via `category` or `categoriesJson`.
    */
   const form = new FormData();
   for (const f of params.files) {
     form.append('files', f, f.name);
   }
   if (params.userId) form.append('userId', params.userId);
-  if (params.category) form.append('category', params.category);
+
+  // Category tagging precedence (match backend): category -> categoryByIndexJson -> categoriesJson -> categoryByOriginalnameJson
+  if (params.category) {
+    form.append('category', params.category);
+  } else if (Array.isArray(params.categories) && params.categories.length > 0) {
+    form.append('categoriesJson', JSON.stringify(params.categories));
+  }
+
+  if (params.requireCategories) {
+    form.append('requireCategories', 'true');
+  }
 
   return apiFetch('/api/uploads/documents', {
     method: 'POST',

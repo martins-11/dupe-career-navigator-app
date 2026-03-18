@@ -1,10 +1,10 @@
-import DocumentIngestion from '../components/DocumentIngestion';
+import DocumentIngestion from '@/app/components/DocumentIngestion';
 
 /**
  * Ingestion route (App Router).
  *
- * Hosts the existing document ingestion flow UI.
- * Login redirects here by default after setting the auth cookie.
+ * Restored original ingestion flow UI (header/steps/buttons) implemented by `App`,
+ * with only the upload section customized to support 3 upload containers.
  */
 export default function IngestionPage() {
   return <DocumentIngestion />;
