@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-// Component Imports
 import { RecommendationGrid } from "../components/recommendations/recommendation-grid";
 import { ExploreMindmapView } from "../components/explore/ExploreMindmapView";
 import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -12,7 +11,7 @@ import { Filters, ActiveFilterTags } from "../components/explore/filters";
 import { SearchBar } from "../components/explore/search-bar";
 import RoleCard from "../components/explore/role-card";
 import { EmptyState } from "../components/explore/empty-state";
-// Utility & Storage Imports
+
 import { loadPersonaId, persistPersonaId } from "@/lib/personaStorage";
 import { apiFetch } from "@/lib/apiClient";
 import { getExploreViewMode, persistExploreViewMode } from "@/lib/exploreMindmapViewStateStorage";
@@ -74,7 +73,6 @@ function roleMatchesFilters(params: {
       .map((s) => s.toLowerCase())
       .filter(Boolean);
 
-    // OR semantics: if multiple skills are selected, match roles that have ANY selected skill.
     const wanted = selectedSkills.map((s) => s.trim().toLowerCase()).filter(Boolean);
     if (wanted.length > 0) {
       const matchesAny = wanted.some((key) => roleSkills.some((rs) => rs.includes(key)));
@@ -92,29 +90,24 @@ function roleMatchesFilters(params: {
   return true;
 }
 
+// PUBLIC_INTERFACE
 export default function ExploreClient() {
-  // --- UI State ---
+  /** Explore route client UI: search + filters + cards/mindmap results. Palette constrained via semantic tokens. */
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Explore view mode: cards vs mindmap (persisted)
   const [viewMode, setViewMode] = useState<"cards" | "mindmap">(getExploreViewMode());
 
-  // --- Search Results State ---
-  // When populated, we render these instead of the persona recommendations grid.
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [lastSearchQuery, setLastSearchQuery] = useState<string>("");
 
-  // --- Filter State ---
   const [selectedTitle, setSelectedTitle] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  // Keep in sync with <Filters /> slider (0–60L).
   const [salaryRange, setSalaryRange] = useState<[number, number]>([0, 60]);
 
-  // --- Options Data State ---
   const [industryOptions, setIndustryOptions] = useState<string[]>([]);
   const [skillsOptions, setSkillsOptions] = useState<string[]>([]);
   const [isLoadingOptions, setIsLoadingOptions] = useState(false);
@@ -124,17 +117,12 @@ export default function ExploreClient() {
   const personaIdQuery = searchParams?.get("personaId") ?? null;
   const effectivePersonaId = personaIdQuery || loadPersonaId();
 
-  // 1. Fetch Filter Options (Industries/Skills) on Mount
   useEffect(() => {
     async function fetchOptions() {
       setIsLoadingOptions(true);
       try {
-        const [industries, skills] = await Promise.all([
-          apiFetch("/api/roles/industries"),
-          apiFetch("/api/roles/skills"),
-        ]);
+        const [industries, skills] = await Promise.all([apiFetch("/api/roles/industries"), apiFetch("/api/roles/skills")]);
 
-        // API may return either a raw array or an object envelope { industries: [] } / { skills: [] }.
         const industriesArr = Array.isArray(industries)
           ? industries
           : Array.isArray((industries as any)?.industries)
@@ -159,25 +147,20 @@ export default function ExploreClient() {
     fetchOptions();
   }, []);
 
-  // 2. Handle Persona Logic
   useEffect(() => {
     if (personaIdQuery) {
       persistPersonaId(personaIdQuery);
     }
-    
+
     if (!effectivePersonaId) {
       setError("No persona found. Please complete the data ingestion first.");
     }
     setIsLoading(false);
   }, [personaIdQuery, effectivePersonaId]);
 
-  // Triggered when user clicks "Search" or selects an autocomplete suggestion
-  // IMPORTANT: Autocomplete returns titles-only strings; selecting one must still execute
-  // a full search request so results render.
   const handleManualSearch = async (qOverride?: string) => {
     const q = String((qOverride ?? selectedTitle) ?? "").trim();
 
-    // If user clears the query, return to the default persona recommendations view.
     if (q.length === 0) {
       setLastSearchQuery("");
       setSearchResults(null);
@@ -194,7 +177,6 @@ export default function ExploreClient() {
       qs.set("q", q);
       if (effectivePersonaId) qs.set("personaId", effectivePersonaId);
 
-      // Forward filters additively (backend may ignore some; we also apply filters client-side).
       if (selectedIndustry) qs.set("industry", selectedIndustry);
       if (selectedSkills.length > 0) qs.set("skills", selectedSkills.join(","));
       qs.set("limit", "100");
@@ -212,48 +194,46 @@ export default function ExploreClient() {
 
   if (isLoading) {
     return (
-      <div className="px-8 py-12 bg-white min-h-screen flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin mb-4" />
-        <p className="text-slate-500 font-medium animate-pulse">Mapping your career trajectory...</p>
+      <div className="px-8 py-12 bg-background min-h-screen flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-secondary border-t-primary rounded-full animate-spin mb-4" />
+        <p className="text-muted-foreground font-medium animate-pulse">Mapping your career trajectory…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="px-8 py-12 bg-white min-h-screen">
-        <div className="max-w-2xl mx-auto p-6 bg-red-50 border border-red-100 rounded-xl">
-          <h1 className="text-xl font-bold text-red-700 mb-2">Discovery Paused</h1>
-          <p className="text-red-600/80">{error}</p>
+      <div className="px-8 py-12 bg-background min-h-screen">
+        <div className="max-w-2xl mx-auto p-6 bg-secondary border border-border rounded-xl">
+          <h1 className="text-xl font-bold text-foreground mb-2">Discovery Paused</h1>
+          <p className="text-muted-foreground">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="px-8 py-8 bg-white min-h-screen font-sans">
+    <div className="px-8 py-8 bg-background min-h-screen font-sans text-foreground">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <header className="flex justify-between items-end mb-10 border-b border-slate-100 pb-8">
+        <header className="flex justify-between items-end mb-10 border-b border-border pb-8">
           <div>
-            <h1 className="text-4xl font-extrabold text-[#0D9488] tracking-tight">
-              Career Navigator
-            </h1>
-            <p className="text-slate-500 mt-2 text-lg">
+            <h1 className="text-4xl font-extrabold text-primary tracking-tight">Career Navigator</h1>
+            <p className="text-muted-foreground mt-2 text-lg">
               Precision-matched roles based on your professional persona.
             </p>
           </div>
-          
+
           <div className="hidden md:block">
-            <span className="text-[10px] uppercase tracking-widest text-slate-400 font-bold block mb-1 text-right">AI Engine</span>
-            <div className="text-xs text-[#0D9488] font-bold bg-teal-50 px-4 py-1.5 rounded-full border border-teal-100">
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold block mb-1 text-right">
+              AI Engine
+            </span>
+            <div className="text-xs text-foreground font-bold bg-secondary px-4 py-1.5 rounded-full border border-border">
               Amazon Bedrock • Claude 3.5
             </div>
           </div>
         </header>
 
         <main className="space-y-10">
-          {/* --- SEARCH BAR WITH AUTOCOMPLETE --- */}
           <section className="flex justify-center">
             <SearchBar
               query={selectedTitle}
@@ -264,7 +244,6 @@ export default function ExploreClient() {
             />
           </section>
 
-          {/* --- FILTERS SECTION --- */}
           <section className="space-y-6">
             <Filters
               selectedTitle={selectedTitle}
@@ -280,7 +259,7 @@ export default function ExploreClient() {
               skillsOptions={skillsOptions}
               isLoadingOptions={isLoadingOptions}
               optionsError={optionsError}
-              showJobTitleFilter={false} // Hidden because the SearchBar above handles it
+              showJobTitleFilter={false}
             />
 
             <ActiveFilterTags
@@ -295,16 +274,15 @@ export default function ExploreClient() {
             />
           </section>
 
-          {/* --- RESULTS GRID / MINDMAP --- */}
           {isSearching ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin"></div>
-              <p className="text-slate-500 font-medium animate-pulse">Searching roles...</p>
+              <div className="w-10 h-10 border-4 border-secondary border-t-primary rounded-full animate-spin" />
+              <p className="text-muted-foreground font-medium animate-pulse">Searching roles…</p>
             </div>
           ) : searchError ? (
-            <div className="p-6 bg-red-50 border border-red-100 rounded-xl text-red-600 max-w-2xl mx-auto">
+            <div className="p-6 bg-secondary border border-border rounded-xl text-foreground max-w-2xl mx-auto">
               <p className="font-semibold">Search Error</p>
-              <p className="text-sm mt-1">{searchError}</p>
+              <p className="text-sm mt-1 text-muted-foreground">{searchError}</p>
             </div>
           ) : Array.isArray(searchResults) ? (
             (() => {
@@ -320,7 +298,7 @@ export default function ExploreClient() {
                   selectedSkills: selectedSkillsNorm,
                   salaryRange: salaryRangeNorm,
                   titleQuery,
-                })
+                }),
               );
 
               const hasAnyFilter =
@@ -348,28 +326,21 @@ export default function ExploreClient() {
 
               return (
                 <div className="space-y-6">
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-muted-foreground">
                     Showing {filtered.length} result{filtered.length === 1 ? "" : "s"}
                     {titleQuery ? (
                       <>
                         {" "}
-                        for <span className="font-semibold text-slate-700">“{titleQuery}”</span>
+                        for <span className="font-semibold text-foreground">“{titleQuery}”</span>
                       </>
                     ) : null}
-                    {hasAnyFilter ? (
-                      <span className="text-slate-400"> (with filters applied)</span>
-                    ) : null}
+                    {hasAnyFilter ? <span className="text-muted-foreground"> (with filters applied)</span> : null}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {filtered.map((role: any, idx: number) => {
                       const derivedIdRaw =
-                        role?.id ??
-                        role?.role_id ??
-                        role?.onet_id ??
-                        role?.code ??
-                        role?.title ??
-                        role?.role_title;
+                        role?.id ?? role?.role_id ?? role?.onet_id ?? role?.code ?? role?.title ?? role?.role_title;
 
                       const derivedId = String(derivedIdRaw ?? "").trim();
                       const stableUniqueId = derivedId !== "" ? derivedId : `role-${idx}`;
@@ -392,7 +363,7 @@ export default function ExploreClient() {
                     })}
                   </div>
 
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-muted-foreground">
                     Tip: Clear the search input to return to AI persona recommendations.
                   </div>
                 </div>
@@ -401,9 +372,7 @@ export default function ExploreClient() {
           ) : (
             <div className="space-y-6">
               <div className="flex items-center justify-between gap-4">
-                <div className="text-sm text-slate-500">
-                  Persona recommendations view
-                </div>
+                <div className="text-sm text-muted-foreground">Persona recommendations view</div>
 
                 <Tabs
                   value={viewMode}

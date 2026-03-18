@@ -38,7 +38,6 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 function parseSalaryRangeToLakhs(role: any): { min: number | null; max: number | null } {
-  // Best-effort parsing; if it fails we return nulls and the filter becomes non-blocking.
   const raw = normString(role?.salary_range ?? role?.salaryRange ?? role?.salary);
   if (!raw) return { min: null, max: null };
 
@@ -79,7 +78,6 @@ function roleMatchesFilters(params: {
       .map((s) => s.toLowerCase())
       .filter(Boolean);
 
-    // OR semantics: if multiple skills are selected, match roles that have ANY selected skill.
     const wanted = selectedSkills.map((s) => s.trim().toLowerCase()).filter(Boolean);
     if (wanted.length > 0) {
       const matchesAny = wanted.some((key) => roleSkills.some((rs) => rs.includes(key)));
@@ -87,7 +85,6 @@ function roleMatchesFilters(params: {
     }
   }
 
-  // Salary filter (if role provides parsable salary data)
   const salary = parseSalaryRangeToLakhs(role);
   if (salary.min !== null && salary.max !== null) {
     const [minWanted, maxWanted] = salaryRange;
@@ -99,14 +96,6 @@ function roleMatchesFilters(params: {
 }
 
 async function fetchRecommendations(personaId: string) {
-  /**
-   * IMPORTANT:
-   * This must reuse the same pool as the Cards view so switching tabs does not refetch.
-   * The underlying pool client handles:
-   * - in-flight de-dupe (StrictMode safe)
-   * - memory/session cache
-   * - single browser request via /api/recommendations/pool
-   */
   const allowPadding = process.env.NEXT_PUBLIC_RECOMMENDATIONS_ALLOW_PADDING === 'true';
   const { roles } = await getExploreRecommendationsPool({ personaId, allowPadding });
   return Array.isArray(roles) ? roles : [];
@@ -143,14 +132,12 @@ export function ExploreMindmapView(props: {
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(null);
   const [viewport, setViewport] = React.useState<ExploreMindmapViewport>({ panX: 0, panY: 0, zoom: 1 });
 
-  // Boot: restore persisted viewport + selection.
   React.useEffect(() => {
     const saved = getExploreMindmapViewState(personaId);
     setViewport(toViewport(saved));
     setSelectedNodeId(saved.selectedNodeId);
   }, [personaId]);
 
-  // Persist on change (debounced).
   React.useEffect(() => {
     const t = window.setTimeout(() => {
       persistExploreMindmapViewState(personaId, toState(viewport, selectedNodeId));
@@ -158,7 +145,6 @@ export function ExploreMindmapView(props: {
     return () => window.clearTimeout(t);
   }, [personaId, viewport, selectedNodeId]);
 
-  // Fetch recommendations.
   React.useEffect(() => {
     let cancelled = false;
 
@@ -219,7 +205,6 @@ export function ExploreMindmapView(props: {
     };
   }, [filteredRoles, currentRoleTitle]);
 
-  // If filters change and the selected node disappears, clear selection so the details panel doesn't look "stuck".
   React.useEffect(() => {
     if (!selectedNodeId) return;
     const idSet = new Set(nodes.map((n) => n.id));
@@ -232,18 +217,18 @@ export function ExploreMindmapView(props: {
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6">
       <div className="min-h-[520px]">
         {loading ? (
-          <div className="h-[520px] rounded-2xl border border-slate-200 bg-white flex flex-col items-center justify-center px-6 text-center">
-            <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin" />
-            <div className="mt-3 text-sm text-slate-500 font-medium">Building your mind map…</div>
+          <div className="h-[520px] rounded-2xl border border-border bg-background flex flex-col items-center justify-center px-6 text-center">
+            <div className="w-10 h-10 border-4 border-secondary border-t-primary rounded-full animate-spin" />
+            <div className="mt-3 text-sm text-muted-foreground font-medium">Building your mind map…</div>
           </div>
         ) : error ? (
-          <div className="h-[520px] rounded-2xl border border-red-100 bg-red-50 flex flex-col items-center justify-center px-6 text-center">
-            <div className="text-sm text-red-700 font-semibold">{error}</div>
+          <div className="h-[520px] rounded-2xl border border-border bg-secondary flex flex-col items-center justify-center px-6 text-center">
+            <div className="text-sm text-foreground font-semibold">{error}</div>
           </div>
         ) : nodes.length <= 1 ? (
-          <div className="h-[520px] rounded-2xl border border-slate-200 bg-white flex flex-col items-center justify-center px-6 text-center">
-            <div className="text-sm text-slate-600 font-semibold">No recommended roles match the active filters.</div>
-            <div className="mt-2 text-xs text-slate-500">Try removing some filters to see more nodes.</div>
+          <div className="h-[520px] rounded-2xl border border-border bg-background flex flex-col items-center justify-center px-6 text-center">
+            <div className="text-sm text-foreground font-semibold">No recommended roles match the active filters.</div>
+            <div className="mt-2 text-xs text-muted-foreground">Try removing some filters to see more nodes.</div>
           </div>
         ) : (
           <ExploreMindmapCanvas

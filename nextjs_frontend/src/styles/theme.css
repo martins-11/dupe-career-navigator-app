@@ -1,154 +1,198 @@
 /*
-  Tailwind v3 compatible theme file.
+  Global theme variables constrained to the 5-color palette ONLY:
 
-  Previous version used Tailwind v4-specific directives like:
-  - @custom-variant
-  - @theme inline
+  Palette:
+  - #1C1C26 (ink)
+  - #4F4B7E (primary)
+  - #2D2D3D (slate)
+  - #FFFFFF (white)
+  - #A0A0B8 (muted)
 
-  Those directives are not supported by tailwindcss@3.x and can cause Next.js
-  to throw 500s during CSS compilation.
-
-  We keep CSS variables in :root and .dark and map them into Tailwind tokens
-  via tailwind.config.js (theme.extend.colors, darkMode: ['class']).
+  Notes:
+  - All additional tones are derived via alpha (rgba) from the palette RGB values.
+  - Tailwind tokens are mapped to these variables in tailwind.config.js.
 */
 
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  /* Palette primitives */
+  --cn-ink: #1C1C26;
+  --cn-ink-rgb: 28 28 38;
+
+  --cn-primary: #4F4B7E;
+  --cn-primary-rgb: 79 75 126;
+
+  --cn-slate: #2D2D3D;
+  --cn-slate-rgb: 45 45 61;
+
+  --cn-white: #FFFFFF;
+  --cn-white-rgb: 255 255 255;
+
+  --cn-muted: #A0A0B8;
+  --cn-muted-rgb: 160 160 184;
+
+  /* App-level semantic tokens (shadcn-style) */
+  --background: var(--cn-white);
+  --foreground: var(--cn-ink);
+
+  --card: var(--cn-white);
+  --card-foreground: var(--cn-ink);
+
+  --popover: var(--cn-white);
+  --popover-foreground: var(--cn-ink);
+
+  --primary: var(--cn-primary);
+  --primary-foreground: var(--cn-white);
+
+  --primary-hover: var(--cn-slate);
+
+  --secondary: rgba(var(--cn-slate-rgb), 0.08);
+  --secondary-foreground: var(--cn-slate);
+
+  --muted: rgba(var(--cn-slate-rgb), 0.06);
+  --muted-foreground: var(--cn-muted);
+
+  --accent: rgba(var(--cn-primary-rgb), 0.10);
+  --accent-foreground: var(--cn-slate);
 
   /*
-    ZIP white+teal theme tokens (used by Explore role cards page).
-
-    These are additive variables (safe for existing pages). Explore components
-    use them directly via inline styles for pixel-accurate ZIP styling.
+    We intentionally keep "destructive" within the palette (no reds in this UI spec).
+    Error states should rely on layout + copy + subtle primary-tinted panels.
   */
-  --zip-teal: #17a6a6;
-  --zip-teal-hover: #149595;
+  --destructive: var(--cn-primary);
+  --destructive-foreground: var(--cn-white);
 
-  --bg-canvas: #f7f9fb;
-  --bg-surface: #ffffff;
+  --border: rgba(var(--cn-slate-rgb), 0.18);
+  --input: rgba(var(--cn-slate-rgb), 0.14);
+  --input-background: rgba(var(--cn-slate-rgb), 0.06);
 
-  --text-strong: #173a4a;
-  --text-body: #4b6572;
-  --text-muted: #6b8793;
+  --switch-background: rgba(var(--cn-slate-rgb), 0.28);
 
-  --border-subtle: #e6eef2;
-  --border-chip: #dce7ec;
-  --chip-bg: #f1f5f7;
+  --ring: rgba(var(--cn-primary-rgb), 0.45);
+
+  --radius: 0.625rem;
+
+  /* Sidebar tokens (kept consistent with main surface) */
+  --sidebar: var(--cn-white);
+  --sidebar-foreground: var(--cn-ink);
+  --sidebar-primary: var(--cn-primary);
+  --sidebar-primary-foreground: var(--cn-white);
+  --sidebar-accent: rgba(var(--cn-primary-rgb), 0.10);
+  --sidebar-accent-foreground: var(--cn-slate);
+  --sidebar-border: rgba(var(--cn-slate-rgb), 0.18);
+  --sidebar-ring: rgba(var(--cn-primary-rgb), 0.45);
+
+  /*
+    ZIP tokens (Explore styling helpers) — re-mapped to palette.
+    These are used by some Explore components via inline styles for "pixel-accurate" feel,
+    but they now remain palette-constrained.
+  */
+  --zip-teal: var(--cn-primary);
+  --zip-teal-hover: var(--cn-slate);
+
+  --bg-canvas: rgba(var(--cn-primary-rgb), 0.06);
+  --bg-surface: var(--cn-white);
+
+  --text-strong: var(--cn-ink);
+  --text-body: var(--cn-slate);
+  --text-muted: var(--cn-muted);
+
+  --border-subtle: rgba(var(--cn-slate-rgb), 0.15);
+  --border-chip: rgba(var(--cn-slate-rgb), 0.18);
+  --chip-bg: rgba(var(--cn-slate-rgb), 0.06);
 
   --radius-card: 8px;
 
-  /* Optional Explore hover/ring helpers */
-  --shadow-card-hover: 0 10px 24px rgba(23, 166, 166, 0.1);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --ring-teal: 0 0 0 3px rgba(23, 166, 166, 0.35);
+  --shadow-card-hover: 0 10px 24px rgba(var(--cn-primary-rgb), 0.16);
+  --shadow-card: 0 1px 2px rgba(var(--cn-ink-rgb), 0.06);
+  --ring-teal: 0 0 0 3px rgba(var(--cn-primary-rgb), 0.35);
 
-  /* Career Navigator Mindmap (design_for_mindmap.jpg) - additive tokens */
-  --mindmap-bg-canvas: #ffffff;
+  /*
+    Mindmap tokens — previously multi-color; now palette-constrained.
+    The mindmap remains readable via contrast + alpha-derived surfaces.
+  */
+  --mindmap-bg-canvas: var(--cn-white);
 
-  --mindmap-text-title: #1f6b66;
-  --mindmap-text-muted: #7e8d98;
-  --mindmap-text-meta: #8a97a3;
+  --mindmap-text-title: var(--cn-ink);
+  --mindmap-text-muted: var(--cn-muted);
+  --mindmap-text-meta: rgba(var(--cn-muted-rgb), 0.90);
 
-  --mindmap-teal-900: #1f4f57; /* dark node pills */
-  --mindmap-teal-700: #1f8a8a; /* circles + score badges */
-  --mindmap-teal-600: #2c8c93; /* connector strokes */
-  --mindmap-path-stroke: #2e6f86;
+  --mindmap-teal-900: var(--cn-slate); /* node pills */
+  --mindmap-teal-700: var(--cn-primary); /* circles + badges */
+  --mindmap-teal-600: rgba(var(--cn-primary-rgb), 0.70); /* connector strokes */
+  --mindmap-path-stroke: rgba(var(--cn-slate-rgb), 0.70);
 
-  --mindmap-cta-green: #2ead6e;
-  --mindmap-cta-green-hover: #279b61;
+  --mindmap-cta-green: var(--cn-primary);
+  --mindmap-cta-green-hover: var(--cn-slate);
 
-  /* Updated to match design_for_mindmap.jpg exactly */
-  --mindmap-charcoal: #2d3136; /* dark pill/callout nodes */
-  --mindmap-step-yellow: #f4c84a; /* pathway step boxes */
-  --mindmap-step-yellow-border: #d6a93a;
-  --mindmap-green-pill: #37b36b;
+  --mindmap-charcoal: var(--cn-slate);
 
-  /* Keep older orange tokens (used elsewhere / backward compatibility) */
-  --mindmap-step-orange: #f0a33a;
-  --mindmap-step-orange-2: #f6b04e;
+  /* Step boxes now use a primary-tinted surface instead of yellow (palette constraint) */
+  --mindmap-step-yellow: rgba(var(--cn-primary-rgb), 0.14);
+  --mindmap-step-yellow-border: rgba(var(--cn-primary-rgb), 0.55);
 
-  --mindmap-detail-grey: #6f7882;
+  /* Former "green pill" now uses primary (palette constraint) */
+  --mindmap-green-pill: var(--cn-primary);
 
-  --mindmap-control-icon: #c7cdd4;
+  --mindmap-detail-grey: var(--cn-muted);
+
+  --mindmap-control-icon: rgba(var(--cn-muted-rgb), 0.85);
 
   --mindmap-r-pill: 999px;
   --mindmap-r-card: 10px;
   --mindmap-r-bubble: 14px;
-  --mindmap-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --mindmap-shadow-soft: 0 1px 2px rgba(var(--cn-ink-rgb), 0.10);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --background: var(--cn-ink);
+  --foreground: var(--cn-white);
+
+  --card: rgba(var(--cn-slate-rgb), 0.70);
+  --card-foreground: var(--cn-white);
+
+  --popover: rgba(var(--cn-slate-rgb), 0.80);
+  --popover-foreground: var(--cn-white);
+
+  --primary: var(--cn-primary);
+  --primary-foreground: var(--cn-white);
+  --primary-hover: var(--cn-slate);
+
+  --secondary: rgba(var(--cn-white-rgb), 0.10);
+  --secondary-foreground: var(--cn-white);
+
+  --muted: rgba(var(--cn-white-rgb), 0.08);
+  --muted-foreground: rgba(var(--cn-white-rgb), 0.70);
+
+  --accent: rgba(var(--cn-primary-rgb), 0.18);
+  --accent-foreground: var(--cn-white);
+
+  --destructive: var(--cn-primary);
+  --destructive-foreground: var(--cn-white);
+
+  --border: rgba(var(--cn-white-rgb), 0.14);
+  --input: rgba(var(--cn-white-rgb), 0.12);
+  --input-background: rgba(var(--cn-white-rgb), 0.08);
+
+  --ring: rgba(var(--cn-primary-rgb), 0.55);
+
+  --sidebar: var(--cn-ink);
+  --sidebar-foreground: var(--cn-white);
+  --sidebar-primary: var(--cn-primary);
+  --sidebar-primary-foreground: var(--cn-white);
+  --sidebar-accent: rgba(var(--cn-primary-rgb), 0.18);
+  --sidebar-accent-foreground: var(--cn-white);
+  --sidebar-border: rgba(var(--cn-white-rgb), 0.14);
+  --sidebar-ring: rgba(var(--cn-primary-rgb), 0.55);
+
+  /* Mindmap in dark mode stays readable but remains palette-constrained */
+  --mindmap-bg-canvas: var(--cn-ink);
+  --mindmap-text-title: var(--cn-white);
+  --mindmap-text-muted: rgba(var(--cn-white-rgb), 0.75);
+  --mindmap-text-meta: rgba(var(--cn-white-rgb), 0.65);
+
+  --mindmap-charcoal: rgba(var(--cn-slate-rgb), 0.90);
+  --mindmap-control-icon: rgba(var(--cn-white-rgb), 0.55);
+  --mindmap-path-stroke: rgba(var(--cn-white-rgb), 0.35);
 }
-
-

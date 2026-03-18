@@ -6,15 +6,7 @@ import { getExploreRecommendationsPool } from "@/lib/recommendationsPoolClient";
 
 interface RecommendationGridProps {
   personaId: string;
-  /**
-   * Optional legacy prop (Explore previously rendered a "Compatibility Deep-Dive" section).
-   * Kept optional to avoid forcing callers to provide unused analysis state.
-   */
   showAnalysis?: boolean;
-  /**
-   * Optional legacy callback for the removed analysis section.
-   * When omitted, the "Analyze Career Compatibility" button will not render.
-   */
   onViewAnalysis?: () => void;
   filters?: {
     industry?: string;
@@ -34,12 +26,6 @@ function safeStringArray(v: unknown): string[] {
 }
 
 function parseSalaryRangeToLakhs(role: any): { min: number | null; max: number | null } {
-  /**
-   * Best-effort parsing. If it fails we return nulls and salary filter becomes non-blocking
-   * (i.e., role won't be excluded solely due to missing/unknown salary).
-   *
-   * NOTE: Many seed payloads store salary_range as text (e.g. "10-18 LPA").
-   */
   const raw = normString(role?.salary_range ?? role?.salaryRange ?? role?.salary);
   if (!raw) return { min: null, max: null };
 
@@ -88,7 +74,6 @@ function roleMatchesFilters(params: {
       .map((s) => s.toLowerCase())
       .filter(Boolean);
 
-    // OR semantics: if multiple skills are selected, match roles that have ANY selected skill.
     const wanted = selectedSkills.map((s) => s.trim().toLowerCase()).filter(Boolean);
     if (wanted.length > 0) {
       const matchesAny = wanted.some((key) => roleSkills.some((rs) => rs.includes(key)));
@@ -96,7 +81,6 @@ function roleMatchesFilters(params: {
     }
   }
 
-  // Salary filter (only enforced if we can parse salary data)
   const salary = parseSalaryRangeToLakhs(role);
   if (salary.min !== null && salary.max !== null) {
     const [minWanted, maxWanted] = salaryRange;
@@ -114,22 +98,13 @@ export function RecommendationGrid({
   onViewAnalysis,
   filters = {},
 }: RecommendationGridProps) {
-  /**
-   * Cards view of AI recommendations.
-   *
-   * IMPORTANT:
-   * - We fetch/store the FULL recommendation pool (e.g., 12) so filters can match beyond the first 5.
-   * - We still show only 5 initially (per UX requirement), with a "Show all" toggle.
-   */
+  /** Cards view of AI recommendations. Palette constrained via semantic tokens. */
   const [allRoles, setAllRoles] = useState<any[]>([]);
   const [recMeta, setRecMeta] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Only one role card expanded at a time (accordion behavior)
   const [expandedRoleId, setExpandedRoleId] = useState<string | null>(null);
-
-  // UX: show 5 by default, allow expansion to the full filtered set.
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
@@ -152,17 +127,11 @@ export function RecommendationGrid({
         if (!cancelled) {
           setAllRoles(Array.isArray(roles) ? roles : []);
           setRecMeta(meta ?? null);
-
-          // Diagnostics (safe): helps confirm we’re reusing the same pool without UI clutter.
-          if (meta && typeof meta === "object") {
-            // eslint-disable-next-line no-console
-            console.log("[recommendations.pool meta]", meta);
-          }
         }
       } catch (e: any) {
         if (!cancelled) {
           console.error("Recommendations fetch failed:", e);
-          setError("AI Service temporarily unavailable. Please try again.");
+          setError("Recommendation service temporarily unavailable. Please try again.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -176,7 +145,6 @@ export function RecommendationGrid({
     };
   }, [personaId]);
 
-  // Reset "show all" when filters change so we still show 5 initially in typical flows.
   useEffect(() => {
     setShowAll(false);
   }, [personaId, filters.industry, filters.title, filters.skills, filters.salaryRange]);
@@ -212,13 +180,11 @@ export function RecommendationGrid({
     return showAll ? filteredRoles : filteredRoles.slice(0, MIN_ROLES);
   }, [filteredRoles, showAll]);
 
-  // If filters change and the expanded card is no longer visible, collapse it.
   useEffect(() => {
     if (!expandedRoleId) return;
 
     const stillVisible = visibleRoles.some((role: any, idx: number) => {
-      const derivedIdRaw =
-        role?.id ?? role?.role_id ?? role?.onet_id ?? role?.code ?? role?.title ?? role?.role_title;
+      const derivedIdRaw = role?.id ?? role?.role_id ?? role?.onet_id ?? role?.code ?? role?.title ?? role?.role_title;
       const derivedId = String(derivedIdRaw ?? "").trim();
       const stableUniqueId = derivedId !== "" ? derivedId : `role-${idx}`;
       return stableUniqueId === expandedRoleId;
@@ -230,17 +196,17 @@ export function RecommendationGrid({
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
-        <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-medium animate-pulse">Consulting Bedrock for matches...</p>
+        <div className="w-10 h-10 border-4 border-secondary border-t-primary rounded-full animate-spin"></div>
+        <p className="text-muted-foreground font-medium animate-pulse">Consulting the recommendation engine…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6 bg-red-50 border border-red-100 rounded-xl text-red-600 max-w-2xl mx-auto">
+      <div className="p-6 bg-secondary border border-border rounded-xl text-foreground max-w-2xl mx-auto">
         <p className="font-semibold">Discovery Error</p>
-        <p className="text-sm mt-1">{error}</p>
+        <p className="text-sm mt-1 text-muted-foreground">{error}</p>
       </div>
     );
   }
@@ -253,8 +219,8 @@ export function RecommendationGrid({
       (Array.isArray(filters.salaryRange) && (filters.salaryRange[0] !== 0 || filters.salaryRange[1] !== 60));
 
     return (
-      <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-        <p className="text-slate-400 font-medium text-lg">
+      <div className="text-center py-20 border-2 border-dashed border-border rounded-2xl bg-secondary/30">
+        <p className="text-muted-foreground font-medium text-lg">
           {hasFilters ? "No roles match the active filters." : "No roles found matching your persona profile."}
         </p>
       </div>
@@ -264,11 +230,11 @@ export function RecommendationGrid({
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-4">
-        <div className="text-xs text-slate-500">
-          Showing <span className="font-semibold text-slate-700">{visibleRoles.length}</span> of{" "}
-          <span className="font-semibold text-slate-700">{filteredRoles.length}</span> matching role
+        <div className="text-xs text-muted-foreground">
+          Showing <span className="font-semibold text-foreground">{visibleRoles.length}</span> of{" "}
+          <span className="font-semibold text-foreground">{filteredRoles.length}</span> matching role
           {filteredRoles.length === 1 ? "" : "s"}{" "}
-          <span className="text-slate-400">
+          <span className="text-muted-foreground">
             ({allRoles.length} total received
             {recMeta?.requestedCount != null ? ` / ${recMeta.requestedCount} requested` : ""}
             )
@@ -276,11 +242,7 @@ export function RecommendationGrid({
         </div>
 
         {filteredRoles.length > 5 ? (
-          <button
-            type="button"
-            className="text-xs font-semibold text-[#0D9488] hover:underline"
-            onClick={() => setShowAll((v) => !v)}
-          >
+          <button type="button" className="text-xs font-semibold text-primary hover:underline" onClick={() => setShowAll((v) => !v)}>
             {showAll ? "Show top 5" : "Show all"}
           </button>
         ) : null}
@@ -288,13 +250,7 @@ export function RecommendationGrid({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {visibleRoles.map((role: any, idx: number) => {
-          const derivedIdRaw =
-            role?.id ??
-            role?.role_id ??
-            role?.onet_id ??
-            role?.code ??
-            role?.title ??
-            role?.role_title;
+          const derivedIdRaw = role?.id ?? role?.role_id ?? role?.onet_id ?? role?.code ?? role?.title ?? role?.role_title;
 
           const derivedId = String(derivedIdRaw ?? "").trim();
           const stableUniqueId = derivedId !== "" ? derivedId : `role-${idx}`;
@@ -325,7 +281,8 @@ export function RecommendationGrid({
       {!showAnalysis && typeof onViewAnalysis === "function" && (
         <div className="flex justify-center pb-10">
           <button
-            className="px-10 py-4 bg-[#0D9488] text-white font-bold rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg shadow-teal-900/10"
+            className="px-10 py-4 bg-primary text-primary-foreground font-bold rounded-full transition-all hover:scale-105 active:scale-95 shadow-lg"
+            style={{ boxShadow: "0 14px 34px rgba(var(--cn-primary-rgb), 0.18)" }}
             onClick={onViewAnalysis}
           >
             Analyze Career Compatibility

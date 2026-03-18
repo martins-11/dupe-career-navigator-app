@@ -24,15 +24,15 @@ export function NodeDetailsPanel(props: {
   const { nodeId, details, loading, error, onClose } = props;
 
   return (
-    <aside className="h-full rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+    <aside className="h-full rounded-2xl border border-border bg-background overflow-hidden flex flex-col">
+      <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 font-semibold">Role details</div>
-          <div className="mt-1 text-base font-bold text-slate-900 truncate">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Role details</div>
+          <div className="mt-1 text-base font-bold text-foreground truncate">
             {details?.title ?? (nodeId ? 'Loading…' : 'Select a node')}
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} disabled={!nodeId} className="text-slate-600">
+        <Button variant="ghost" size="sm" onClick={onClose} disabled={!nodeId} className="text-muted-foreground">
           Close
         </Button>
       </div>
@@ -52,7 +52,7 @@ export function NodeDetailsPanel(props: {
             <Skeleton className="h-20 w-full" />
           </div>
         ) : error ? (
-          <div className="p-4 rounded-xl border border-red-100 bg-red-50 text-sm text-red-700" role="alert">
+          <div className="p-4 rounded-xl border border-border bg-secondary text-sm text-foreground" role="alert">
             {error}
           </div>
         ) : details ? (
@@ -95,7 +95,7 @@ export function NodeDetailsPanel(props: {
               <div className="mt-2 flex flex-wrap gap-2">
                 {safeStringArray(details.skillGap ?? details.skill_gap).length > 0 ? (
                   safeStringArray(details.skillGap ?? details.skill_gap).slice(0, 40).map((s) => (
-                    <Badge key={s} className="bg-amber-50 text-amber-800 border border-amber-100">
+                    <Badge key={s} className="bg-accent text-accent-foreground border border-border">
                       {s}
                     </Badge>
                   ))

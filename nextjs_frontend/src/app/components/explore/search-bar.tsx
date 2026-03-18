@@ -15,11 +15,13 @@ interface SearchBarProps {
    */
   onSearch: (q?: string) => void;
   isSticky: boolean;
-  /** Optional persona id to enable persona-aware Bedrock autocomplete. */
+  /** Optional persona id to enable persona-aware autocomplete. */
   personaId?: string;
 }
 
+// PUBLIC_INTERFACE
 export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId }: SearchBarProps) {
+  /** Autocomplete search bar (Explore). All colors use semantic theme tokens mapped to the 5-color palette. */
   const [isFocused, setIsFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<RoleSuggestion[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -30,7 +32,6 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
     const q = String(query ?? "");
     const trimmed = q.trim();
 
-    // Abort previous in-flight autocomplete request whenever query changes.
     const controller = new AbortController();
 
     if (trimmed.length < 2) {
@@ -42,8 +43,6 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
       };
     }
 
-    // Debounce typing to avoid excessive network calls.
-    // (Backend autocomplete is cheap, but still avoid per-keystroke bursts.)
     const timer = window.setTimeout(async () => {
       try {
         const s = await getRoleSuggestions(trimmed, 5, { signal: controller.signal, personaId });
@@ -52,9 +51,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
           setHighlightIndex(-1);
         }
       } catch (err: any) {
-        // Ignore abort errors; they are expected when user types quickly.
         if (err?.name === "AbortError") return;
-
         if (!cancelled) {
           setSuggestions([]);
           setHighlightIndex(-1);
@@ -87,10 +84,9 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
       e.preventDefault();
       setHighlightIndex((prev) => Math.max(prev - 1, -1));
     } else if (e.key === "Enter") {
-      // Prevent implicit form submissions if this component is ever used inside a <form>.
       e.preventDefault();
-
       const picked = highlightIndex >= 0 ? suggestions[highlightIndex] : undefined;
+
       if (picked?.title) {
         onQueryChange(picked.title);
         setSuggestions([]);
@@ -115,31 +111,26 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
     return (
       <>
         {text.substring(0, idx)}
-        <span className="font-bold text-[#0D9488]">{text.substring(idx, idx + query.length)}</span>
+        <span className="font-bold text-primary">{text.substring(idx, idx + query.length)}</span>
         {text.substring(idx + query.length)}
       </>
     );
   }
 
   return (
-    <div
-      ref={wrapperRef}
-      className="relative w-full max-w-2xl mx-auto"
-      // Defensive: if parent wraps this in a form, this prevents refresh on submit.
-      onSubmit={(e: any) => e?.preventDefault?.()}
-    >
+    <div ref={wrapperRef} className="relative w-full max-w-2xl mx-auto" onSubmit={(e: any) => e?.preventDefault?.()}>
       <div
-        className={cn("flex items-center border shadow-sm transition-shadow duration-300", isSticky ? "h-12" : "h-14")}
-        style={{
-          borderRadius: 12,
-          background: "white",
-          borderColor: isFocused ? "#0D9488" : "#E2E8F0",
-          boxShadow: isFocused ? "0 0 0 2px rgba(13, 148, 136, 0.2)" : "none",
-        }}
+        className={cn(
+          "flex items-center border shadow-sm transition-[box-shadow,border-color] duration-200 bg-background",
+          isSticky ? "h-12" : "h-14",
+          isFocused ? "border-primary ring-2 ring-ring/50" : "border-border",
+        )}
+        style={{ borderRadius: 12 }}
       >
         <div className="flex items-center justify-center pl-5">
-          <Search className="h-5 w-5 text-slate-400" />
+          <Search className="h-5 w-5 text-muted-foreground" />
         </div>
+
         <input
           type="text"
           value={query}
@@ -150,29 +141,36 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
           onFocus={() => setIsFocused(true)}
           onKeyDown={handleKeyDown}
           placeholder="Search job title, skills, or industry..."
-          className={cn("flex-1 bg-transparent px-4 focus:outline-none text-slate-900", isSticky ? "text-sm" : "text-base")}
+          className={cn(
+            "flex-1 bg-transparent px-4 focus:outline-none text-foreground placeholder:text-muted-foreground",
+            isSticky ? "text-sm" : "text-base",
+          )}
         />
+
         <button
           type="button"
           onClick={() => {
             onSearch(query);
             setIsFocused(false);
           }}
-          className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold px-6 py-2 rounded-xl mr-1.5 transition-all active:scale-95"
+          className={cn(
+            "text-primary-foreground font-semibold px-6 py-2 rounded-xl mr-1.5 transition-all active:scale-95",
+            "bg-primary hover:bg-primary/90",
+          )}
         >
           Search
         </button>
       </div>
 
       {isFocused && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden">
+        <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-popover border border-border shadow-xl rounded-xl overflow-hidden">
           <ul className="py-2">
             {suggestions.map((s, i) => (
               <li
                 key={s.id || `${s.title}-${i}`}
                 className={cn(
                   "flex items-center gap-3 px-5 py-3 text-sm cursor-pointer",
-                  i === highlightIndex ? "bg-teal-50 text-[#0D9488]" : "text-slate-700 hover:bg-slate-50"
+                  i === highlightIndex ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-secondary",
                 )}
                 onMouseEnter={() => setHighlightIndex(i)}
                 onClick={() => {
@@ -182,7 +180,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
                   onSearch(s.title);
                 }}
               >
-                <Search className="h-4 w-4 shrink-0 opacity-50" />
+                <Search className="h-4 w-4 shrink-0 opacity-60" />
                 <span>{highlightMatch(s.title)}</span>
               </li>
             ))}

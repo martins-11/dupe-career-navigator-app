@@ -78,8 +78,8 @@ function InlineError({ message }: { message: string }) {
     <div
       className="text-[11px] rounded-lg px-3 py-2"
       style={{
-        background: "rgba(220, 38, 38, 0.06)",
-        border: "1px solid rgba(220, 38, 38, 0.18)",
+        background: "rgba(var(--cn-primary-rgb), 0.08)",
+        border: "1px solid rgba(var(--cn-primary-rgb), 0.20)",
         color: "var(--text-body)",
       }}
       role="alert"

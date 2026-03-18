@@ -14,23 +14,14 @@ interface CompatibilityScoreProps {
   masteryAreas?: string[];
   /** Optional: growth skill names (for chip/tag rendering). */
   growthAreas?: string[];
-
-  /** Optional persona id (passed by ExploreClient for future persona-aware scoring). */
-  personaId?: string;
 }
 
 /**
  * CompatibilityScore
  * Animated circular score meter with mastery/growth counts.
  *
- * This component is used by Explore RoleCard for both:
- * - Suggested Roles (recommendations)
- * - Search results (roles search)
- */
-/**
- * NOTE: This component is sometimes rendered as a placeholder (e.g., in ExploreClient's
- * "Compatibility Deep-Dive") without computed scoring data yet. To keep build/type-checking
- * strict and the UI stable, props are optional with safe defaults.
+ * Palette constraint:
+ * - Uses semantic tokens (primary/foreground/muted) and palette-derived alphas only.
  */
 // PUBLIC_INTERFACE
 export function CompatibilityScore({
@@ -54,25 +45,27 @@ export function CompatibilityScore({
   return (
     <div className="flex flex-col items-center">
       <div className="relative" style={{ width: size, height: size }}>
-        <svg
-          width={size}
-          height={size}
-          className="-rotate-90"
-          aria-label={`Compatibility score: ${safeScore}%`}
-        >
-          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#f0fdfa" strokeWidth={strokeWidth} />
+        <svg width={size} height={size} className="-rotate-90" aria-label={`Compatibility score: ${safeScore}%`}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="rgba(var(--cn-slate-rgb), 0.12)"
+            strokeWidth={strokeWidth}
+          />
           <motion.circle
             cx={size / 2}
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke="#0d9488"
+            stroke="var(--primary)"
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeDasharray={circumference}
             initial={{ strokeDashoffset: circumference }}
             animate={{ strokeDashoffset: offset }}
-            transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
+            transition={{ duration: 1.2, ease: "easeOut", delay: 0.3 }}
           />
         </svg>
 
@@ -81,7 +74,7 @@ export function CompatibilityScore({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.8 }}
-            className="text-3xl font-bold text-gray-800"
+            className="text-3xl font-bold text-foreground"
           >
             {safeScore}%
           </motion.span>
@@ -92,11 +85,11 @@ export function CompatibilityScore({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}
-        className="mt-3 text-sm text-gray-500"
+        className="mt-3 text-sm text-muted-foreground"
       >
-        <span className="text-teal-600 font-medium">{masteryCount} Mastery</span>
-        {' | '}
-        <span className="text-amber-600 font-medium">{growthCount} Growth</span>
+        <span className="text-primary font-medium">{masteryCount} Mastery</span>
+        {" | "}
+        <span className="text-foreground font-medium">{growthCount} Growth</span>
       </motion.p>
 
       {(masteryList.length > 0 || growthList.length > 0) && (
@@ -106,8 +99,12 @@ export function CompatibilityScore({
               {masteryList.map((s) => (
                 <span
                   key={`m:${s}`}
-                  className="rounded-full px-2.5 py-1 text-xs font-semibold"
-                  style={{ backgroundColor: 'rgba(13, 148, 136, 0.10)', color: '#0f766e', border: '1px solid rgba(13, 148, 136, 0.25)' }}
+                  className="rounded-full px-2.5 py-1 text-xs font-semibold border"
+                  style={{
+                    background: "rgba(var(--cn-primary-rgb), 0.10)",
+                    color: "var(--cn-slate)",
+                    borderColor: "rgba(var(--cn-primary-rgb), 0.25)",
+                  }}
                 >
                   Mastery: {s}
                 </span>
@@ -120,8 +117,12 @@ export function CompatibilityScore({
               {growthList.map((s) => (
                 <span
                   key={`g:${s}`}
-                  className="rounded-full px-2.5 py-1 text-xs font-semibold"
-                  style={{ backgroundColor: 'rgba(245, 158, 11, 0.10)', color: '#b45309', border: '1px solid rgba(245, 158, 11, 0.25)' }}
+                  className="rounded-full px-2.5 py-1 text-xs font-semibold border"
+                  style={{
+                    background: "rgba(var(--cn-slate-rgb), 0.08)",
+                    color: "var(--cn-muted)",
+                    borderColor: "rgba(var(--cn-slate-rgb), 0.18)",
+                  }}
                 >
                   Growth: {s}
                 </span>

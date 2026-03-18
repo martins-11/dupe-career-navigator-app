@@ -27,6 +27,10 @@ function setAuthCookie(payload: { role: Role; email: string }) {
 }
 
 function MountainPanelArt() {
+  /**
+   * Palette-constrained illustration:
+   * - Uses only ink/slate/primary/white/muted (with opacity).
+   */
   return (
     <svg
       aria-hidden="true"
@@ -36,19 +40,22 @@ function MountainPanelArt() {
     >
       <defs>
         <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="#3B2C7A" />
-          <stop offset="55%" stopColor="#261A4F" />
-          <stop offset="100%" stopColor="#1A1631" />
+          <stop offset="0%" stopColor="var(--cn-primary)" />
+          <stop offset="60%" stopColor="var(--cn-slate)" />
+          <stop offset="100%" stopColor="var(--cn-ink)" />
         </linearGradient>
+
         <linearGradient id="ridge" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#4E3AA2" stopOpacity="0.75" />
-          <stop offset="70%" stopColor="#17122B" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#0F0C1E" stopOpacity="1" />
+          <stop offset="0%" stopColor="var(--cn-primary)" stopOpacity="0.45" />
+          <stop offset="70%" stopColor="var(--cn-slate)" stopOpacity="0.88" />
+          <stop offset="100%" stopColor="var(--cn-ink)" stopOpacity="1" />
         </linearGradient>
+
         <linearGradient id="ridge2" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="#2E215E" stopOpacity="0.45" />
-          <stop offset="55%" stopColor="#0F0C1E" stopOpacity="1" />
+          <stop offset="0%" stopColor="var(--cn-primary)" stopOpacity="0.22" />
+          <stop offset="55%" stopColor="var(--cn-ink)" stopOpacity="0.98" />
         </linearGradient>
+
         <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
           <feColorMatrix
@@ -67,8 +74,8 @@ function MountainPanelArt() {
       <rect width="560" height="520" fill="url(#sky)" />
 
       {/* faint glow */}
-      <circle cx="130" cy="95" r="90" fill="#8A79FF" opacity="0.18" filter="url(#soft)" />
-      <circle cx="430" cy="170" r="120" fill="#6D57FF" opacity="0.10" filter="url(#soft)" />
+      <circle cx="140" cy="110" r="95" fill="var(--cn-white)" opacity="0.10" filter="url(#soft)" />
+      <circle cx="420" cy="175" r="120" fill="var(--cn-primary)" opacity="0.12" filter="url(#soft)" />
 
       {/* far ridge */}
       <path
@@ -85,7 +92,7 @@ function MountainPanelArt() {
       {/* dark foreground */}
       <path
         d="M-10 395 C 110 370, 190 350, 280 380 C 380 412, 470 452, 610 410 L 610 520 L -10 520 Z"
-        fill="#0B0916"
+        fill="var(--cn-ink)"
         opacity="0.92"
       />
     </svg>
@@ -133,10 +140,7 @@ export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const nextPath = useMemo(
-    () => clampNextPath(searchParams?.get('next') ?? null),
-    [searchParams],
-  );
+  const nextPath = useMemo(() => clampNextPath(searchParams?.get('next') ?? null), [searchParams]);
 
   const [role, setRole] = useState<Role>('user');
   const [email, setEmail] = useState('');
@@ -146,44 +150,54 @@ export default function LoginClient() {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Prototype acceptance: any credential is allowed. (Password is intentionally not stored.)
     setAuthCookie({ role, email: email.trim() });
-
-    // Respect "remember me" only as a UX hint (cookie is already 7 days).
-    // If we want session-only later, we can adjust Max-Age based on remember.
     void remember;
 
     router.replace(nextPath);
   };
 
   return (
-    <main className="min-h-screen w-full bg-[#0e0c14] px-5 py-10 text-white">
+    <main
+      className="min-h-screen w-full px-5 py-10"
+      style={{
+        background: `linear-gradient(180deg, rgba(var(--cn-primary-rgb), 0.12) 0%, var(--cn-ink) 60%, var(--cn-ink) 100%)`,
+        color: 'var(--cn-white)',
+      }}
+    >
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-[980px] items-center justify-center">
         <section
           aria-label="Login"
-          className="w-full overflow-hidden rounded-2xl bg-[#191826] shadow-[0_28px_70px_rgba(0,0,0,0.55)] ring-1 ring-white/10"
+          className="w-full overflow-hidden rounded-2xl shadow-[0_28px_70px_rgba(var(--cn-ink-rgb),0.55)] ring-1"
+          style={{
+            background: 'rgba(var(--cn-white-rgb), 0.10)',
+            borderColor: 'rgba(var(--cn-white-rgb), 0.14)',
+          }}
         >
           <div className="grid grid-cols-1 md:grid-cols-2">
             {/* Left panel (visual) */}
             <div className="relative hidden min-h-[520px] md:block">
               <MountainPanelArt />
-
-              {/* subtle top overlay */}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/40" />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(to bottom, rgba(var(--cn-ink-rgb), 0.10), transparent, rgba(var(--cn-ink-rgb), 0.40))',
+                }}
+              />
 
               <div className="relative flex h-full flex-col p-8">
                 <div className="flex items-start justify-between">
-                  <div className="text-sm font-semibold tracking-wide text-white/90">
+                  <div className="text-sm font-semibold tracking-wide" style={{ color: 'rgba(var(--cn-white-rgb), 0.92)' }}>
                     Career Navigator
                   </div>
                 </div>
 
                 <div className="mt-auto">
                   <div className="max-w-[260px]">
-                    <p className="text-sm font-semibold leading-snug text-white">
+                    <p className="text-sm font-semibold leading-snug" style={{ color: 'var(--cn-white)' }}>
                       Build a career that compounds.
                       <br />
-                      <span className="text-white/70">
+                      <span style={{ color: 'rgba(var(--cn-white-rgb), 0.70)' }}>
                         Turn your experience into your next opportunity.
                       </span>
                     </p>
@@ -195,15 +209,18 @@ export default function LoginClient() {
             {/* Right panel (form) */}
             <div className="flex min-h-[520px] flex-col justify-center px-7 py-10 md:px-10">
               <header className="mb-7">
-                <h1 className="text-2xl font-semibold leading-tight text-white">
+                <h1 className="text-2xl font-semibold leading-tight" style={{ color: 'var(--cn-white)' }}>
                   Create an account
                 </h1>
-                <p className="mt-2 text-sm text-white/60">
+                <p className="mt-2 text-sm" style={{ color: 'rgba(var(--cn-white-rgb), 0.60)' }}>
                   Already have an account?{' '}
                   <a
                     href="/login"
-                    className="font-medium text-white/80 hover:text-white"
+                    className="font-medium transition"
+                    style={{ color: 'rgba(var(--cn-white-rgb), 0.80)' }}
                     onClick={(e) => e.preventDefault()}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--cn-white)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.80)')}
                   >
                     Log in
                   </a>
@@ -212,20 +229,29 @@ export default function LoginClient() {
 
               {/* Role switch */}
               <div
-                className="mb-5 inline-flex w-full rounded-lg bg-white/5 p-1 ring-1 ring-white/10"
+                className="mb-5 inline-flex w-full rounded-lg p-1 ring-1"
                 role="tablist"
                 aria-label="Role"
+                style={{
+                  background: 'rgba(var(--cn-white-rgb), 0.05)',
+                  borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
+                }}
               >
                 <button
                   type="button"
                   role="tab"
                   aria-selected={role === 'user'}
-                  className={[
-                    'h-9 flex-1 rounded-md text-sm font-medium transition',
-                    role === 'user'
-                      ? 'bg-[#2a2a3d] text-white shadow-sm'
-                      : 'text-white/70 hover:text-white/90',
-                  ].join(' ')}
+                  className={['h-9 flex-1 rounded-md text-sm font-medium transition', role === 'user' ? 'shadow-sm' : ''].join(' ')}
+                  style={{
+                    background: role === 'user' ? 'rgba(var(--cn-slate-rgb), 0.92)' : 'transparent',
+                    color: role === 'user' ? 'var(--cn-white)' : 'rgba(var(--cn-white-rgb), 0.70)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (role !== 'user') e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.90)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (role !== 'user') e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.70)';
+                  }}
                   onClick={() => setRole('user')}
                 >
                   User
@@ -234,12 +260,17 @@ export default function LoginClient() {
                   type="button"
                   role="tab"
                   aria-selected={role === 'admin'}
-                  className={[
-                    'h-9 flex-1 rounded-md text-sm font-medium transition',
-                    role === 'admin'
-                      ? 'bg-[#2a2a3d] text-white shadow-sm'
-                      : 'text-white/70 hover:text-white/90',
-                  ].join(' ')}
+                  className={['h-9 flex-1 rounded-md text-sm font-medium transition', role === 'admin' ? 'shadow-sm' : ''].join(' ')}
+                  style={{
+                    background: role === 'admin' ? 'rgba(var(--cn-slate-rgb), 0.92)' : 'transparent',
+                    color: role === 'admin' ? 'var(--cn-white)' : 'rgba(var(--cn-white-rgb), 0.70)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (role !== 'admin') e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.90)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (role !== 'admin') e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.70)';
+                  }}
                   onClick={() => setRole('admin')}
                 >
                   Admin
@@ -256,12 +287,12 @@ export default function LoginClient() {
                     required
                     placeholder="Email"
                     autoComplete="email"
-                    className={[
-                      'h-11 w-full rounded-lg border border-white/10 bg-white/5 px-4',
-                      'text-sm text-white placeholder:text-white/40',
-                      'outline-none transition',
-                      'focus:border-white/20 focus:ring-4 focus:ring-white/10',
-                    ].join(' ')}
+                    className="h-11 w-full rounded-lg border px-4 text-sm outline-none transition"
+                    style={{
+                      borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
+                      background: 'rgba(var(--cn-white-rgb), 0.05)',
+                      color: 'var(--cn-white)',
+                    }}
                   />
                 </label>
 
@@ -274,30 +305,38 @@ export default function LoginClient() {
                     required
                     placeholder="Password"
                     autoComplete="current-password"
-                    className={[
-                      'h-11 w-full rounded-lg border border-white/10 bg-white/5 px-4',
-                      'text-sm text-white placeholder:text-white/40',
-                      'outline-none transition',
-                      'focus:border-white/20 focus:ring-4 focus:ring-white/10',
-                    ].join(' ')}
+                    className="h-11 w-full rounded-lg border px-4 text-sm outline-none transition"
+                    style={{
+                      borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
+                      background: 'rgba(var(--cn-white-rgb), 0.05)',
+                      color: 'var(--cn-white)',
+                    }}
                   />
                 </label>
 
                 <div className="flex items-center justify-between pt-1">
-                  <label className="inline-flex items-center gap-2 text-xs text-white/70">
+                  <label className="inline-flex items-center gap-2 text-xs" style={{ color: 'rgba(var(--cn-white-rgb), 0.70)' }}>
                     <input
                       type="checkbox"
                       checked={remember}
                       onChange={(e) => setRemember(e.target.checked)}
-                      className="h-4 w-4 rounded border-white/20 bg-white/5 text-[#6D57FF] focus:ring-2 focus:ring-white/10"
+                      className="h-4 w-4 rounded focus:ring-2"
+                      style={{
+                        borderColor: 'rgba(var(--cn-white-rgb), 0.20)',
+                        background: 'rgba(var(--cn-white-rgb), 0.05)',
+                        color: 'var(--cn-primary)',
+                      }}
                     />
                     Remember me
                   </label>
 
                   <a
                     href="/login"
-                    className="text-xs font-medium text-white/70 hover:text-white/90"
+                    className="text-xs font-medium transition"
+                    style={{ color: 'rgba(var(--cn-white-rgb), 0.70)' }}
                     onClick={(e) => e.preventDefault()}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.90)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.70)')}
                   >
                     Forgot your password?
                   </a>
@@ -305,22 +344,30 @@ export default function LoginClient() {
 
                 <button
                   type="submit"
-                  className={[
-                    'mt-2 inline-flex h-11 w-full items-center justify-center rounded-lg',
-                    'bg-[#6D57FF] text-sm font-semibold text-white',
-                    'transition hover:brightness-110',
-                    'focus:outline-none focus:ring-4 focus:ring-[#6D57FF]/25',
-                  ].join(' ')}
+                  className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold transition focus:outline-none focus:ring-4"
+                  style={{
+                    background: 'var(--cn-primary)',
+                    color: 'var(--cn-white)',
+                    boxShadow: '0 10px 28px rgba(var(--cn-primary-rgb), 0.22)',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--primary-hover)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--cn-primary)')}
                 >
                   Create account
                 </button>
 
                 <div className="relative py-2">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/10" />
+                    <div className="w-full border-t" style={{ borderColor: 'rgba(var(--cn-white-rgb), 0.12)' }} />
                   </div>
                   <div className="relative flex justify-center">
-                    <span className="bg-[#191826] px-3 text-xs text-white/50">
+                    <span
+                      className="px-3 text-xs"
+                      style={{
+                        background: 'rgba(var(--cn-white-rgb), 0.10)',
+                        color: 'rgba(var(--cn-white-rgb), 0.55)',
+                      }}
+                    >
                       Or continue with
                     </span>
                   </div>
@@ -329,27 +376,33 @@ export default function LoginClient() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white/5 text-sm font-medium text-white/85 ring-1 ring-white/10 transition hover:bg-white/10"
-                    onClick={() => {
-                      // Placeholder for future OAuth.
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-medium ring-1 transition"
+                    style={{
+                      background: 'rgba(var(--cn-white-rgb), 0.05)',
+                      color: 'rgba(var(--cn-white-rgb), 0.88)',
+                      borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(var(--cn-white-rgb), 0.10)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(var(--cn-white-rgb), 0.05)')}
                   >
                     <GoogleIcon className="h-4 w-4" />
                     Google
                   </button>
                   <button
                     type="button"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white/5 text-sm font-medium text-white/85 ring-1 ring-white/10 transition hover:bg-white/10"
-                    onClick={() => {
-                      // Placeholder for future OAuth.
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-medium ring-1 transition"
+                    style={{
+                      background: 'rgba(var(--cn-white-rgb), 0.05)',
+                      color: 'rgba(var(--cn-white-rgb), 0.88)',
+                      borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(var(--cn-white-rgb), 0.10)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(var(--cn-white-rgb), 0.05)')}
                   >
                     <AppleIcon className="h-4 w-4" />
                     Apple
                   </button>
                 </div>
-
-
               </form>
             </div>
           </div>
