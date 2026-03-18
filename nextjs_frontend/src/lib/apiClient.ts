@@ -44,21 +44,31 @@ type ApiFetchInit = RequestInit & {
 
 function resolveBaseUrl(): string {
   /**
-   * Prefer Next.js same-origin API routes by default (baseUrl="").
-   * If the app is configured to call a full external origin from the browser, allow it via env vars.
+   * Resolve the base URL for API calls.
    *
-   * Environment variables available in this container include:
-   * - NEXT_PUBLIC_API_BASE
-   * - NEXT_PUBLIC_BACKEND_URL
+   * Key rule:
+   * - In the browser, we default to SAME-ORIGIN requests (baseUrl="") so calls like `/api/**`
+   *   hit Next.js Route Handlers on the frontend (port 3000).
    *
-   * We do not assume their values; we just use them if present.
+   * Why:
+   * - Some envs also expose NEXT_PUBLIC_BACKEND_URL (port 3001). If we used it here, browser
+   *   calls to `/api/recommendations/pool` would incorrectly go to the Express backend (404),
+   *   because that endpoint is implemented as a Next.js API route.
+   *
+   * SSR note:
+   * - Node fetch requires absolute URLs. For SSR usage, set NEXT_PUBLIC_API_BASE or
+   *   NEXT_PUBLIC_FRONTEND_URL to an absolute origin.
    */
   const fromApiBase = (process.env.NEXT_PUBLIC_API_BASE ?? '').trim();
   if (fromApiBase) return fromApiBase.replace(/\/+$/, '');
 
-  const fromBackend = (process.env.NEXT_PUBLIC_BACKEND_URL ?? '').trim();
-  if (fromBackend) return fromBackend.replace(/\/+$/, '');
+  // Server-side only: allow absolute base to be provided for SSR fetches.
+  if (typeof window === 'undefined') {
+    const fromFrontend = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? '').trim();
+    if (fromFrontend) return fromFrontend.replace(/\/+$/, '');
+  }
 
+  // Browser default: same-origin.
   return '';
 }
 
