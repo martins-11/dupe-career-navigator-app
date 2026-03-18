@@ -4,13 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  BadgeCheck,
   ChevronLeft,
   ChevronRight,
   Compass,
   Settings,
   Store,
   Upload,
-  Users,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -136,7 +136,7 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
   const navItems: NavItem[] = useMemo(
     () => [
       { kind: 'link', href: '/ingestion', label: 'Ingestion', icon: Upload },
-      { kind: 'link', href: '/personas', label: 'Personas', icon: Users },
+      { kind: 'link', href: '/skill-validation', label: 'Skill Validation', icon: BadgeCheck },
       { kind: 'link', href: '/explore', label: 'Explore', icon: Compass },
       { kind: 'link', href: '/market-place', label: 'Market Place', icon: Store },
       { kind: 'dummy', label: 'Settings', icon: Settings, disabledReason: 'Coming soon' },
@@ -191,14 +191,14 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
           {/* Identity section */}
           <div className="w-full px-2">
             <Link
-              href="/personas"
+              href="/persona"
               className={[
                 'group flex flex-col items-center gap-2',
                 'rounded-2xl px-2 py-3',
                 'hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50',
                 'transition-colors',
               ].join(' ')}
-              aria-label="Go to Personas"
+              aria-label="Go to Persona"
               title={identityLabel}
             >
               <div
