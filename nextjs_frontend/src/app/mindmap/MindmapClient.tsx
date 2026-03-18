@@ -596,7 +596,7 @@ export default function MindmapClient() {
                     <button
                       type="button"
                       className="mt-4 px-4 py-2 rounded-full text-white text-sm"
-                      style={{ background: 'var(--mindmap-cta-green)' }}
+                      style={{ background: 'var(--mindmap-cta-primary)' }}
                       onClick={() => setDebugOpen(true)}
                     >
                       Open debug panel
@@ -661,7 +661,7 @@ export default function MindmapClient() {
                 <a
                   href="/explore"
                   className="px-4 py-2 rounded-full text-white text-sm whitespace-nowrap"
-                  style={{ background: 'var(--mindmap-cta-green)' }}
+                  style={{ background: 'var(--mindmap-cta-primary)' }}
                 >
                   Explore Roles
                 </a>

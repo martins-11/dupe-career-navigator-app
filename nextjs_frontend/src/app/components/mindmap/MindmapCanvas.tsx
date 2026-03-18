@@ -760,7 +760,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                   style={{ cursor: 'pointer', opacity }}
                   aria-label={`Target role node: ${title}`}
                 >
-                  <circle r={r} fill="var(--mindmap-teal-700)" stroke={stroke} strokeWidth={strokeWidth} />
+                  <circle r={r} fill="var(--mindmap-accent-700)" stroke={stroke} strokeWidth={strokeWidth} />
                   {pct ? (
                     <text fontSize={16} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 900 }} y={4}>
                       {pct.right ? `${pct.left} - ${pct.right}` : pct.left}
