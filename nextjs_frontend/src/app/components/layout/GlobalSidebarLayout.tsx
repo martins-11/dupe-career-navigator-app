@@ -153,12 +153,12 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
                   'shadow-[0_10px_24px_rgba(139,92,246,0.18)]',
                 ].join(' ')}
               >
-                <Compass className="h-[18px] w-[18px] text-violet-200" />
+                <Compass strokeWidth={2.5} className="h-[18px] w-[18px] text-violet-300" />
               </div>
 
               {isSidebarExpanded && (
                 <div className="min-w-0">
-                  <div className="text-[14px] md:text-[15px] font-extrabold text-violet-200 tracking-tight truncate">
+                  <div className="text-[14px] md:text-[15px] font-bold text-violet-300 tracking-tight truncate">
                     Career Navigator
                   </div>
                 </div>
