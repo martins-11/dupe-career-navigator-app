@@ -217,43 +217,95 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
         </defs>
 
         <g aria-hidden="true" filter="url(#exploreEdgeShadow)">
-          {edges.map((e, idx) => {
-            const a = positions.get(e.source);
-            const b = positions.get(e.target);
-            if (!a || !b) return null;
+          {/**
+           * Selected-edge highlighting:
+           * - Keep the existing high-contrast black connector as the “main” stroke.
+           * - Add a slightly thicker primary-color halo behind it to make connected edges unmistakable
+           *   when a node is selected (without losing the black styling).
+           * - Render selected edges last so they sit on top visually.
+           */}
+          {edges
+            .filter((e) => !(selectedNodeId && (e.source === selectedNodeId || e.target === selectedNodeId)))
+            .map((e, idx) => {
+              const a = positions.get(e.source);
+              const b = positions.get(e.target);
+              if (!a || !b) return null;
 
-            const isSelectedEdge =
-              Boolean(selectedNodeId) && (e.source === selectedNodeId || e.target === selectedNodeId);
+              const isCenterEdge =
+                Boolean(centerNode?.id) && (e.source === centerNode?.id || e.target === centerNode?.id);
 
-            const isCenterEdge = Boolean(centerNode?.id) && (e.source === centerNode?.id || e.target === centerNode?.id);
+              const dx = b.x - a.x;
+              const dy = b.y - a.y;
 
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
+              // Gentle arc so lines don't intersect the node bodies too harshly.
+              const curvature = Math.min(190, Math.max(80, Math.abs(dy) * 0.55 + Math.abs(dx) * 0.14));
+              const cx = a.x + dx * 0.5;
+              const cy = Math.min(a.y, b.y) - curvature;
 
-            // Gentle arc so lines don't intersect the node bodies too harshly.
-            const curvature = Math.min(190, Math.max(80, Math.abs(dy) * 0.55 + Math.abs(dx) * 0.14));
-            const cx = a.x + dx * 0.5;
-            const cy = Math.min(a.y, b.y) - curvature;
+              const strokeWidth = isCenterEdge ? 6.25 : 5.25;
 
-            // Requested: black + very visible, but slightly thinner than the previous "extra thick" styling.
-            // Keep emphasis on:
-            // - selected edges
-            // - edges connected to the center/current node
-            const strokeWidth = isSelectedEdge ? 7.5 : isCenterEdge ? 6.25 : 5.25;
+              return (
+                <path
+                  key={`${e.source}-${e.target}-${idx}`}
+                  d={`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`}
+                  fill="none"
+                  stroke="#000000"
+                  strokeOpacity={0.92}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              );
+            })}
 
-            return (
-              <path
-                key={`${e.source}-${e.target}-${idx}`}
-                d={`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`}
-                fill="none"
-                stroke="#000000"
-                strokeOpacity={isSelectedEdge ? 1 : 0.92}
-                strokeWidth={strokeWidth}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            );
-          })}
+          {edges
+            .filter((e) => Boolean(selectedNodeId) && (e.source === selectedNodeId || e.target === selectedNodeId))
+            .map((e, idx) => {
+              const a = positions.get(e.source);
+              const b = positions.get(e.target);
+              if (!a || !b) return null;
+
+              const isCenterEdge =
+                Boolean(centerNode?.id) && (e.source === centerNode?.id || e.target === centerNode?.id);
+
+              const dx = b.x - a.x;
+              const dy = b.y - a.y;
+
+              // Gentle arc so lines don't intersect the node bodies too harshly.
+              const curvature = Math.min(190, Math.max(80, Math.abs(dy) * 0.55 + Math.abs(dx) * 0.14));
+              const cx = a.x + dx * 0.5;
+              const cy = Math.min(a.y, b.y) - curvature;
+
+              const mainStrokeWidth = isCenterEdge ? 7.5 : 7.5;
+              const haloStrokeWidth = mainStrokeWidth + 4;
+
+              const d = `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+
+              return (
+                <g key={`${e.source}-${e.target}-selected-${idx}`}>
+                  {/* Primary-color halo (behind) */}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke={`rgba(var(--cn-primary-rgb), 0.85)`}
+                    strokeOpacity={1}
+                    strokeWidth={haloStrokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {/* Black high-contrast stroke (on top) */}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="#000000"
+                    strokeOpacity={1}
+                    strokeWidth={mainStrokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              );
+            })}
         </g>
 
         <g>
