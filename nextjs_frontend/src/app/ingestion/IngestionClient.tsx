@@ -2,7 +2,7 @@
 
 import { useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { CheckCircle2, FileText, Linkedin, Upload, X } from 'lucide-react';
+import { Check, CheckCircle2, FileText, Linkedin, Upload, X } from 'lucide-react';
 
 type UploadCategory = 'resume' | 'job_description' | 'cover_letter';
 
@@ -13,15 +13,19 @@ type UploadedPreview = {
   addedAt: number;
 };
 
-const CANVAS_BG = '#F6F7FB';
-const PANEL_BG = '#F0F1F4';
-const BORDER_SUBTLE = '#DADDE5';
+const CANVAS_BG = '#F6F7F8';
+const PANEL_BG = '#FFFFFF';
+const BORDER_SUBTLE = '#E5E7EB';
 const TEXT_PRIMARY = '#111827';
 const TEXT_SECONDARY = '#6B7280';
 const TEXT_MUTED = '#8B93A3';
-const PURPLE = '#7C3AED';
-const PURPLE_DARK = '#6D28D9';
-const LAVENDER = '#EFE9FF';
+
+const LAVENDER_STRIP = '#EADCF8';
+const ACCENT_TEAL = '#14B8A6';
+const ACCENT_PURPLE = '#8B5CF6';
+const ACCENT_GREEN = '#22C55E';
+const LINKEDIN_BLUE = '#0A66C2';
+const GRADIENT_ACCENT = 'linear-gradient(90deg, #8B5CF6 0%, #14B8A6 100%)';
 
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
@@ -52,25 +56,25 @@ function categoryLabel(category: UploadCategory): string {
   }
 }
 
-function categoryHint(category: UploadCategory): string {
-  switch (category) {
-    case 'resume':
-      return 'Supported formats: PDF, DOCX, TXT';
-    case 'job_description':
-      return 'Supported formats: PDF, DOCX, TXT';
-    case 'cover_letter':
-      return 'Supported formats: PDF, DOCX, TXT';
-  }
-}
-
 function categoryTitle(category: UploadCategory): string {
   switch (category) {
     case 'resume':
       return 'Upload Your Resume';
-    case 'job_description':
-      return 'Upload Your Job Description';
     case 'cover_letter':
       return 'Upload Your Cover Letter';
+    case 'job_description':
+      return 'Upload Your Job Description';
+  }
+}
+
+function categoryAccent(category: UploadCategory): string {
+  switch (category) {
+    case 'resume':
+      return ACCENT_PURPLE;
+    case 'cover_letter':
+      return ACCENT_TEAL;
+    case 'job_description':
+      return ACCENT_GREEN;
   }
 }
 
@@ -121,45 +125,47 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
     setIsDragOver(false);
   };
 
+  const accent = categoryAccent(category);
+
   return (
-    <div
-      className="group w-full max-w-[320px] rounded-[12px] border p-5 transition-colors"
+    <motion.div
+      initial={false}
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+      className="group relative w-full rounded-[12px] border bg-white p-4"
       style={{
-        background: isDragOver ? LAVENDER : PANEL_BG,
-        borderColor: isDragOver ? PURPLE : BORDER_SUBTLE,
-        boxShadow: '0 1px 0 rgba(0,0,0,0.03)',
+        borderColor: isDragOver ? accent : BORDER_SUBTLE,
+        boxShadow: isDragOver ? '0 12px 32px rgba(17,24,39,0.10)' : '0 8px 24px rgba(0,0,0,0.06)',
+      }}
+      onDrop={onDrop}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      role="button"
+      tabIndex={0}
+      aria-label={`${categoryTitle(category)} (click to browse or drag and drop)`}
+      onClick={onBrowse}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onBrowse();
       }}
     >
+      {/* Subtle gradient wash */}
       <div
-        className="flex flex-col items-center text-center"
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        role="button"
-        tabIndex={0}
-        aria-label={`${categoryTitle(category)} (click to browse or drag and drop)`}
-        onClick={onBrowse}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') onBrowse();
+        className="pointer-events-none absolute inset-0 rounded-[12px] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+        style={{
+          background: `radial-gradient(1000px 180px at 30% -10%, ${accent}26, transparent 65%), radial-gradient(1000px 220px at 80% 120%, ${ACCENT_TEAL}20, transparent 60%)`,
         }}
-        style={{ cursor: 'pointer' }}
-      >
-        <div className="text-[14px] font-semibold" style={{ color: TEXT_PRIMARY }}>
-          {categoryTitle(category)}
+        aria-hidden="true"
+      />
+
+      <div className="relative flex min-h-[120px] flex-col">
+        <div className="flex items-center justify-between gap-4">
+          <div className="text-[12px] font-semibold tracking-tight" style={{ color: '#374151' }}>
+            {categoryTitle(category)}
+          </div>
+          <div className="h-[2px] w-[70px] rounded-full" style={{ background: accent }} aria-hidden="true" />
         </div>
 
-        <div
-          className="mt-3 flex h-[50px] w-[50px] items-center justify-center rounded-full border"
-          style={{
-            background: '#F7F4FF',
-            borderColor: 'rgba(124,58,237,0.18)',
-          }}
-          aria-hidden="true"
-        >
-          <Upload className="h-[20px] w-[20px]" style={{ color: PURPLE }} />
-        </div>
-
-        <div className="mt-3">
+        <div className="mt-6 flex flex-1 items-center justify-center">
           <button
             type="button"
             onClick={(e) => {
@@ -167,21 +173,21 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
               e.stopPropagation();
               onBrowse();
             }}
-            className="h-[30px] rounded-full px-4 text-[12.5px] font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(124,58,237,0.35)] focus-visible:ring-offset-2"
-            style={{ background: PURPLE }}
+            className="inline-flex h-[30px] items-center justify-center rounded-full px-6 text-[12px] font-semibold text-white shadow-sm transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(20,184,166,0.30)] focus-visible:ring-offset-2"
+            style={{
+              background: GRADIENT_ACCENT,
+              boxShadow: '0 10px 22px rgba(139,92,246,0.20)',
+            }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = PURPLE_DARK;
+              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = PURPLE;
+              (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0px)';
             }}
           >
-            Browse File
+            <Upload className="mr-2 h-[14px] w-[14px]" aria-hidden="true" />
+            Upload
           </button>
-        </div>
-
-        <div className="mt-3 text-[11.5px]" style={{ color: TEXT_MUTED }}>
-          {categoryHint(category)}
         </div>
 
         <input
@@ -196,6 +202,58 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
           tabIndex={-1}
         />
       </div>
+    </motion.div>
+  );
+}
+
+function LinkedInConnect() {
+  const [connected, setConnected] = useState(false);
+
+  return (
+    <div className="mt-8 flex flex-col items-center">
+      <div className="text-center text-[12px]" style={{ color: TEXT_SECONDARY }}>
+        * recommend connecting your LinkedIn profile to improve persona accuracy
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setConnected((v) => !v)}
+        className="mt-3 inline-flex items-center gap-2 text-[12px] font-semibold"
+        style={{ color: connected ? ACCENT_TEAL : LINKEDIN_BLUE }}
+        aria-pressed={connected}
+        aria-label={connected ? 'Connected to LinkedIn (click to toggle)' : 'Connect to LinkedIn (click to toggle)'}
+      >
+        {connected ? (
+          <>
+            <CheckCircle2 className="h-[16px] w-[16px]" style={{ color: ACCENT_TEAL }} aria-hidden="true" />
+            Connected to LinkedIn
+          </>
+        ) : (
+          <>
+            <Linkedin className="h-[16px] w-[16px]" style={{ color: LINKEDIN_BLUE }} aria-hidden="true" />
+            Connect to LinkedIn
+          </>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setConnected((v) => !v)}
+        className="mt-3 inline-flex h-[32px] items-center justify-center rounded-full px-8 text-[12px] font-semibold text-white shadow-sm transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(20,184,166,0.30)] focus-visible:ring-offset-2"
+        style={{
+          background: connected ? 'linear-gradient(90deg, #14B8A6 0%, #22C55E 100%)' : GRADIENT_ACCENT,
+          boxShadow: '0 12px 26px rgba(17,24,39,0.10)',
+        }}
+      >
+        {connected ? (
+          <>
+            <Check className="mr-2 h-[14px] w-[14px]" aria-hidden="true" />
+            Connected
+          </>
+        ) : (
+          'Connect'
+        )}
+      </button>
     </div>
   );
 }
@@ -204,16 +262,16 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
 export default function IngestionClient() {
   /**
    * UI-only Document Ingestion page (per reference image):
-   * - 3 upload containers (resume / job description / cover letter)
-   * - LinkedIn connect toggle (visual only)
+   * - Top lavender strip header
+   * - 3 upload containers (resume / cover letter / job description)
+   * - LinkedIn connect toggle (dummy interaction)
    * - Animated uploaded files preview list
    *
-   * NOTE: This does not call backend APIs yet; it only maintains local UI state.
+   * NOTE: This does not call backend APIs; it only maintains local UI state.
    */
   const [uploaded, setUploaded] = useState<UploadedPreview[]>([]);
-  const [isLinkedInConnected, setIsLinkedInConnected] = useState(false);
 
-  const cards = useMemo<UploadCategory[]>(() => ['resume', 'job_description', 'cover_letter'], []);
+  const cards = useMemo<UploadCategory[]>(() => ['resume', 'cover_letter', 'job_description'], []);
 
   const onFilesSelected = (category: UploadCategory, files: File[]) => {
     if (!files.length) return;
@@ -236,50 +294,30 @@ export default function IngestionClient() {
 
   return (
     <div className="min-h-svh w-full" style={{ background: CANVAS_BG }}>
-      <main className="mx-auto w-full max-w-[1160px] px-6 pb-16 pt-12">
+      {/* Top lavender strip (new). Keep the existing header elsewhere unchanged. */}
+      <div className="w-full" style={{ background: LAVENDER_STRIP }}>
+        <div className="mx-auto flex h-[40px] w-full max-w-[1160px] items-center px-6">
+          <div className="text-[15px] font-semibold" style={{ color: TEXT_PRIMARY }}>
+            Build your persona
+          </div>
+        </div>
+      </div>
+
+      <main className="mx-auto w-full max-w-[1160px] px-6 pb-16 pt-10">
         {/* Cards row */}
         <section className="flex flex-col items-center">
-          <div className="flex w-full flex-wrap items-start justify-center gap-6">
+          <div className="grid w-full max-w-[980px] grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
             {cards.map((category) => (
               <UploadCard key={category} category={category} onFilesSelected={onFilesSelected} />
             ))}
           </div>
 
-          {/* LinkedIn hint + connect */}
-          <div className="mt-9 max-w-[860px] text-center text-[12.5px]" style={{ color: TEXT_SECONDARY }}>
-            We recommend connecting your LinkedIn profile to improve persona accuracy
-          </div>
-
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={() => setIsLinkedInConnected((v) => !v)}
-              className="inline-flex h-[32px] items-center justify-center gap-2 rounded-full border px-4 text-[12.5px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(124,58,237,0.35)] focus-visible:ring-offset-2"
-              style={{
-                background: isLinkedInConnected ? LAVENDER : '#FFFFFF',
-                borderColor: isLinkedInConnected ? PURPLE : BORDER_SUBTLE,
-                color: isLinkedInConnected ? PURPLE : TEXT_PRIMARY,
-              }}
-              aria-pressed={isLinkedInConnected}
-              aria-label={isLinkedInConnected ? 'LinkedIn connected' : 'Connect to LinkedIn'}
-            >
-              {isLinkedInConnected ? (
-                <>
-                  <CheckCircle2 className="h-[16px] w-[16px]" style={{ color: PURPLE }} />
-                  Connected
-                </>
-              ) : (
-                <>
-                  <Linkedin className="h-[16px] w-[16px]" style={{ color: TEXT_SECONDARY }} />
-                  Connect to LinkedIn
-                </>
-              )}
-            </button>
-          </div>
+          {/* LinkedIn (dummy interaction) */}
+          <LinkedInConnect />
         </section>
 
-        {/* Uploaded list */}
-        <section className="mx-auto mt-9 w-full max-w-[980px]">
+        {/* Uploaded list (animated) */}
+        <section className="mx-auto mt-10 w-full max-w-[980px]">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[13.5px] font-semibold" style={{ color: TEXT_PRIMARY }}>
               Uploaded files
@@ -297,8 +335,8 @@ export default function IngestionClient() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 6 }}
                 transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-                className="rounded-[12px] border p-4 text-center text-[12.5px]"
-                style={{ background: '#FFFFFF', borderColor: BORDER_SUBTLE, color: TEXT_SECONDARY }}
+                className="rounded-[12px] border bg-white p-4 text-center text-[12.5px]"
+                style={{ borderColor: BORDER_SUBTLE, color: TEXT_SECONDARY }}
               >
                 No files uploaded yet. Use any card above to add a file.
               </motion.div>
@@ -309,24 +347,21 @@ export default function IngestionClient() {
                     <motion.li
                       key={item.id}
                       layout
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -6 }}
+                      initial={{ opacity: 0, y: 8, scale: 0.99 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
                       transition={{ duration: 0.26, ease: [0.2, 0.8, 0.2, 1] }}
-                      className="rounded-[12px] border p-3"
-                      style={{ background: PANEL_BG, borderColor: BORDER_SUBTLE }}
+                      className="rounded-[12px] border bg-white p-3"
+                      style={{ borderColor: BORDER_SUBTLE, boxShadow: '0 8px 24px rgba(0,0,0,0.06)' }}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-3">
                           <div
-                            className="flex h-[32px] w-[32px] items-center justify-center rounded-[10px] border"
-                            style={{
-                              background: '#FFFFFF',
-                              borderColor: 'rgba(124,58,237,0.18)',
-                            }}
+                            className="flex h-[32px] w-[32px] items-center justify-center rounded-[10px] border bg-white"
+                            style={{ borderColor: 'rgba(139,92,246,0.20)' }}
                             aria-hidden="true"
                           >
-                            <FileText className="h-[16px] w-[16px]" style={{ color: PURPLE }} />
+                            <FileText className="h-[16px] w-[16px]" style={{ color: ACCENT_PURPLE }} />
                           </div>
 
                           <div className="min-w-0">
@@ -334,7 +369,13 @@ export default function IngestionClient() {
                               {item.file.name}
                             </div>
                             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11.5px]" style={{ color: TEXT_MUTED }}>
-                              <span className="rounded-full px-2 py-0.5" style={{ background: 'rgba(124,58,237,0.10)', color: PURPLE }}>
+                              <span
+                                className="rounded-full px-2 py-0.5"
+                                style={{
+                                  background: 'rgba(139,92,246,0.10)',
+                                  color: ACCENT_PURPLE,
+                                }}
+                              >
                                 {categoryLabel(item.category)}
                               </span>
                               <span>{getFileExtLabel(item.file.name)}</span>
@@ -347,7 +388,7 @@ export default function IngestionClient() {
                         <div className="flex flex-shrink-0 items-center gap-2">
                           <span
                             className="rounded-full px-3 py-1 text-[11.5px] font-semibold"
-                            style={{ background: LAVENDER, color: PURPLE }}
+                            style={{ background: 'rgba(20,184,166,0.12)', color: ACCENT_TEAL }}
                           >
                             Uploaded
                           </span>
@@ -355,7 +396,7 @@ export default function IngestionClient() {
                           <button
                             type="button"
                             onClick={() => removePreview(item.id)}
-                            className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(124,58,237,0.35)] focus-visible:ring-offset-2"
+                            className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(20,184,166,0.30)] focus-visible:ring-offset-2"
                             style={{ color: TEXT_SECONDARY }}
                             aria-label={`Remove ${item.file.name}`}
                             title="Remove"
