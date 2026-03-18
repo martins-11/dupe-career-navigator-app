@@ -36,21 +36,21 @@ function DunesPanelArt() {
     <svg aria-hidden="true" viewBox="0 0 560 520" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid slice">
       <defs>
         <linearGradient id="cnLoginSky" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="#726A8E" />
-          <stop offset="45%" stopColor="#5B5572" />
-          <stop offset="100%" stopColor="#3C3947" />
+          <stop offset="0%" stopColor="#6D6AD2" />
+          <stop offset="55%" stopColor="#3A3578" />
+          <stop offset="100%" stopColor="#1F1C2A" />
         </linearGradient>
 
         <linearGradient id="cnLoginDune1" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="#6D57FF" stopOpacity="0.35" />
-          <stop offset="55%" stopColor="#4A445A" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#2F2C36" stopOpacity="1" />
+          <stop offset="0%" stopColor="#6B5BDA" stopOpacity="0.35" />
+          <stop offset="55%" stopColor="#2F2C3A" stopOpacity="0.92" />
+          <stop offset="100%" stopColor="#1F1C2A" stopOpacity="1" />
         </linearGradient>
 
         <linearGradient id="cnLoginDune2" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#8B7CFF" stopOpacity="0.20" />
-          <stop offset="55%" stopColor="#4A445A" stopOpacity="0.90" />
-          <stop offset="100%" stopColor="#2A2730" stopOpacity="1" />
+          <stop offset="0%" stopColor="#B7AEFF" stopOpacity="0.16" />
+          <stop offset="55%" stopColor="#2F2C3A" stopOpacity="0.90" />
+          <stop offset="100%" stopColor="#24212F" stopOpacity="1" />
         </linearGradient>
 
         <filter id="cnLoginGlow" x="-20%" y="-20%" width="140%" height="140%">
@@ -69,9 +69,9 @@ function DunesPanelArt() {
 
       <rect width="560" height="520" fill="url(#cnLoginSky)" />
 
-      {/* soft highlight */}
-      <circle cx="150" cy="130" r="110" fill="#FFFFFF" opacity="0.10" filter="url(#cnLoginGlow)" />
-      <circle cx="420" cy="190" r="130" fill="#6D57FF" opacity="0.14" filter="url(#cnLoginGlow)" />
+      {/* soft highlights */}
+      <circle cx="150" cy="130" r="110" fill="#FFFFFF" opacity="0.09" filter="url(#cnLoginGlow)" />
+      <circle cx="420" cy="190" r="130" fill="#6B5BDA" opacity="0.14" filter="url(#cnLoginGlow)" />
 
       {/* dunes */}
       <path
@@ -155,43 +155,42 @@ export default function LoginClient() {
         aria-hidden="true"
         className="absolute inset-0 -z-10"
         style={{
-          background: 'linear-gradient(120deg, #5b5572 0%, #4a445a 45%, #3c3947 100%)',
-        }}
-      />
-      <div
-        aria-hidden="true"
-        className="absolute inset-0 -z-10"
-        style={{
-          background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.06), transparent 55%)',
+          background:
+            'radial-gradient(circle at 50% 26%, rgba(255,255,255,0.06), transparent 52%), linear-gradient(135deg, #6D687B 0%, #5B5572 46%, #3C3947 100%)',
         }}
       />
 
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-[980px] items-center justify-center">
         <section
           aria-label="Login"
-          className="w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+          className="w-full overflow-hidden rounded-2xl border shadow-[0_16px_40px_rgba(10,8,20,0.45)]"
+          style={{
+            backgroundColor: '#2F2C3A',
+            borderColor: '#4A465C',
+          }}
         >
           <div className="grid grid-cols-1 md:grid-cols-[0.46fr_0.54fr]">
             {/* Left panel (media) */}
             <div className="p-4">
-              <div className="relative h-[260px] overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.35)] md:h-[440px]">
+              <div className="relative h-[260px] overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(10,8,20,0.35)] md:h-[440px]">
                 <DunesPanelArt />
                 <div
                   className="absolute inset-0"
                   style={{
                     background:
-                      'linear-gradient(to bottom, rgba(0,0,0,0.10), rgba(0,0,0,0.00) 55%, rgba(0,0,0,0.35))',
+                      'linear-gradient(to bottom, rgba(0,0,0,0.10), rgba(0,0,0,0.00) 55%, rgba(0,0,0,0.38))',
                   }}
                 />
 
                 <div className="relative flex h-full flex-col p-4">
                   <div className="text-xs font-semibold tracking-wide text-white/90">Career Navigator</div>
 
+                  {/* Keep the career/success-oriented quote copy (requested), while restoring colors */}
                   <div className="mt-auto pb-1 text-center">
                     <p className="text-sm font-semibold leading-snug text-white/95">
-                      Capturing Moments,
+                      Chart Your Career,
                       <br />
-                      <span className="text-xs font-medium text-white/75">Creating Memories</span>
+                      <span className="text-xs font-medium text-white/75">Create Your Success</span>
                     </p>
                   </div>
                 </div>
@@ -203,8 +202,21 @@ export default function LoginClient() {
               <div className="flex items-start justify-end">
                 <a
                   href="/"
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/75 transition-colors hover:bg-white/10 hover:text-white/90"
+                  className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors"
+                  style={{
+                    backgroundColor: '#24212F',
+                    borderColor: '#4A465C',
+                    color: 'rgba(255,255,255,0.72)',
+                  }}
                   onClick={(e) => e.preventDefault()}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#2A2736';
+                    (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.86)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '#24212F';
+                    (e.currentTarget as HTMLAnchorElement).style.color = 'rgba(255,255,255,0.72)';
+                  }}
                 >
                   Back to website
                 </a>
@@ -227,9 +239,13 @@ export default function LoginClient() {
               {/* Role switch (segmented control) */}
               <div className="mt-5">
                 <div
-                  className="inline-flex w-full rounded-full border border-white/10 bg-white/5 p-1"
+                  className="inline-flex w-full rounded-full border p-1"
                   role="tablist"
                   aria-label="Role"
+                  style={{
+                    backgroundColor: '#24212F',
+                    borderColor: '#4A465C',
+                  }}
                 >
                   <button
                     type="button"
@@ -237,10 +253,10 @@ export default function LoginClient() {
                     aria-selected={role === 'user'}
                     className={[
                       'h-8 flex-1 rounded-full text-[11px] font-semibold transition',
-                      role === 'user' ? 'text-white shadow-sm' : 'text-white/65 hover:text-white/85',
+                      role === 'user' ? 'text-white' : 'text-white/65 hover:text-white/85',
                     ].join(' ')}
                     style={{
-                      background: role === 'user' ? 'rgba(109,87,255,0.35)' : 'transparent',
+                      background: role === 'user' ? '#3A3748' : 'transparent',
                     }}
                     onClick={() => setRole('user')}
                   >
@@ -252,10 +268,10 @@ export default function LoginClient() {
                     aria-selected={role === 'admin'}
                     className={[
                       'h-8 flex-1 rounded-full text-[11px] font-semibold transition',
-                      role === 'admin' ? 'text-white shadow-sm' : 'text-white/65 hover:text-white/85',
+                      role === 'admin' ? 'text-white' : 'text-white/65 hover:text-white/85',
                     ].join(' ')}
                     style={{
-                      background: role === 'admin' ? 'rgba(109,87,255,0.35)' : 'transparent',
+                      background: role === 'admin' ? '#3A3748' : 'transparent',
                     }}
                     onClick={() => setRole('admin')}
                   >
@@ -274,7 +290,12 @@ export default function LoginClient() {
                     required
                     placeholder="Email"
                     autoComplete="email"
-                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] text-white/90 outline-none placeholder:text-white/40 transition focus:border-[#6D57FF] focus:ring-4 focus:ring-[rgba(109,87,255,0.25)]"
+                    className="h-10 w-full rounded-lg border px-4 text-[12px] outline-none transition"
+                    style={{
+                      backgroundColor: '#3A3748',
+                      borderColor: '#4A465C',
+                      color: 'rgba(255,255,255,0.90)',
+                    }}
                   />
                 </label>
 
@@ -287,9 +308,25 @@ export default function LoginClient() {
                     required
                     placeholder="Password"
                     autoComplete="current-password"
-                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] text-white/90 outline-none placeholder:text-white/40 transition focus:border-[#6D57FF] focus:ring-4 focus:ring-[rgba(109,87,255,0.25)]"
+                    className="h-10 w-full rounded-lg border px-4 text-[12px] outline-none transition"
+                    style={{
+                      backgroundColor: '#3A3748',
+                      borderColor: '#4A465C',
+                      color: 'rgba(255,255,255,0.90)',
+                    }}
                   />
                 </label>
+
+                {/* Focus styling (kept local, without changing behavior) */}
+                <style jsx>{`
+                  input::placeholder {
+                    color: rgba(255, 255, 255, 0.55);
+                  }
+                  input:focus {
+                    border-color: #6b5bda !important;
+                    box-shadow: 0 0 0 4px rgba(107, 91, 218, 0.25);
+                  }
+                `}</style>
 
                 <div className="pt-1">
                   <label className="inline-flex items-center gap-2 text-[11px] font-medium text-white/70">
@@ -297,7 +334,11 @@ export default function LoginClient() {
                       type="checkbox"
                       checked={agreed}
                       onChange={(e) => setAgreed(e.target.checked)}
-                      className="h-4 w-4 rounded border-white/20 bg-white/5 text-[#6D57FF] focus:ring-4 focus:ring-[rgba(109,87,255,0.25)]"
+                      className="h-4 w-4 rounded border text-[#6B5BDA]"
+                      style={{
+                        backgroundColor: '#24212F',
+                        borderColor: 'rgba(255,255,255,0.22)',
+                      }}
                     />
                     I agree to the{' '}
                     <a href="/login" className="font-semibold text-white/85 hover:underline" onClick={(e) => e.preventDefault()}>
@@ -308,10 +349,18 @@ export default function LoginClient() {
 
                 <button
                   type="submit"
-                  className="mt-1 inline-flex h-10 w-full items-center justify-center rounded-lg text-[12px] font-bold text-white transition focus:outline-none focus:ring-4 focus:ring-[rgba(109,87,255,0.25)]"
+                  className="mt-1 inline-flex h-10 w-full items-center justify-center rounded-lg text-[12px] font-bold text-white transition focus:outline-none"
                   style={{
-                    background: '#6D57FF',
-                    boxShadow: '0 10px 30px rgba(109,87,255,0.25)',
+                    background: '#6B5BDA',
+                    boxShadow: '0 10px 30px rgba(107, 91, 218, 0.25)',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = '#7868E6';
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 10px 30px rgba(107, 91, 218, 0.35)';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = '#6B5BDA';
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 10px 30px rgba(107, 91, 218, 0.25)';
                   }}
                 >
                   Create account
@@ -320,10 +369,16 @@ export default function LoginClient() {
                 {/* Divider */}
                 <div className="relative py-2">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/10" />
+                    <div className="w-full border-t" style={{ borderColor: 'rgba(255,255,255,0.10)' }} />
                   </div>
                   <div className="relative flex justify-center">
-                    <span className="bg-[rgba(255,255,255,0.05)] px-3 text-[11px] font-medium text-white/60">
+                    <span
+                      className="px-3 text-[11px] font-medium"
+                      style={{
+                        backgroundColor: '#2F2C3A',
+                        color: 'rgba(255,255,255,0.60)',
+                      }}
+                    >
                       Or continue with
                     </span>
                   </div>
@@ -333,14 +388,36 @@ export default function LoginClient() {
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 text-[11px] font-semibold text-white/85 transition hover:bg-white/10 hover:-translate-y-[1px]"
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border text-[11px] font-semibold transition hover:-translate-y-[1px]"
+                    style={{
+                      backgroundColor: '#24212F',
+                      borderColor: '#4A465C',
+                      color: 'rgba(255,255,255,0.85)',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#2A2736';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#24212F';
+                    }}
                   >
                     <GoogleIcon className="h-4 w-4" />
                     Google
                   </button>
                   <button
                     type="button"
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 text-[11px] font-semibold text-white/85 transition hover:bg-white/10 hover:-translate-y-[1px]"
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border text-[11px] font-semibold transition hover:-translate-y-[1px]"
+                    style={{
+                      backgroundColor: '#24212F',
+                      borderColor: '#4A465C',
+                      color: 'rgba(255,255,255,0.85)',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#2A2736';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#24212F';
+                    }}
                   >
                     <AppleIcon className="h-4 w-4 text-white" />
                     Apple
