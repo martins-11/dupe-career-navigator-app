@@ -1,3 +1,5 @@
+import { Suspense } from 'react';
+
 import LoginClient from './LoginClient';
 
 /**
@@ -5,7 +7,13 @@ import LoginClient from './LoginClient';
  *
  * Renders a dual-panel (media + form) glassmorphism login page inspired by cn_login.png.
  * The interactive role switch (User/Admin) is implemented in a client component.
+ *
+ * NOTE: LoginClient uses `useSearchParams()`, which requires a Suspense boundary.
  */
 export default function LoginPage() {
-  return <LoginClient />;
+  return (
+    <Suspense fallback={<div className="min-h-screen w-full bg-black" />}>
+      <LoginClient />
+    </Suspense>
+  );
 }
