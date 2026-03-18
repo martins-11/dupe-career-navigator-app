@@ -34,7 +34,8 @@ export default function ExploreClient() {
   const [selectedTitle, setSelectedTitle] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [salaryRange, setSalaryRange] = useState<[number, number]>([0, 200]);
+  // Keep in sync with <Filters /> slider (0–60L).
+  const [salaryRange, setSalaryRange] = useState<[number, number]>([0, 60]);
 
   // --- Options Data State ---
   const [industryOptions, setIndustryOptions] = useState<string[]>([]);
@@ -309,7 +310,9 @@ export default function ExploreClient() {
                   filters={{
                     industry: selectedIndustry,
                     skills: selectedSkills,
+                    // Note: selectedTitle is driven by the SearchBar; if populated, we treat it as an optional title filter here.
                     title: selectedTitle,
+                    salaryRange,
                   }}
                 />
               )}

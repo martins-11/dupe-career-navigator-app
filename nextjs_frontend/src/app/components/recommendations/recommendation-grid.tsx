@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/apiClient";
 import RoleCard from "../explore/role-card";
 
@@ -20,15 +20,104 @@ interface RecommendationGridProps {
     industry?: string;
     skills?: string[];
     title?: string;
+    salaryRange?: [number, number];
   };
 }
 
+function normString(v: unknown): string {
+  return String(v ?? "").trim();
+}
+
+function safeStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => normString(x)).filter(Boolean);
+}
+
+function parseSalaryRangeToLakhs(role: any): { min: number | null; max: number | null } {
+  /**
+   * Best-effort parsing. If it fails we return nulls and salary filter becomes non-blocking
+   * (i.e., role won't be excluded solely due to missing/unknown salary).
+   *
+   * NOTE: Many seed payloads store salary_range as text (e.g. "10-18 LPA").
+   */
+  const raw = normString(role?.salary_range ?? role?.salaryRange ?? role?.salary);
+  if (!raw) return { min: null, max: null };
+
+  const nums = raw
+    .replace(/,/g, "")
+    .match(/\d+(\.\d+)?/g)
+    ?.map((s) => Number(s))
+    .filter((n) => Number.isFinite(n));
+
+  if (!nums || nums.length === 0) return { min: null, max: null };
+  if (nums.length === 1) return { min: nums[0], max: nums[0] };
+
+  return { min: Math.min(...nums), max: Math.max(...nums) };
+}
+
+function roleTitleFromRole(role: any): string {
+  return normString(role?.title ?? role?.role_title ?? role?.roleTitle);
+}
+
+function roleMatchesFilters(params: {
+  role: any;
+  selectedIndustry: string;
+  selectedSkills: string[];
+  salaryRange: [number, number];
+  titleQuery: string;
+}): boolean {
+  const { role, selectedIndustry, selectedSkills, salaryRange, titleQuery } = params;
+
+  if (titleQuery) {
+    const roleTitle = roleTitleFromRole(role).toLowerCase();
+    if (!roleTitle.includes(titleQuery.toLowerCase())) return false;
+  }
+
+  if (selectedIndustry) {
+    const industry = normString(role?.industry);
+    if (!industry) return false;
+    if (industry.toLowerCase() !== selectedIndustry.toLowerCase()) return false;
+  }
+
+  if (selectedSkills.length > 0) {
+    const roleSkills = [
+      ...safeStringArray(role?.skills_required),
+      ...safeStringArray(role?.required_skills),
+      ...safeStringArray(role?.skills),
+    ].map((s) => s.toLowerCase());
+
+    // Require ALL selected skills to be present (matches ExploreMindmapView behavior).
+    for (const s of selectedSkills) {
+      const key = s.trim().toLowerCase();
+      if (!key) continue;
+      if (!roleSkills.some((rs) => rs.includes(key))) return false;
+    }
+  }
+
+  // Salary filter (only enforced if we can parse salary data)
+  const salary = parseSalaryRangeToLakhs(role);
+  if (salary.min !== null && salary.max !== null) {
+    const [minWanted, maxWanted] = salaryRange;
+    const overlaps = salary.max >= minWanted && salary.min <= maxWanted;
+    if (!overlaps) return false;
+  }
+
+  return true;
+}
+
+// PUBLIC_INTERFACE
 export function RecommendationGrid({
   personaId,
   showAnalysis = false,
   onViewAnalysis,
   filters = {},
 }: RecommendationGridProps) {
+  /**
+   * Cards view of AI recommendations.
+   *
+   * IMPORTANT: This component now applies the same filters used by Explore Mind Map,
+   * so Cards and Mind Map stay in sync.
+   */
   const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,12 +167,8 @@ export function RecommendationGrid({
         }
 
         if (!cancelled) {
-          // Accept either { roles: [...] } or just [...].
+          // Accept either { roles: [...] } or just [...]. Keep up to 5 like the existing UI.
           const primaryRoles = (Array.isArray(data) ? data : data?.roles || []).filter(Boolean);
-
-          // Do NOT mix in fallback roles by default.
-          // The backend is responsible for meeting the minimum-5 requirement either via Bedrock retries
-          // or via explicit padding policy (allowPadding=true).
           const MIN_ROLES = 5;
           setRoles(primaryRoles.slice(0, MIN_ROLES));
         }
@@ -104,6 +189,48 @@ export function RecommendationGrid({
     };
   }, [personaId]);
 
+  const filteredRoles = useMemo(() => {
+    const selectedIndustry = normString(filters.industry);
+    const selectedSkills = Array.isArray(filters.skills) ? filters.skills : [];
+    const titleQuery = normString(filters.title);
+    const salaryRange = Array.isArray(filters.salaryRange) ? filters.salaryRange : ([0, 60] as [number, number]);
+
+    // Fast path: no filters → return as-is.
+    const hasAnyFilter =
+      Boolean(titleQuery) ||
+      Boolean(selectedIndustry) ||
+      (selectedSkills?.length ?? 0) > 0 ||
+      (salaryRange?.[0] ?? 0) !== 0 ||
+      (salaryRange?.[1] ?? 60) !== 60;
+
+    if (!hasAnyFilter) return roles;
+
+    return roles.filter((r) =>
+      roleMatchesFilters({
+        role: r,
+        selectedIndustry,
+        selectedSkills,
+        salaryRange,
+        titleQuery,
+      }),
+    );
+  }, [roles, filters.industry, filters.skills, filters.title, filters.salaryRange]);
+
+  // If filters change and the expanded card is no longer visible, collapse it.
+  useEffect(() => {
+    if (!expandedRoleId) return;
+
+    const stillVisible = filteredRoles.some((role: any, idx: number) => {
+      const derivedIdRaw =
+        role?.id ?? role?.role_id ?? role?.onet_id ?? role?.code ?? role?.title ?? role?.role_title;
+      const derivedId = String(derivedIdRaw ?? "").trim();
+      const stableUniqueId = derivedId !== "" ? derivedId : `role-${idx}`;
+      return stableUniqueId === expandedRoleId;
+    });
+
+    if (!stillVisible) setExpandedRoleId(null);
+  }, [expandedRoleId, filteredRoles]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
@@ -122,10 +249,18 @@ export function RecommendationGrid({
     );
   }
 
-  if (!roles || roles.length === 0) {
+  if (!filteredRoles || filteredRoles.length === 0) {
+    const hasFilters =
+      Boolean(normString(filters.title)) ||
+      Boolean(normString(filters.industry)) ||
+      (Array.isArray(filters.skills) && filters.skills.length > 0) ||
+      (Array.isArray(filters.salaryRange) && (filters.salaryRange[0] !== 0 || filters.salaryRange[1] !== 60));
+
     return (
       <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-        <p className="text-slate-400 font-medium text-lg">No roles found matching your persona profile.</p>
+        <p className="text-slate-400 font-medium text-lg">
+          {hasFilters ? "No roles match the active filters." : "No roles found matching your persona profile."}
+        </p>
       </div>
     );
   }
@@ -133,7 +268,7 @@ export function RecommendationGrid({
   return (
     <div className="space-y-12">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {roles.map((role: any, idx: number) => {
+        {filteredRoles.map((role: any, idx: number) => {
           /**
            * Recommendation payloads sometimes use role_id/role_title naming, while the Explore
            * RoleCard supports both role_title + title, role_id + id, etc.

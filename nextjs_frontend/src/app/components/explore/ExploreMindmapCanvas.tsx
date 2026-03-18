@@ -164,6 +164,12 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
 
   const onPointerDown = (evt: React.PointerEvent<SVGSVGElement>) => {
     if (evt.button !== 0) return;
+
+    // If the pointerdown originated on a node, do NOT start panning/capture the pointer.
+    // Capturing on the SVG can cause the click event to be retargeted, which breaks node selection.
+    const target = evt.target as any;
+    if (target?.closest?.('[data-explore-mindmap-node="true"]')) return;
+
     setIsPanning(true);
     (evt.currentTarget as any).setPointerCapture?.(evt.pointerId);
     panStart.current = { x: evt.clientX, y: evt.clientY, panX: viewport.panX, panY: viewport.panY };
@@ -247,6 +253,7 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                 <g
                   key={n.id}
                   transform={`translate(${p.x}, ${p.y})`}
+                  data-explore-mindmap-node="true"
                   onClick={(evt) => {
                     evt.stopPropagation();
                     onNodeClick(n.id);
@@ -292,6 +299,7 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
               <g
                 key={n.id}
                 transform={`translate(${p.x}, ${p.y})`}
+                data-explore-mindmap-node="true"
                 onClick={(evt) => {
                   evt.stopPropagation();
                   onNodeClick(n.id);

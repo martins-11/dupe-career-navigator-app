@@ -219,6 +219,13 @@ export function ExploreMindmapView(props: {
     };
   }, [filteredRoles, currentRoleTitle]);
 
+  // If filters change and the selected node disappears, clear selection so the details panel doesn't look "stuck".
+  React.useEffect(() => {
+    if (!selectedNodeId) return;
+    const idSet = new Set(nodes.map((n) => n.id));
+    if (!idSet.has(selectedNodeId)) setSelectedNodeId(null);
+  }, [nodes, selectedNodeId]);
+
   const selectedRole = selectedNodeId && selectedNodeId !== 'current' ? roleByNodeId.get(selectedNodeId) ?? null : null;
 
   return (
@@ -254,8 +261,8 @@ export function ExploreMindmapView(props: {
         <ExploreMindmapDetailsPanel
           selectedRole={selectedRole}
           personaId={personaId}
-          loading={false}
-          error={null}
+          loading={loading}
+          error={error}
           onClose={() => setSelectedNodeId(null)}
         />
       </div>
