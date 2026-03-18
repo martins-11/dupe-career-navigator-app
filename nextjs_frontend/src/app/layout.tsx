@@ -18,8 +18,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   /** Root layout for the Next.js App Router application. */
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className="cn-app-bg">
+      <body className="cn-app-bg">{children}</body>
     </html>
   );
 }

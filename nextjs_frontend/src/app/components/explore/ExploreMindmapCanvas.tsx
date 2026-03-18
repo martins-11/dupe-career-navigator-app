@@ -71,7 +71,6 @@ function computeRadialLayout(nodes: ExploreMindmapNode[]) {
   const positions = new Map<string, { x: number; y: number }>();
   if (center) positions.set(center.id, { x: 0, y: 0 });
 
-  // Stable order by title for deterministic layout.
   const ordered = [...recommended].sort((a, b) => a.title.localeCompare(b.title));
 
   ordered.forEach((n, idx) => {
@@ -88,11 +87,10 @@ function computeRadialLayout(nodes: ExploreMindmapNode[]) {
 // PUBLIC_INTERFACE
 export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
   /**
-   * SVG renderer for Explore mind map:
-   * - centered "current role" node
-   * - recommended roles branching around
-   * - click a node to open details panel
-   * - zoom/pan with persisted viewport (provided by parent)
+   * SVG renderer for Explore mind map (palette-constrained):
+   * - current role: primary circle
+   * - recommended roles: slate pills
+   * - connectors: primary alpha
    */
   const { nodes, edges, selectedNodeId, viewport, onViewportChange, onNodeClick } = props;
 
@@ -103,7 +101,6 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
   const positions = React.useMemo(() => computeRadialLayout(nodes), [nodes]);
 
   const viewBox = React.useMemo(() => {
-    // Large enough canvas for most mindmaps; viewport zoom/pan handle the rest.
     const baseW = 1200;
     const baseH = 760;
     const z = clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM);
@@ -152,7 +149,7 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
 
       onViewportChange({ panX: nextPanX, panY: nextPanY, zoom: nextZoom });
     },
-    [onViewportChange, viewBox, viewport.zoom]
+    [onViewportChange, viewBox, viewport.zoom],
   );
 
   React.useEffect(() => {
@@ -165,8 +162,6 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
   const onPointerDown = (evt: React.PointerEvent<SVGSVGElement>) => {
     if (evt.button !== 0) return;
 
-    // If the pointerdown originated on a node, do NOT start panning/capture the pointer.
-    // Capturing on the SVG can cause the click event to be retargeted, which breaks node selection.
     const target = evt.target as any;
     if (target?.closest?.('[data-explore-mindmap-node="true"]')) return;
 
@@ -200,7 +195,7 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
   const centerNode = nodes.find((n) => n.kind === 'current') ?? nodes[0];
 
   return (
-    <div className="w-full h-full rounded-2xl overflow-hidden flex flex-col min-h-0" style={{ background: '#fff' }}>
+    <div className="w-full h-full rounded-2xl overflow-hidden flex flex-col min-h-0 bg-background border border-border">
       <svg
         ref={svgRef}
         className="w-full flex-1 min-h-0 touch-none"
@@ -212,7 +207,6 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
         aria-label="Explore mind map"
         style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
       >
-        {/* edges */}
         <g aria-hidden="true">
           {edges.map((e, idx) => {
             const a = positions.get(e.source);
@@ -230,14 +224,13 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                 key={`${e.source}-${e.target}-${idx}`}
                 d={`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`}
                 fill="none"
-                stroke="rgba(13,148,136,0.35)"
+                stroke={`rgba(var(--cn-primary-rgb), 0.35)`}
                 strokeWidth={2}
               />
             );
           })}
         </g>
 
-        {/* nodes */}
         <g>
           {nodes.map((n) => {
             const p = positions.get(n.id);
@@ -249,6 +242,7 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
             if (isCenter) {
               const r = 56;
               const lines = wrapLabel(n.title, 18, 2);
+
               return (
                 <g
                   key={n.id}
@@ -261,10 +255,15 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                   style={{ cursor: 'pointer' }}
                   aria-label={`Current role: ${n.title}`}
                 >
-                  <circle r={r} fill="#0D9488" stroke={isSelected ? 'rgba(13,148,136,0.9)' : 'rgba(0,0,0,0)'} strokeWidth={isSelected ? 4 : 0} />
+                  <circle
+                    r={r}
+                    fill="var(--primary)"
+                    stroke={isSelected ? `rgba(var(--cn-primary-rgb), 0.95)` : 'rgba(0,0,0,0)'}
+                    strokeWidth={isSelected ? 4 : 0}
+                  />
                   <text
                     fontSize={12}
-                    fill="#FFFFFF"
+                    fill="var(--cn-white)"
                     textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800, opacity: 0.98 }}
                     y={-2}
@@ -277,7 +276,7 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                   </text>
                   <text
                     fontSize={10}
-                    fill="rgba(255,255,255,0.85)"
+                    fill={`rgba(var(--cn-white-rgb), 0.85)`}
                     textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 700 }}
                     y={28}
@@ -313,12 +312,17 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                   width={w}
                   height={h}
                   rx={rx}
-                  fill="#0F172A"
-                  stroke={isSelected ? 'rgba(13,148,136,0.9)' : 'rgba(0,0,0,0)'}
+                  fill="var(--cn-slate)"
+                  stroke={isSelected ? `rgba(var(--cn-primary-rgb), 0.95)` : 'rgba(0,0,0,0)'}
                   strokeWidth={isSelected ? 3 : 0}
                   opacity={0.96}
                 />
-                <text fontSize={12} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }}>
+                <text
+                  fontSize={12}
+                  fill="var(--cn-white)"
+                  textAnchor="middle"
+                  style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }}
+                >
                   {lines.map((ln, i) => (
                     <tspan key={i} x={0} y={labelStartY + i * lineHeight}>
                       {ln}
@@ -331,12 +335,11 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
         </g>
       </svg>
 
-      {/* Controls */}
-      <div className="px-4 py-3 flex items-center justify-end gap-2 text-xs" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+      <div className="px-4 py-3 flex items-center justify-end gap-2 text-xs border-t border-border">
         <button
           type="button"
-          className="px-2 py-1 rounded-md border bg-white"
-          style={{ borderColor: 'rgba(0,0,0,0.10)', color: '#4B6572' }}
+          className="px-2 py-1 rounded-md border bg-background text-foreground"
+          style={{ borderColor: 'var(--border)' }}
           onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.12, MIN_ZOOM, MAX_ZOOM) })}
           disabled={clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) <= MIN_ZOOM + 1e-6}
           aria-label="Zoom out"
@@ -347,8 +350,8 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
 
         <button
           type="button"
-          className="px-2 py-1 rounded-md border bg-white"
-          style={{ borderColor: 'rgba(0,0,0,0.10)', color: '#4B6572' }}
+          className="px-2 py-1 rounded-md border bg-background text-foreground"
+          style={{ borderColor: 'var(--border)' }}
           onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom * 1.12, MIN_ZOOM, MAX_ZOOM) })}
           disabled={clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) >= MAX_ZOOM - 1e-6}
           aria-label="Zoom in"
@@ -359,8 +362,8 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
 
         <button
           type="button"
-          className="px-2 py-1 rounded-md border bg-white"
-          style={{ borderColor: 'rgba(0,0,0,0.10)', color: '#4B6572' }}
+          className="px-2 py-1 rounded-md border bg-background text-foreground"
+          style={{ borderColor: 'var(--border)' }}
           onClick={() => onViewportChange({ panX: 0, panY: 0, zoom: 1 })}
           aria-label="Reset view"
           title="Reset view"
@@ -368,11 +371,8 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
           Reset
         </button>
 
-        <div className="tabular-nums ml-2" style={{ color: '#4B6572' }}>
-          Zoom:{' '}
-          <span className="font-semibold" style={{ color: '#1E2B32' }}>
-            {Math.round(clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) * 100)}%
-          </span>
+        <div className="tabular-nums ml-2 text-muted-foreground">
+          Zoom: <span className="font-semibold text-foreground">{Math.round(clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) * 100)}%</span>
         </div>
       </div>
     </div>

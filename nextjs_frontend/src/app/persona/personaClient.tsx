@@ -40,13 +40,11 @@ export default function PersonaClient() {
         const res = await apiFetch(`/api/profile/roles?user_id=${encodeURIComponent(userKey)}`, { method: 'GET' });
         if (cancelled) return;
 
-        // If backend has no target role yet, fall back to localStorage so UI stays consistent.
         const targetRoleFromLocal = getTargetRoleId();
         const targetRoleId = res?.targetRole?.roleId || targetRoleFromLocal || null;
 
         setCtx({
           ...res,
-          // Optional envelope for persona JSON (draft/final) if the backend starts returning it.
           persona: res?.persona ?? null,
           targetRole: { ...(res?.targetRole || null), roleId: targetRoleId },
         });
@@ -68,8 +66,6 @@ export default function PersonaClient() {
   const currentRoleTitle = ctx?.currentRole?.currentRoleTitle || null;
   const targetRoleId = ctx?.targetRole?.roleId || null;
 
-  // Prefer persona-derived identity fields when available (draft/final persona JSON),
-  // otherwise fall back to the anonymous user key.
   const persona = ctx?.persona || null;
   const personaFullName = typeof persona?.full_name === 'string' ? persona.full_name.trim() : '';
   const personaCurrentRole =
@@ -80,44 +76,42 @@ export default function PersonaClient() {
   const displayDesignation = personaCurrentRole || currentRoleTitle || null;
 
   return (
-    <div className="px-8 py-8 bg-white min-h-screen font-sans">
+    <div className="px-8 py-8 bg-transparent min-h-screen font-sans text-foreground">
       <div className="max-w-4xl mx-auto space-y-6">
-        <header className="border-b border-slate-100 pb-6">
+        <header className="border-b border-border pb-6">
           <div className="space-y-1">
-            <div className="text-xs uppercase tracking-widest text-slate-400 font-bold">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground font-bold">
               {displayDesignation ? displayDesignation : 'Current role not detected yet'}
             </div>
-            <h1 className="text-4xl font-extrabold text-[#0D9488] tracking-tight">{displayName}</h1>
+            <h1 className="text-4xl font-extrabold text-primary tracking-tight">{displayName}</h1>
           </div>
-          <p className="text-slate-500 mt-2 text-lg">
+          <p className="text-muted-foreground mt-2 text-lg">
             Your current role is extracted from your documents during ingestion. Your target role is set from Explore.
           </p>
         </header>
 
         {loading ? (
           <div className="py-20 flex items-center justify-center">
-            <div className="w-12 h-12 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin mb-4" />
+            <div className="w-12 h-12 border-4 border-secondary border-t-primary rounded-full animate-spin mb-4" />
           </div>
         ) : error ? (
-          <div className="p-6 rounded-2xl border border-red-100 bg-red-50 text-red-700">{error}</div>
+          <div className="p-6 rounded-2xl border border-border bg-secondary text-foreground">{error}</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <section className="p-6 rounded-2xl border border-slate-200 bg-white">
-              <div className="text-xs uppercase tracking-widest text-slate-400 font-bold">Current role</div>
-              <div className="mt-2 text-xl font-bold text-slate-900">
-                {currentRoleTitle ? currentRoleTitle : 'Not detected yet'}
-              </div>
-              <div className="mt-2 text-sm text-slate-500">
+            <section className="p-6 rounded-2xl border border-border bg-background">
+              <div className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Current role</div>
+              <div className="mt-2 text-xl font-bold text-foreground">{currentRoleTitle ? currentRoleTitle : 'Not detected yet'}</div>
+              <div className="mt-2 text-sm text-muted-foreground">
                 {currentRoleTitle
                   ? 'This is used as the center node of your Mind Map.'
                   : 'Upload a resume/performance review to extract your current role.'}
               </div>
             </section>
 
-            <section className="p-6 rounded-2xl border border-slate-200 bg-white">
-              <div className="text-xs uppercase tracking-widest text-slate-400 font-bold">Target role</div>
-              <div className="mt-2 text-xl font-bold text-slate-900">{targetRoleId ? targetRoleId : '—'}</div>
-              <div className="mt-2 text-sm text-slate-500">
+            <section className="p-6 rounded-2xl border border-border bg-background">
+              <div className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Target role</div>
+              <div className="mt-2 text-xl font-bold text-foreground">{targetRoleId ? targetRoleId : '—'}</div>
+              <div className="mt-2 text-sm text-muted-foreground">
                 {targetRoleId
                   ? 'This is selected in Explore and shown in the Mind Map “Target role details” tab.'
                   : 'No target role is selected yet. Set one from Explore to see details here.'}

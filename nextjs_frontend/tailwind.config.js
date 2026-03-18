@@ -38,6 +38,52 @@ module.exports = {
         'sidebar-border': 'var(--sidebar-border)',
         'sidebar-ring': 'var(--sidebar-ring)',
       },
+
+      /**
+       * Global typography system:
+       * - Body: Segoe UI (system) for legibility
+       * - Headings: Inter for modern, high-tech feel
+       */
+      fontFamily: {
+        body: [
+          '"Segoe UI"',
+          'SegoeUI',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif',
+        ],
+        heading: [
+          'Inter',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'Arial',
+          'sans-serif',
+        ],
+
+        // Make Tailwind's default `font-sans` resolve to our body font system-wide.
+        sans: [
+          '"Segoe UI"',
+          'SegoeUI',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Helvetica Neue"',
+          'Arial',
+          'sans-serif',
+        ],
+      },
+
+      // Slightly tight tracking for headings (subtler than Tailwind's `tracking-tight`)
+      letterSpacing: {
+        heading: '-0.015em',
+      },
+
       borderRadius: {
         sm: 'calc(var(--radius) - 4px)',
         md: 'calc(var(--radius) - 2px)',

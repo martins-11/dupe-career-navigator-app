@@ -108,13 +108,15 @@ export function ExploreMindmapDetailsPanel(props: {
         : null;
 
   return (
-    <aside className="h-full rounded-2xl border border-slate-200 bg-white overflow-hidden flex flex-col">
-      <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+    <aside className="h-full rounded-2xl border border-border bg-background overflow-hidden flex flex-col">
+      <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400 font-semibold">Role details</div>
-          <div className="mt-1 text-base font-bold text-slate-900 truncate">{title || (loading ? 'Loading…' : 'Select a node')}</div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Role details</div>
+          <div className="mt-1 text-base font-bold text-foreground truncate">
+            {title || (loading ? 'Loading…' : 'Select a node')}
+          </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} disabled={!selectedRole} className="text-slate-600">
+        <Button variant="ghost" size="sm" onClick={onClose} disabled={!selectedRole} className="text-muted-foreground">
           Close
         </Button>
       </div>

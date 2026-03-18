@@ -195,7 +195,7 @@ function chooseRightPrimary(nodes: MindmapGraphNode[], levels: Map<string, numbe
  * Design-accurate layout WITH sub-branches:
  * - Left cluster: current circle + three pills fanning above + dark callouts below.
  * - Middle: CAREER TRANSITION PATHWAY dashed arrow + yellow step boxes in a single row.
- * - Right cluster: target circle + one dark callout above + green pill below.
+ * - Right cluster: target circle + one dark callout above + accent pill below.
  * - Additional nodes are placed into "sub-branches" (leftSub/rightSub) rather than hidden,
  *   and connectors are drawn according to actual edges (no fabricated relationships).
  *
@@ -600,7 +600,10 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
   }, [leftCircle?.x, rightCircle?.x, stepNodes]);
 
   return (
-    <div className="w-full h-full rounded-2xl overflow-hidden flex flex-col min-h-0" style={{ background: '#fff' }}>
+    <div
+      className="w-full h-full rounded-2xl overflow-hidden flex flex-col min-h-0"
+      style={{ background: 'var(--mindmap-bg-canvas)' }}
+    >
       <svg
         ref={svgRef}
         className="w-full flex-1 min-h-0 touch-none"
@@ -654,7 +657,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
             if (a.lane === 'bottomHidden' || b.lane === 'bottomHidden') return null;
 
             const isDimmed = dimmedNodeIds ? dimmedNodeIds.has(a.id) || dimmedNodeIds.has(b.id) : false;
-            const stroke = isDimmed ? 'rgba(44,140,147,0.22)' : 'var(--mindmap-teal-600)';
+            const stroke = isDimmed ? 'rgba(var(--cn-primary-rgb), 0.22)' : 'var(--mindmap-accent-600)';
 
             // Simple quadratic curve whose control point is biased upward for "branch" feel.
             const x1 = a.x;
@@ -695,7 +698,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
 
             const title = normString(n.title) || n.id;
 
-            const stroke = isSelected ? 'rgba(13,148,136,0.9)' : 'rgba(0,0,0,0)';
+            const stroke = isSelected ? 'rgba(var(--cn-primary-rgb), 0.9)' : 'rgba(0,0,0,0)';
             const strokeWidth = isSelected ? 3 : 0;
             const opacity = isDimmed ? 0.45 : 1;
 
@@ -718,7 +721,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                   style={{ cursor: 'pointer', opacity }}
                   aria-label={`Role node: ${title}`}
                 >
-                  <circle r={r} fill="var(--mindmap-teal-700)" stroke={stroke} strokeWidth={strokeWidth} />
+                  <circle r={r} fill="var(--mindmap-accent-700)" stroke={stroke} strokeWidth={strokeWidth} />
                   {pct ? (
                     <text fontSize={22} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }} y={6}>
                       {pct.left}
@@ -757,7 +760,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                   style={{ cursor: 'pointer', opacity }}
                   aria-label={`Target role node: ${title}`}
                 >
-                  <circle r={r} fill="var(--mindmap-teal-700)" stroke={stroke} strokeWidth={strokeWidth} />
+                  <circle r={r} fill="var(--mindmap-accent-700)" stroke={stroke} strokeWidth={strokeWidth} />
                   {pct ? (
                     <text fontSize={16} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 900 }} y={4}>
                       {pct.right ? `${pct.left} - ${pct.right}` : pct.left}
@@ -812,7 +815,12 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                   {isSelected ? (
                     <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={rx} fill="none" stroke={stroke} strokeWidth={strokeWidth} />
                   ) : null}
-                  <text fontSize={11} fill="#1E2B32" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }}>
+                  <text
+                    fontSize={11}
+                    fill="var(--cn-ink)"
+                    textAnchor="middle"
+                    style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }}
+                  >
                     {lines.map((ln, i) => (
                       <tspan key={i} x={0} y={labelStartY + i * lineHeight}>
                         {ln}
@@ -840,7 +848,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                   style={{ cursor: 'pointer', opacity }}
                   aria-label={`Callout: ${title}`}
                 >
-                  <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={rx} fill="var(--mindmap-green-pill)" stroke={stroke} strokeWidth={strokeWidth} />
+                  <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={rx} fill="var(--mindmap-accent-pill)" stroke={stroke} strokeWidth={strokeWidth} />
                   <text fontSize={11} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }} y={4}>
                     {lines[0]}
                   </text>
@@ -909,11 +917,14 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
       </svg>
 
       {/* Controls (kept functional; subtle like design) */}
-      <div className="px-4 py-3 flex items-center justify-end gap-2 text-xs" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+      <div
+        className="px-4 py-3 flex items-center justify-end gap-2 text-xs"
+        style={{ borderTop: '1px solid rgba(var(--cn-slate-rgb), 0.12)' }}
+      >
         <button
           type="button"
-          className="px-2 py-1 rounded-md border bg-white"
-          style={{ borderColor: 'rgba(0,0,0,0.10)', color: 'var(--mindmap-text-meta)' }}
+          className="px-2 py-1 rounded-md border"
+          style={{ background: 'var(--cn-white)', borderColor: 'rgba(var(--cn-slate-rgb), 0.18)', color: 'var(--mindmap-text-meta)' }}
           onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom / 1.12, MIN_ZOOM, MAX_ZOOM) })}
           disabled={clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) <= MIN_ZOOM + 1e-6}
           aria-label="Zoom out"
@@ -924,8 +935,8 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
 
         <button
           type="button"
-          className="px-2 py-1 rounded-md border bg-white"
-          style={{ borderColor: 'rgba(0,0,0,0.10)', color: 'var(--mindmap-text-meta)' }}
+          className="px-2 py-1 rounded-md border"
+          style={{ background: 'var(--cn-white)', borderColor: 'rgba(var(--cn-slate-rgb), 0.18)', color: 'var(--mindmap-text-meta)' }}
           onClick={() => onViewportChange({ ...viewport, zoom: clamp(viewport.zoom * 1.12, MIN_ZOOM, MAX_ZOOM) })}
           disabled={clamp(viewport.zoom, MIN_ZOOM, MAX_ZOOM) >= MAX_ZOOM - 1e-6}
           aria-label="Zoom in"

@@ -20,7 +20,7 @@ interface CompatibilityOverridesProps {
  * CompatibilityOverrides
  *
  * Small control panel to allow user to override skill proficiency and see compatibility score update instantly.
- * This intentionally operates purely client-side to avoid adding new backend endpoints.
+ * Palette constraint: semantic tokens only.
  */
 export function CompatibilityOverrides({ requiredSkills, initialUserSkills, onRecalc }: CompatibilityOverridesProps) {
   const initialMap = useMemo(() => {
@@ -37,10 +37,9 @@ export function CompatibilityOverrides({ requiredSkills, initialUserSkills, onRe
     return (Array.isArray(requiredSkills) ? requiredSkills : [])
       .map((name) => {
         const p = initialMap.get(String(name).toLowerCase());
-        // Default to 0 if unknown; user can bump into growth/mastery.
         return { name, proficiency: Number.isFinite(Number(p)) ? Number(p) : 0 };
       })
-      .slice(0, 12); // keep UI compact
+      .slice(0, 12);
   });
 
   useEffect(() => {
@@ -51,17 +50,17 @@ export function CompatibilityOverrides({ requiredSkills, initialUserSkills, onRe
   }, [rows, requiredSkills]);
 
   return (
-    <div className="mt-4 w-full rounded-lg border bg-white p-3" style={{ borderColor: '#e5e7eb' }}>
+    <div className="mt-4 w-full rounded-lg border bg-card p-3 text-card-foreground" style={{ borderColor: 'var(--border)' }}>
       <div className="flex items-baseline justify-between gap-3">
-        <div className="text-sm font-semibold text-gray-800">Adjust skill proficiency (override)</div>
-        <div className="text-xs text-gray-500">Realtime recalculation</div>
+        <div className="text-sm font-semibold text-foreground">Adjust skill proficiency (override)</div>
+        <div className="text-xs text-muted-foreground">Realtime recalculation</div>
       </div>
 
       <div className="mt-3 space-y-2">
         {rows.map((r) => (
           <div key={r.name} className="flex items-center gap-3">
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm text-gray-700" title={r.name}>
+              <div className="truncate text-sm text-foreground" title={r.name}>
                 {r.name}
               </div>
             </div>
@@ -76,10 +75,10 @@ export function CompatibilityOverrides({ requiredSkills, initialUserSkills, onRe
                 const next = Number(e.target.value);
                 setRows((prev) => prev.map((x) => (x.name === r.name ? { ...x, proficiency: next } : x)));
               }}
-              className="w-40"
+              className="w-40 accent-[var(--primary)]"
             />
 
-            <div className="w-10 text-right text-sm font-semibold text-gray-800">{Math.round(r.proficiency)}%</div>
+            <div className="w-10 text-right text-sm font-semibold text-foreground">{Math.round(r.proficiency)}%</div>
           </div>
         ))}
       </div>

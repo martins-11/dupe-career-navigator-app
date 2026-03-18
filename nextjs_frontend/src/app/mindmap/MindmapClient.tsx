@@ -151,9 +151,9 @@ function computeEmptyStateReason(params: {
 
 function DebugRow(props: { label: string; value: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[160px_1fr] gap-2 py-1 border-b border-slate-100 last:border-b-0">
-      <div className="text-slate-500">{props.label}</div>
-      <div className="text-slate-800 break-words">{props.value}</div>
+    <div className="grid grid-cols-[160px_1fr] gap-2 py-1 border-b border-border last:border-b-0">
+      <div className="text-muted-foreground">{props.label}</div>
+      <div className="text-foreground break-words">{props.value}</div>
     </div>
   );
 }
@@ -477,7 +477,7 @@ export default function MindmapClient() {
   const emptyState = computeEmptyStateReason({ isBooting, graphLoading, graphError, currentRoleTitle, graph });
 
   return (
-    <div className="min-h-screen font-sans" style={{ background: 'var(--mindmap-bg-canvas)' }}>
+    <div className="min-h-screen font-sans" style={{ background: 'transparent' }}>
       <div className="px-6 py-6">
         <div className="max-w-[1200px] mx-auto">
           {/* Header row (matches design: title left, meta right) */}
@@ -518,23 +518,23 @@ export default function MindmapClient() {
           </header>
 
           {debugOpen ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs mb-4">
+            <div className="rounded-xl border border-border bg-secondary/30 p-4 text-xs mb-4">
               <div className="flex items-center justify-between mb-2">
-                <div className="font-semibold text-slate-800">Mindmap Debug Panel</div>
-                <div className="text-slate-500">Use this to understand why the graph is blank.</div>
+                <div className="font-semibold text-foreground">Mindmap Debug Panel</div>
+                <div className="text-muted-foreground">Use this to understand why the graph is blank.</div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-lg bg-white border border-slate-200 p-3">
-                  <div className="font-semibold text-slate-700 mb-1">Context</div>
+                <div className="rounded-lg bg-background border border-border p-3">
+                  <div className="font-semibold text-foreground mb-1">Context</div>
                   <DebugRow label="userKey" value={getUserKey()} />
                   <DebugRow label="personaId" value={personaId ?? 'null'} />
                   <DebugRow label="currentRoleTitle" value={currentRoleTitle ?? 'null'} />
                   <DebugRow label="targetRoleId" value={targetRoleId ?? 'null'} />
                 </div>
 
-                <div className="rounded-lg bg-white border border-slate-200 p-3">
-                  <div className="font-semibold text-slate-700 mb-1">Graph fetch</div>
+                <div className="rounded-lg bg-background border border-border p-3">
+                  <div className="font-semibold text-foreground mb-1">Graph fetch</div>
                   <DebugRow label="status" value={graphLoading ? 'loading' : graphError ? 'error' : graph ? 'ok' : 'idle'} />
                   <DebugRow label="error" value={graphError ?? 'null'} />
                   <DebugRow label="nodes" value={graph?.nodes ? graph.nodes.length : 'null'} />
@@ -542,18 +542,18 @@ export default function MindmapClient() {
                   <DebugRow label="centerNodeId" value={graph?.centerNodeId ?? 'null'} />
                 </div>
 
-                <div className="rounded-lg bg-white border border-slate-200 p-3 lg:col-span-2">
-                  <div className="font-semibold text-slate-700 mb-2">Last request/response (summary)</div>
+                <div className="rounded-lg bg-background border border-border p-3 lg:col-span-2">
+                  <div className="font-semibold text-foreground mb-2">Last request/response (summary)</div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <div>
-                      <div className="text-slate-500 mb-1">Request</div>
-                      <pre className="bg-slate-900 text-slate-50 rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap">
+                      <div className="text-muted-foreground mb-1">Request</div>
+                      <pre className="rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap" style={{ background: "var(--cn-slate)", color: "var(--cn-white)" }}>
                         {JSON.stringify(lastGraphReq, null, 2)}
                       </pre>
                     </div>
                     <div>
-                      <div className="text-slate-500 mb-1">Response</div>
-                      <pre className="bg-slate-900 text-slate-50 rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap">
+                      <div className="text-muted-foreground mb-1">Response</div>
+                      <pre className="rounded-md p-3 overflow-auto max-h-56 whitespace-pre-wrap" style={{ background: "var(--cn-slate)", color: "var(--cn-white)" }}>
                         {JSON.stringify(lastGraphRes, null, 2)}
                       </pre>
                     </div>
@@ -580,7 +580,10 @@ export default function MindmapClient() {
                   {graphLoading ? (
                     <div
                       className="w-10 h-10 border-4 rounded-full animate-spin"
-                      style={{ borderColor: 'rgba(31,138,138,0.2)', borderTopColor: 'var(--mindmap-teal-700)' }}
+                      style={{
+                        borderColor: 'rgba(var(--cn-primary-rgb), 0.20)',
+                        borderTopColor: 'var(--mindmap-accent-700)',
+                      }}
                     />
                   ) : null}
                   <div className="text-lg font-semibold mt-3" style={{ color: 'var(--mindmap-text-title)' }}>
@@ -593,7 +596,7 @@ export default function MindmapClient() {
                     <button
                       type="button"
                       className="mt-4 px-4 py-2 rounded-full text-white text-sm"
-                      style={{ background: 'var(--mindmap-cta-green)' }}
+                      style={{ background: 'var(--mindmap-cta-primary)' }}
                       onClick={() => setDebugOpen(true)}
                     >
                       Open debug panel
@@ -658,7 +661,7 @@ export default function MindmapClient() {
                 <a
                   href="/explore"
                   className="px-4 py-2 rounded-full text-white text-sm whitespace-nowrap"
-                  style={{ background: 'var(--mindmap-cta-green)' }}
+                  style={{ background: 'var(--mindmap-cta-primary)' }}
                 >
                   Explore Roles
                 </a>
