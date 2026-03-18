@@ -10,9 +10,28 @@ function toOrigin(value) {
   }
 }
 
+/**
+ * Next.js `allowedDevOrigins` expects origin *domains* (hostnames), not full URL origins.
+ * Example from docs: ['local-origin.dev', '*.local-origin.dev'] (no scheme/port).
+ */
+function toHostname(value) {
+  try {
+    if (!value) return null;
+    const url = value.includes('://') ? new URL(value) : new URL(`https://${value}`);
+    return url.hostname;
+  } catch {
+    return null;
+  }
+}
+
 const frontendOriginFromEnv =
   toOrigin(process.env.NEXT_PUBLIC_FRONTEND_URL) ||
   toOrigin(process.env.REACT_APP_FRONTEND_URL) ||
+  null;
+
+const frontendHostnameFromEnv =
+  toHostname(process.env.NEXT_PUBLIC_FRONTEND_URL) ||
+  toHostname(process.env.REACT_APP_FRONTEND_URL) ||
   null;
 
 /** @type {import('next').NextConfig} */
@@ -29,13 +48,6 @@ const nextConfig = {
   experimental: {
     ...(process.env.NODE_ENV === 'development'
       ? (() => {
-          /**
-           * Prefer an explicit websocket URL when we know the active frontend origin (preview).
-           * This helps when "auto" mis-infers ws:// vs wss:// or hostnames behind proxies.
-           *
-           * If the preview layer still blocks websockets entirely, HMR will remain unavailable,
-           * but the application will continue to run.
-           */
           const wsFromOrigin = frontendOriginFromEnv
             ? frontendOriginFromEnv.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
             : null;
@@ -43,55 +55,50 @@ const nextConfig = {
           return { websocketUrl: wsFromOrigin || 'auto' };
         })()
       : {}),
+
+    /**
+     * Server Actions origin allowlist (CSRF protection).
+     * Some preview/proxy environments can invoke requests from a vscode-internal domain
+     * that differs from the dev server's initial host. Allow those safe preview domains.
+     */
+    serverActions: {
+      allowedOrigins: [
+        ...(frontendHostnameFromEnv ? [frontendHostnameFromEnv] : []),
+
+        // Kavia preview hosts (wildcards; hostname-only patterns per Next.js docs)
+        'vscode-internal-*.cloud.kavia.ai',
+        'vscode-internal-*.beta.beta01.cloud.kavia.ai',
+
+        // Local dev
+        'localhost',
+        '127.0.0.1',
+      ],
+    },
   },
 
   /**
    * Silence Next.js dev warning:
    * "Cross origin request detected ... you will need to explicitly configure allowedDevOrigins"
    *
-   * IMPORTANT:
-   * - Next.js compares the *full origin* (scheme + host + port).
-   * - In Kavia preview environments, the vscode-internal host can change between sessions.
-   * - Hardcoding a single preview host is brittle, so we allow wildcard vscode-internal origins
-   *   (plus the active origin via env).
+   * Next.js compares request Origin vs host and uses this allowlist in development.
+   * Use hostname patterns (no scheme/port) as documented by Next.js.
    */
   allowedDevOrigins: [
     // Local dev defaults
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
+    'localhost',
+    '127.0.0.1',
 
-    // Allow the actively configured preview/frontend origin when provided.
-    ...(frontendOriginFromEnv ? [frontendOriginFromEnv] : []),
+    // Allow the actively configured preview/frontend hostname when provided.
+    ...(frontendHostnameFromEnv ? [frontendHostnameFromEnv] : []),
 
     /**
      * Preview environment (Kavia):
-     * The vscode-internal host changes between sessions, so hardcoding a single hostname is brittle.
-     * Next.js (>=14) supports wildcard patterns here.
-     *
-     * Observed host patterns include BOTH:
-     * - https://vscode-internal-<id>.cloud.kavia.ai:3000
-     * - https://vscode-internal-<id>-beta.beta01.cloud.kavia.ai:3000
-     *
-     * Some preview layers may expose the dev server over http (or normalize origins differently),
-     * so we allow both http and https wildcard forms.
+     * Observed host patterns include:
+     * - vscode-internal-<id>.cloud.kavia.ai
+     * - vscode-internal-<id>-beta.beta01.cloud.kavia.ai
      */
-    'https://vscode-internal-*.cloud.kavia.ai:3000',
-    'https://vscode-internal-*.beta.beta01.cloud.kavia.ai:3000',
-    'http://vscode-internal-*.cloud.kavia.ai:3000',
-    'http://vscode-internal-*.beta.beta01.cloud.kavia.ai:3000',
-
-    // Extra safety: allow origin patterns without an explicit port (some proxies strip it).
-    'https://vscode-internal-*.cloud.kavia.ai',
-    'https://vscode-internal-*.beta.beta01.cloud.kavia.ai',
-    'http://vscode-internal-*.cloud.kavia.ai',
-    'http://vscode-internal-*.beta.beta01.cloud.kavia.ai',
-
-    /**
-     * Explicit fallbacks (kept for extra safety; not relied upon).
-     * Always include explicit port when using https.
-     */
-    'https://vscode-internal-17827-beta.beta01.cloud.kavia.ai:3000',
-    'https://vscode-internal-29588-beta.beta01.cloud.kavia.ai:3000',
+    'vscode-internal-*.cloud.kavia.ai',
+    'vscode-internal-*.beta.beta01.cloud.kavia.ai',
   ],
 
   /**
@@ -101,18 +108,6 @@ const nextConfig = {
    * Prefer BACKEND_INTERNAL_URL in dev/proxy environments.
    */
   async rewrites() {
-    /**
-     * NOTE ON ENV VARS / PREVIEW 502s
-     * ------------------------------
-     * In Kavia preview environments, the frontend container historically exposes backend URLs
-     * via REACT_APP_* variables (see container env list in the task description).
-     *
-     * If we only read NEXT_PUBLIC_* here, the rewrite destination falls back to localhost,
-     * which is not reachable from the preview runtime. Next.js then returns 502 for any
-     * proxied route (e.g. /api/*, /health, /docs).
-     *
-     * So we accept both naming conventions.
-     */
     const backend =
       process.env.BACKEND_INTERNAL_URL ||
       process.env.NEXT_PUBLIC_API_BASE ||
