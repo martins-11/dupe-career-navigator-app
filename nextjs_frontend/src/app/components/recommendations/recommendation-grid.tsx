@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "@/lib/apiClient";
 import RoleCard from "../explore/role-card";
+import { getExploreRecommendationsPool } from "@/lib/recommendationsPoolClient";
 
 interface RecommendationGridProps {
   personaId: string;
@@ -142,31 +142,21 @@ export function RecommendationGrid({
       setError(null);
 
       try {
-        const queryParams = new URLSearchParams({ personaId });
+        const allowPadding = process.env.NEXT_PUBLIC_RECOMMENDATIONS_ALLOW_PADDING === "true";
 
-        // Explicit policy: only enable backend padding when the deployment explicitly opts in.
-        if (process.env.NEXT_PUBLIC_RECOMMENDATIONS_ALLOW_PADDING === "true") {
-          queryParams.set("allowPadding", "true");
-        }
-
-        // Attempt strict Bedrock "initial" recommendations first.
-        let data: any;
-        try {
-          data = await apiFetch(`/api/recommendations/initial?${queryParams.toString()}`);
-        } catch (initialErr: any) {
-          console.warn("Initial Bedrock recommendations failed; falling back to /roles:", initialErr);
-          data = await apiFetch(`/api/recommendations/roles?${queryParams.toString()}`);
-        }
+        const { roles, meta } = await getExploreRecommendationsPool({
+          personaId,
+          allowPadding,
+        });
 
         if (!cancelled) {
-          const primaryRoles = (Array.isArray(data) ? data : data?.roles || []).filter(Boolean);
-          setAllRoles(primaryRoles);
-          setRecMeta(!Array.isArray(data) ? (data?.meta ?? null) : null);
+          setAllRoles(Array.isArray(roles) ? roles : []);
+          setRecMeta(meta ?? null);
 
-          // Diagnostics: allow quick confirmation of requested vs received without UI clutter.
-          if (data?.meta && typeof data.meta === "object") {
+          // Diagnostics (safe): helps confirm we’re reusing the same pool without UI clutter.
+          if (meta && typeof meta === "object") {
             // eslint-disable-next-line no-console
-            console.log("[recommendations.initial meta]", data.meta);
+            console.log("[recommendations.pool meta]", meta);
           }
         }
       } catch (e: any) {

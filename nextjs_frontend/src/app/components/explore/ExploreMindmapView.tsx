@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { apiFetch } from '@/lib/apiClient';
 import { getPersonaDerivedCurrentRoleTitle } from '@/lib/personaRoleDerivation';
+import { getExploreRecommendationsPool } from '@/lib/recommendationsPoolClient';
 import {
   ExploreMindmapCanvas,
   type ExploreMindmapEdge,
@@ -99,19 +99,17 @@ function roleMatchesFilters(params: {
 }
 
 async function fetchRecommendations(personaId: string) {
-  const queryParams = new URLSearchParams({ personaId });
-
-  // Match RecommendationGrid behavior: strict initial first, fallback to /roles.
-  let data: any;
-  try {
-    data = await apiFetch(`/api/recommendations/initial?${queryParams.toString()}`);
-  } catch {
-    data = await apiFetch(`/api/recommendations/roles?${queryParams.toString()}`);
-  }
-
-  const roles = (Array.isArray(data) ? data : data?.roles || []).filter(Boolean);
-  // IMPORTANT: Mindmap must use the full stored recommendation set (not just 5).
-  return roles;
+  /**
+   * IMPORTANT:
+   * This must reuse the same pool as the Cards view so switching tabs does not refetch.
+   * The underlying pool client handles:
+   * - in-flight de-dupe (StrictMode safe)
+   * - memory/session cache
+   * - single browser request via /api/recommendations/pool
+   */
+  const allowPadding = process.env.NEXT_PUBLIC_RECOMMENDATIONS_ALLOW_PADDING === 'true';
+  const { roles } = await getExploreRecommendationsPool({ personaId, allowPadding });
+  return Array.isArray(roles) ? roles : [];
 }
 
 function toViewport(state: ExploreMindmapViewState): ExploreMindmapViewport {
