@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 
 // Component Imports
 import { RecommendationGrid } from "../components/recommendations/recommendation-grid";
+import { ExploreMindmapView } from "../components/explore/ExploreMindmapView";
+import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 
 import { Filters, ActiveFilterTags } from "../components/explore/filters";
 import { SearchBar } from "../components/explore/search-bar";
@@ -12,11 +14,15 @@ import RoleCard from "../components/explore/role-card";
 // Utility & Storage Imports
 import { loadPersonaId, persistPersonaId } from "@/lib/personaStorage";
 import { apiFetch } from "@/lib/apiClient";
+import { getExploreViewMode, persistExploreViewMode } from "@/lib/exploreMindmapViewStateStorage";
 
 export default function ExploreClient() {
   // --- UI State ---
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Explore view mode: cards vs mindmap (persisted)
+  const [viewMode, setViewMode] = useState<"cards" | "mindmap">(getExploreViewMode());
 
   // --- Search Results State ---
   // When populated, we render these instead of the persona recommendations grid.
@@ -168,7 +174,7 @@ export default function ExploreClient() {
         <main className="space-y-10">
           {/* --- SEARCH BAR WITH AUTOCOMPLETE --- */}
           <section className="flex justify-center">
-            <SearchBar 
+            <SearchBar
               query={selectedTitle}
               onQueryChange={setSelectedTitle}
               onSearch={handleManualSearch}
@@ -179,7 +185,7 @@ export default function ExploreClient() {
 
           {/* --- FILTERS SECTION --- */}
           <section className="space-y-6">
-            <Filters 
+            <Filters
               selectedTitle={selectedTitle}
               onTitleChange={setSelectedTitle}
               selectedIndustry={selectedIndustry}
@@ -196,7 +202,7 @@ export default function ExploreClient() {
               showJobTitleFilter={false} // Hidden because the SearchBar above handles it
             />
 
-            <ActiveFilterTags 
+            <ActiveFilterTags
               selectedTitle={selectedTitle}
               onTitleChange={setSelectedTitle}
               selectedIndustry={selectedIndustry}
@@ -208,7 +214,7 @@ export default function ExploreClient() {
             />
           </section>
 
-          {/* --- RESULTS GRID --- */}
+          {/* --- RESULTS GRID / MINDMAP --- */}
           {isSearching ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin"></div>
@@ -229,7 +235,8 @@ export default function ExploreClient() {
               // temporarily reusing it would require refactor; instead render a minimal grid here.
               <div className="space-y-6">
                 <div className="text-sm text-slate-500">
-                  Showing {searchResults.length} results for <span className="font-semibold text-slate-700">“{selectedTitle}”</span>
+                  Showing {searchResults.length} results for{" "}
+                  <span className="font-semibold text-slate-700">“{selectedTitle}”</span>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {searchResults.map((role: any, idx: number) => {
@@ -264,23 +271,50 @@ export default function ExploreClient() {
                     );
                   })}
                 </div>
-                <div className="text-xs text-slate-400">
-                  Tip: Clear the search to return to AI persona recommendations.
-                </div>
+                <div className="text-xs text-slate-400">Tip: Clear the search to return to AI persona recommendations.</div>
               </div>
             )
           ) : (
-            <RecommendationGrid
-              personaId={effectivePersonaId || ""}
-              filters={{
-                industry: selectedIndustry,
-                skills: selectedSkills,
-                title: selectedTitle,
-              }}
-            />
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm text-slate-500">
+                  Persona recommendations view
+                </div>
+
+                <Tabs
+                  value={viewMode}
+                  onValueChange={(v) => {
+                    const next = (v === "mindmap" ? "mindmap" : "cards") as "cards" | "mindmap";
+                    setViewMode(next);
+                    persistExploreViewMode(next);
+                  }}
+                >
+                  <TabsList className="grid grid-cols-2 w-[240px]">
+                    <TabsTrigger value="cards">Cards</TabsTrigger>
+                    <TabsTrigger value="mindmap">Mind Map</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              {viewMode === "mindmap" ? (
+                <ExploreMindmapView
+                  personaId={effectivePersonaId || ""}
+                  selectedIndustry={selectedIndustry}
+                  selectedSkills={selectedSkills}
+                  salaryRange={salaryRange}
+                />
+              ) : (
+                <RecommendationGrid
+                  personaId={effectivePersonaId || ""}
+                  filters={{
+                    industry: selectedIndustry,
+                    skills: selectedSkills,
+                    title: selectedTitle,
+                  }}
+                />
+              )}
+            </div>
           )}
-
-
         </main>
       </div>
     </div>
