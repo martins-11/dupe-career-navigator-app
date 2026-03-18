@@ -195,7 +195,7 @@ function chooseRightPrimary(nodes: MindmapGraphNode[], levels: Map<string, numbe
  * Design-accurate layout WITH sub-branches:
  * - Left cluster: current circle + three pills fanning above + dark callouts below.
  * - Middle: CAREER TRANSITION PATHWAY dashed arrow + yellow step boxes in a single row.
- * - Right cluster: target circle + one dark callout above + green pill below.
+ * - Right cluster: target circle + one dark callout above + accent pill below.
  * - Additional nodes are placed into "sub-branches" (leftSub/rightSub) rather than hidden,
  *   and connectors are drawn according to actual edges (no fabricated relationships).
  *
@@ -848,7 +848,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                   style={{ cursor: 'pointer', opacity }}
                   aria-label={`Callout: ${title}`}
                 >
-                  <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={rx} fill="var(--mindmap-green-pill)" stroke={stroke} strokeWidth={strokeWidth} />
+                  <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={rx} fill="var(--mindmap-accent-pill)" stroke={stroke} strokeWidth={strokeWidth} />
                   <text fontSize={11} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }} y={4}>
                     {lines[0]}
                   </text>

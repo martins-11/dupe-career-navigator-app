@@ -142,7 +142,7 @@
   --mindmap-step-yellow: rgba(var(--cn-primary-rgb), 0.14);
   --mindmap-step-yellow-border: rgba(var(--cn-primary-rgb), 0.55);
 
-  --mindmap-green-pill: var(--cn-primary);
+  --mindmap-accent-pill: var(--cn-primary);
 
   --mindmap-detail-grey: rgba(var(--cn-white-rgb), 0.70);
 
