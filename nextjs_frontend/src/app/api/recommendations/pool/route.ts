@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getBackendBaseUrl } from '../../_utils/backendProxy';
 
 /**
  * Explore Recommendations Pool (frontend aggregator).
  *
  * This endpoint exists to ensure the BROWSER makes only ONE request when Explore loads.
- * Server-side, we can try "initial" first and fall back to "roles" without the UI needing
+ * Server-side, we can try "initial" and fall back to "roles" without the UI needing
  * to perform two separate fetches (which becomes 4 in React StrictMode dev).
+ *
+ * IMPORTANT reliability behavior:
+ * - We fetch BOTH upstream endpoints in parallel and return the first usable result.
+ *   This avoids waiting on slow Bedrock-backed "initial" before returning a fast fallback.
+ * - We also guard against misconfiguration where the "backend" URL accidentally points
+ *   at the frontend origin (port 3000), which would create a proxy loop and 504.
  *
  * Upstream backend targets:
  * - GET {BACKEND}/api/recommendations/initial?personaId=...(&allowPadding=true)
@@ -16,23 +23,64 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const query = url.search || '';
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
 
-  if (!backendUrl) {
-    return NextResponse.json({ error: 'Backend URL env variable not set' }, { status: 500 });
+  // Validate early; prevents pointless proxy attempts and yields faster, clearer failures.
+  const personaId = (url.searchParams.get('personaId') || '').trim();
+  if (!personaId) {
+    return NextResponse.json({ error: 'missing_persona_id', message: 'Query param personaId is required.' }, { status: 400 });
   }
 
-  // Match /initial route: avoid waiting for upstream proxies to time out.
+  const rawBackendUrl = getBackendBaseUrl();
+  if (!rawBackendUrl) {
+    return NextResponse.json({ error: 'backend_url_not_set', message: 'Backend URL env variable not set' }, { status: 500 });
+  }
+
+  // Normalize trailing slashes so `${backendUrl}/api/...` doesn't become `//api/...`.
+  const backendUrl = rawBackendUrl.replace(/\/+$/, '');
+
+  // Guard: prevent proxying to self (common misconfiguration in preview envs).
+  // If backendUrl points at the frontend origin, we'd recurse until we time out with 504.
+  try {
+    const backendOrigin = new URL(backendUrl).origin;
+    const incomingOrigin = url.origin;
+    if (backendOrigin === incomingOrigin) {
+      return NextResponse.json(
+        {
+          error: 'backend_url_points_to_frontend',
+          message:
+            'Backend base URL resolves to the same origin as this Next.js app. Refusing to proxy to avoid a proxy loop. Set BACKEND_INTERNAL_URL or NEXT_PUBLIC_BACKEND_URL to the Express backend origin.',
+          details: { backendOrigin, incomingOrigin },
+        },
+        { status: 500 },
+      );
+    }
+  } catch {
+    return NextResponse.json(
+      {
+        error: 'invalid_backend_url',
+        message: 'Backend URL env variable is not a valid absolute URL.',
+        details: { backendUrl },
+      },
+      { status: 500 },
+    );
+  }
+
+  // Avoid waiting for upstream proxies to time out (preview environments often have a hard 30s cap).
   const timeoutMs = Number(process.env.NEXT_PUBLIC_BACKEND_PROXY_TIMEOUT_MS || 25000);
+  const effectiveTimeoutMs = Number.isFinite(timeoutMs) ? timeoutMs : 25000;
 
-  async function fetchJsonWithTimeout(targetUrl: string): Promise<{ ok: boolean; status: number; data: any }> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Number.isFinite(timeoutMs) ? timeoutMs : 25000);
+  type FetchResult = { ok: boolean; status: number; data: any };
 
+  async function fetchJsonWithTimeout(params: {
+    targetUrl: string;
+    controller: AbortController;
+    timeoutMs: number;
+  }): Promise<FetchResult> {
+    const timer = setTimeout(() => params.controller.abort(), params.timeoutMs);
     try {
-      const res = await fetch(targetUrl, {
+      const res = await fetch(params.targetUrl, {
         method: 'GET',
-        signal: controller.signal,
+        signal: params.controller.signal,
         headers: {
           'Content-Type': 'application/json',
           ...(req.headers.get('authorization') ? { authorization: req.headers.get('authorization')! } : {}),
@@ -53,35 +101,63 @@ export async function GET(req: NextRequest) {
     return Array.isArray(roles) && roles.filter(Boolean).length > 0;
   }
 
+  function attachFrontendSource(payload: any, source: 'initial' | 'roles'): any {
+    if (Array.isArray(payload)) return payload;
+    const meta = payload?.meta ?? null;
+    return {
+      ...(payload ?? {}),
+      meta: meta && typeof meta === 'object' ? { ...meta, frontendSource: source } : { frontendSource: source },
+    };
+  }
+
+  const initialController = new AbortController();
+  const rolesController = new AbortController();
+
+  // Run both in parallel for reliability; return first usable payload.
+  const initialPromise = fetchJsonWithTimeout({
+    targetUrl: `${backendUrl}/api/recommendations/initial${query}`,
+    controller: initialController,
+    timeoutMs: effectiveTimeoutMs,
+  });
+
+  const rolesPromise = fetchJsonWithTimeout({
+    targetUrl: `${backendUrl}/api/recommendations/roles${query}`,
+    controller: rolesController,
+    // Roles fallback should be fast; give it a smaller cap but still reasonable.
+    timeoutMs: Math.min(8000, effectiveTimeoutMs),
+  });
+
   try {
-    // 1) Try initial
-    const initial = await fetchJsonWithTimeout(`${backendUrl}/api/recommendations/initial${query}`);
-    if (initial.ok && hasUsableRoles(initial.data)) {
-      const meta = !Array.isArray(initial.data) ? (initial.data?.meta ?? null) : null;
-      const merged = Array.isArray(initial.data)
-        ? initial.data
-        : { ...initial.data, meta: meta && typeof meta === 'object' ? { ...meta, frontendSource: 'initial' } : { frontendSource: 'initial' } };
+    const first = await Promise.race([
+      initialPromise.then((r) => ({ source: 'initial' as const, result: r })),
+      rolesPromise.then((r) => ({ source: 'roles' as const, result: r })),
+    ]);
 
-      return NextResponse.json(merged, { status: initial.status });
+    // If the first completed result is usable, return it immediately and abort the other.
+    if (first.result.ok && hasUsableRoles(first.result.data)) {
+      if (first.source === 'initial') rolesController.abort();
+      else initialController.abort();
+      return NextResponse.json(attachFrontendSource(first.result.data, first.source), { status: first.result.status });
     }
 
-    // 2) Fallback to roles
-    const roles = await fetchJsonWithTimeout(`${backendUrl}/api/recommendations/roles${query}`);
-    if (roles.ok) {
-      const meta = !Array.isArray(roles.data) ? (roles.data?.meta ?? null) : null;
-      const merged = Array.isArray(roles.data)
-        ? roles.data
-        : { ...roles.data, meta: meta && typeof meta === 'object' ? { ...meta, frontendSource: 'roles' } : { frontendSource: 'roles' } };
+    // Otherwise await the other one and use it if usable.
+    const second = first.source === 'initial' ? await rolesPromise : await initialPromise;
+    const secondSource = first.source === 'initial' ? ('roles' as const) : ('initial' as const);
 
-      return NextResponse.json(merged, { status: roles.status });
+    if (second.ok && hasUsableRoles(second.data)) {
+      // Abort the first controller if still running (best-effort).
+      if (secondSource === 'initial') rolesController.abort();
+      else initialController.abort();
+      return NextResponse.json(attachFrontendSource(second.data, secondSource), { status: second.status });
     }
 
+    // Neither produced a usable payload; return a stable error envelope.
     return NextResponse.json(
       {
         error: 'Failed to load recommendations pool',
         details: {
-          initialStatus: initial.status,
-          rolesStatus: roles.status,
+          initialStatus: first.source === 'initial' ? first.result.status : (secondSource === 'initial' ? second.status : undefined),
+          rolesStatus: first.source === 'roles' ? first.result.status : (secondSource === 'roles' ? second.status : undefined),
         },
       },
       { status: 502 },
@@ -91,6 +167,10 @@ export async function GET(req: NextRequest) {
       e?.name === 'AbortError' ||
       String(e?.message || '').toLowerCase().includes('aborted') ||
       String(e?.message || '').toLowerCase().includes('timeout');
+
+    // Ensure we don't leak work if we already decided to fail.
+    initialController.abort();
+    rolesController.abort();
 
     return NextResponse.json(
       {
