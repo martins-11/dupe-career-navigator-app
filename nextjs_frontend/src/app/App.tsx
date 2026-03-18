@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, Loader2, X, Edit3, Plus, CheckCircle2, Camera, Award, Compass } from 'lucide-react';
+import { Upload, Loader2, X, Edit3, Plus, CheckCircle2, Camera, Award } from 'lucide-react';
 import {
   generateDraftForBuild,
   getBuildStatus,
@@ -1331,7 +1331,6 @@ export default function App() {
     setHasUnsavedChanges(true);
   };
 
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHoveringHeading, setIsHoveringHeading] = useState(false);
 
 
@@ -1354,15 +1353,6 @@ export default function App() {
     });
     setHasUnsavedChanges(true);
   };
-
-  /**
-   * Header avatar initials:
-   * - Prefer role/designation (personaTitle) since we are not exposing user name near the headline.
-   * - Fall back to name if role not available (still safe; just initials).
-   */
-  const avatarInitials = useMemo(() => {
-    return getInitials((personaTitle || personaName).trim());
-  }, [personaTitle, personaName]);
 
   const personaCardInitials = useMemo(() => {
     return getInitials((personaTitle || personaName).trim());
@@ -1387,84 +1377,7 @@ export default function App() {
         fontFamily: 'Inter, sans-serif',
       }}
     >
-      {/* Header */}
-      <header className="bg-white border-b" style={{ borderColor: '#D1D5DB' }}>
-        <div style={{ padding: '16px 32px' }} className="flex items-center justify-between">
-          {/* LEFT - Logo */}
-          <div className="flex items-center gap-3">
-            <div
-              className="w-9 h-9 rounded-lg flex items-center justify-center"
-              style={{
-                backgroundColor: 'var(--primary)',
-                boxShadow: '0 2px 4px rgba(var(--cn-primary-rgb), 0.15)',
-              }}
-            >
-              <Compass size={20} style={{ color: 'white' }} />
-            </div>
-
-            <div className="flex flex-col">
-              <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#1F2937', margin: 0 }}>Career Navigator</h1>
-
-              {/* Per requirement: NOTHING under the "Career Navigator" headline */}
-            </div>
-          </div>
-
-
-
-          {/* RIGHT - Profile Circle + role/designation */}
-          <div className="relative flex items-center gap-3">
-            {/* Role/Designation derived from persona/documents */}
-            <div className="min-w-0 text-right">
-              <div
-                style={{
-                  fontSize: '12px',
-                  color: '#6B7280',
-                  fontWeight: 600,
-                  lineHeight: '1.1',
-                }}
-                className="truncate"
-                title={personaTitle || ''}
-              >
-                {personaTitle || ''}
-              </div>
-            </div>
-
-            <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200"
-              style={{
-                backgroundColor: 'var(--primary)',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 600,
-              }}
-              aria-label="Open profile menu"
-              title={personaTitle || 'Your profile'}
-            >
-              {avatarInitials}
-            </button>
-
-            <AnimatePresence>
-              {!isFileDialogActive && isProfileOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute right-0 top-full mt-2 w-40 bg-white rounded-lg"
-                  style={{
-                    border: '1px solid #D1D5DB',
-                    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.08)',
-                  }}
-                >
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-50">Profile Settings</button>
-                  <button className="w-full text-left px-4 py-2 hover:bg-gray-50 text-red-600">Logout</button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </header>
+      {/* Header removed per updated UI requirements (Document Ingestion should start with the step progress bar). */}
 
       {/* Step Progress */}
       <div className="bg-white" style={{ padding: '24px 32px', borderBottom: '1px solid #D1D5DB' }}>
