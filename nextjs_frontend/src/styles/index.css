@@ -53,35 +53,35 @@
   */
   body.cn-app-bg {
     /*
-      CSS-only background designed to match the soft lavender/purple + cool grey
-      palette of the previous purp.png asset, without fetching any image.
+      Global app background (polished + modern):
+      - a clean lavender → white gradient base
+      - subtle “ambient light” highlights to avoid looking flat
+      - no texture/noise layers (keeps it crisp and premium)
     */
-    background-color: #d8d2e6;
+
+    /* Fallback solid color (e.g., if gradients are disabled). */
+    background-color: #ffffff;
 
     background-image:
-      /* Soft highlights / haze */
-      radial-gradient(1200px 700px at 20% 10%, rgba(244, 241, 255, 0.85) 0%, rgba(244, 241, 255, 0) 60%),
-      radial-gradient(900px 600px at 75% 25%, rgba(226, 218, 248, 0.55) 0%, rgba(226, 218, 248, 0) 62%),
-      radial-gradient(1000px 800px at 45% 65%, rgba(205, 196, 232, 0.40) 0%, rgba(205, 196, 232, 0) 65%),
+      /* Ambient highlights (very subtle) */
+      radial-gradient(900px 560px at 18% 8%, rgba(167, 139, 250, 0.18) 0%, rgba(167, 139, 250, 0) 62%),
+      radial-gradient(760px 520px at 86% 22%, rgba(196, 181, 253, 0.14) 0%, rgba(196, 181, 253, 0) 58%),
 
-      /* Main field gradient (purple -> grey-lilac) */
-      linear-gradient(145deg, #f3f0ff 0%, #d9d2ee 38%, #cfc9e3 62%, #c9c4dc 100%),
-
-      /* Subtle texture */
-      repeating-linear-gradient(
-        135deg,
-        rgba(255, 255, 255, 0.035) 0px,
-        rgba(255, 255, 255, 0.035) 10px,
-        rgba(0, 0, 0, 0.02) 10px,
-        rgba(0, 0, 0, 0.02) 20px
-      );
+      /* Main field gradient (lavender -> white) */
+      linear-gradient(180deg, #f7f3ff 0%, #ffffff 70%, #ffffff 100%);
 
     background-repeat: no-repeat;
     background-size: cover;
     background-position: center top;
 
-    /* Helps keep the background stable during scroll on content-heavy routes. */
-    background-attachment: fixed;
+    /* Avoid iOS jank; enable fixed background only on larger screens. */
+    background-attachment: scroll;
+  }
+
+  @media (min-width: 768px) {
+    body.cn-app-bg {
+      background-attachment: fixed;
+    }
   }
 
   /*
@@ -152,3 +152,4 @@
   background-size: 200% 100%;
   animation: shimmer 1.2s ease-in-out infinite;
 }
+
