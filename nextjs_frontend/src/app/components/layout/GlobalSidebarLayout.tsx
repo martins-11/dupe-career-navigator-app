@@ -135,9 +135,11 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
               href="/ingestion"
               className={[
                 'group flex items-center',
-                isSidebarExpanded ? 'justify-start gap-3 px-3' : 'justify-center px-0',
-                'rounded-2xl py-3',
-                'hover:bg-white/6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50',
+                isSidebarExpanded ? 'justify-start gap-4 px-3' : 'justify-center px-0',
+                // More prominent brand block
+                'rounded-3xl py-4',
+                'bg-white/0 hover:bg-white/8',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/55',
                 'transition-colors',
               ].join(' ')}
               aria-label="Career Navigator Home"
@@ -145,22 +147,24 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
             >
               <div
                 className={[
-                  'h-10 w-10 md:h-11 md:w-11',
-                  'rounded-2xl',
+                  // Bigger icon container (brand anchor)
+                  'h-12 w-12 md:h-[52px] md:w-[52px]',
+                  'rounded-3xl',
                   'flex items-center justify-center',
-                  'border border-violet-300/20',
-                  'bg-violet-500/12',
-                  'shadow-[0_10px_24px_rgba(139,92,246,0.18)]',
+                  'border border-white/10',
+                  'bg-violet-500/18',
+                  'shadow-[0_16px_34px_rgba(139,92,246,0.24)]',
                 ].join(' ')}
               >
-                <Compass strokeWidth={2.5} className="h-[18px] w-[18px] text-violet-800" />
+                <Compass strokeWidth={2.6} className="h-[22px] w-[22px] text-white" />
               </div>
 
               {isSidebarExpanded && (
                 <div className="min-w-0">
-                  <div className="text-[14px] md:text-[15px] font-bold text-violet-800 tracking-tight truncate">
+                  <div className="text-[18px] md:text-[20px] font-extrabold text-white tracking-tight truncate">
                     Career Navigator
                   </div>
+                  <div className="text-[11.5px] font-medium text-white/70 truncate">Persona Studio</div>
                 </div>
               )}
             </Link>

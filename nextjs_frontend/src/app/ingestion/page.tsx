@@ -1,11 +1,13 @@
-import DocumentIngestion from '../components/DocumentIngestion';
+import IngestionClient from './IngestionClient';
 
 /**
  * Ingestion route (App Router).
  *
- * Hosts the existing document ingestion flow UI.
- * Login redirects here by default after setting the auth cookie.
+ * UI-only Document Ingestion screen (per latest UX update):
+ * - 3 upload containers
+ * - LinkedIn connect toggle (visual only)
+ * - Animated uploaded file list preview (local state only)
  */
 export default function IngestionPage() {
-  return <DocumentIngestion />;
+  return <IngestionClient />;
 }
