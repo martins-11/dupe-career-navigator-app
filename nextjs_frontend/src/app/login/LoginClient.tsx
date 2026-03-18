@@ -176,24 +176,16 @@ export default function LoginClient() {
                   <div className="text-sm font-semibold tracking-wide text-white/90">
                     Career Navigator
                   </div>
-                  <a
-                    href="/"
-                    className="text-xs font-medium text-white/60 hover:text-white/80"
-                    onClick={(e) => {
-                      // `/` redirects to `/login`; keep link purely decorative (matches reference).
-                      e.preventDefault();
-                    }}
-                  >
-                    Back to website
-                  </a>
                 </div>
 
                 <div className="mt-auto">
-                  <div className="max-w-[220px]">
+                  <div className="max-w-[260px]">
                     <p className="text-sm font-semibold leading-snug text-white">
-                      Capturing Moments.
+                      Build a career that compounds.
                       <br />
-                      <span className="text-white/70">Creating Memories.</span>
+                      <span className="text-white/70">
+                        Turn your experience into your next opportunity.
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -357,9 +349,7 @@ export default function LoginClient() {
                   </button>
                 </div>
 
-                <p className="pt-2 text-xs text-white/45">
-                  Prototype gate: any email/password is accepted.
-                </p>
+
               </form>
             </div>
           </div>
