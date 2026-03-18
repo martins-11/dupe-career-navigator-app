@@ -44,6 +44,20 @@
   }
 
   /*
+    Global app background image.
+
+    The class is toggled client-side (see GlobalBackground.tsx) so we can:
+    - apply the background across the app, and
+    - explicitly keep /login unchanged by NOT setting this class on that route.
+  */
+  body.cn-app-bg {
+    background-image: url('/assets/purp.png');
+    background-repeat: no-repeat;
+    background-position: center top;
+    background-size: cover;
+  }
+
+  /*
     Headings: Inter (bold/extra-bold) with slightly tight tracking to achieve a
     modern, corporate/high-tech aesthetic globally.
   */

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+import GlobalBackground from './components/GlobalBackground';
+
 /**
  * Global CSS entrypoint.
  *
@@ -19,7 +21,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   /** Root layout for the Next.js App Router application. */
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <GlobalBackground />
+        {children}
+      </body>
     </html>
   );
 }
