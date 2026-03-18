@@ -50,11 +50,29 @@
     - apply the background across the app, and
     - explicitly keep /login unchanged by NOT setting this class on that route.
   */
+  /*
+    When the global background is enabled:
+    - Put the image on <body>.
+    - Override the --background token to be semi-transparent so any existing
+      `bg-background` wrappers don't completely hide the image.
+    - Keep /login unchanged by only activating via the cn-app-bg class toggle.
+  */
+  html.cn-app-bg {
+    --background: rgba(var(--cn-ink-rgb), 0.72);
+  }
+
   body.cn-app-bg {
+    /* Let the image read clearly; surfaces get the translucent --background. */
+    background-color: transparent;
+
+    /* Public assets resolve from /public -> /assets/... */
     background-image: url('/assets/purp.png');
     background-repeat: no-repeat;
     background-position: center top;
     background-size: cover;
+
+    /* Helps keep the background stable during scroll on content-heavy routes. */
+    background-attachment: fixed;
   }
 
   /*
