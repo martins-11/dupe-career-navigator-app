@@ -235,8 +235,11 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
             const cx = a.x + dx * 0.5;
             const cy = Math.min(a.y, b.y) - curvature;
 
-            // Requested: thick + black, with extra emphasis on current→recommended and selected edges.
-            const strokeWidth = isSelectedEdge ? 8.5 : isCenterEdge ? 7 : 6;
+            // Requested: black + very visible, but slightly thinner than the previous "extra thick" styling.
+            // Keep emphasis on:
+            // - selected edges
+            // - edges connected to the center/current node
+            const strokeWidth = isSelectedEdge ? 7.5 : isCenterEdge ? 6.25 : 5.25;
 
             return (
               <path
