@@ -153,3 +153,33 @@
   animation: shimmer 1.2s ease-in-out infinite;
 }
 
+/* Explore RoleCard: flashy shine sweep (used via Tailwind arbitrary animate class) */
+@keyframes cnRoleCardShine {
+  0% {
+    transform: translateX(-38%) rotate(12deg);
+  }
+  100% {
+    transform: translateX(38%) rotate(12deg);
+  }
+}
+
+/* Explore RoleCard: click "pop" (used on inner wrapper so hover transforms remain intact) */
+@keyframes cnRoleCardPop {
+  0% {
+    transform: scale(1);
+    filter: saturate(1) contrast(1);
+  }
+  35% {
+    transform: scale(0.985);
+    filter: saturate(1.06) contrast(1.02);
+  }
+  70% {
+    transform: scale(1.012);
+    filter: saturate(1.1) contrast(1.03);
+  }
+  100% {
+    transform: scale(1);
+    filter: saturate(1) contrast(1);
+  }
+}
+

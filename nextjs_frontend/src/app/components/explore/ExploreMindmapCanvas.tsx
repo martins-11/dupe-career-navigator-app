@@ -87,10 +87,11 @@ function computeRadialLayout(nodes: ExploreMindmapNode[]) {
 // PUBLIC_INTERFACE
 export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
   /**
-   * SVG renderer for Explore mind map (palette-constrained):
-   * - current role: primary circle
-   * - recommended roles: slate pills
-   * - connectors: primary alpha
+   * SVG renderer for Explore mind map.
+   *
+   * UX goals (per request):
+   * - Make connectors very visible: thick + black.
+   * - Especially ensure "current role → target roles" connections are unmistakable.
    */
   const { nodes, edges, selectedNodeId, viewport, onViewportChange, onNodeClick } = props;
 
@@ -99,6 +100,8 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
   const panStart = React.useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
 
   const positions = React.useMemo(() => computeRadialLayout(nodes), [nodes]);
+
+  const centerNode = React.useMemo(() => nodes.find((n) => n.kind === 'current') ?? nodes[0], [nodes]);
 
   const viewBox = React.useMemo(() => {
     const baseW = 1200;
@@ -192,8 +195,6 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
     panStart.current = null;
   };
 
-  const centerNode = nodes.find((n) => n.kind === 'current') ?? nodes[0];
-
   return (
     <div className="w-full h-full rounded-2xl overflow-hidden flex flex-col min-h-0 bg-background border border-border">
       <svg
@@ -207,25 +208,46 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
         aria-label="Explore mind map"
         style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
       >
-        <g aria-hidden="true">
+        <defs>
+          {/* Subtle drop shadow to prevent thick black edges from blending into dark nodes. */}
+          <filter id="exploreEdgeShadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="#000000" floodOpacity="0.28" />
+            <feDropShadow dx="0" dy="0.6" stdDeviation="0.6" floodColor="#000000" floodOpacity="0.18" />
+          </filter>
+        </defs>
+
+        <g aria-hidden="true" filter="url(#exploreEdgeShadow)">
           {edges.map((e, idx) => {
             const a = positions.get(e.source);
             const b = positions.get(e.target);
             if (!a || !b) return null;
 
+            const isSelectedEdge =
+              Boolean(selectedNodeId) && (e.source === selectedNodeId || e.target === selectedNodeId);
+
+            const isCenterEdge = Boolean(centerNode?.id) && (e.source === centerNode?.id || e.target === centerNode?.id);
+
             const dx = b.x - a.x;
             const dy = b.y - a.y;
-            const curvature = Math.min(180, Math.max(60, Math.abs(dy) * 0.5 + Math.abs(dx) * 0.12));
+
+            // Gentle arc so lines don't intersect the node bodies too harshly.
+            const curvature = Math.min(190, Math.max(80, Math.abs(dy) * 0.55 + Math.abs(dx) * 0.14));
             const cx = a.x + dx * 0.5;
             const cy = Math.min(a.y, b.y) - curvature;
+
+            // Requested: thick + black, with extra emphasis on current→recommended and selected edges.
+            const strokeWidth = isSelectedEdge ? 8.5 : isCenterEdge ? 7 : 6;
 
             return (
               <path
                 key={`${e.source}-${e.target}-${idx}`}
                 d={`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`}
                 fill="none"
-                stroke="var(--explore-mindmap-edge-stroke)"
-                strokeWidth={2.5}
+                stroke="#000000"
+                strokeOpacity={isSelectedEdge ? 1 : 0.92}
+                strokeWidth={strokeWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             );
           })}
