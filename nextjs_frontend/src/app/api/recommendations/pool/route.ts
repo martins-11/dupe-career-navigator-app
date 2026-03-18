@@ -5,18 +5,14 @@ import { getBackendBaseUrl } from '../../_utils/backendProxy';
  * Explore Recommendations Pool (frontend aggregator).
  *
  * This endpoint exists to ensure the BROWSER makes only ONE request when Explore loads.
- * Server-side, we can try "initial" and fall back to "roles" without the UI needing
- * to perform two separate fetches (which becomes 4 in React StrictMode dev).
  *
- * IMPORTANT reliability behavior:
- * - We fetch BOTH upstream endpoints in parallel and return the first usable result.
- *   This avoids waiting on slow Bedrock-backed "initial" before returning a fast fallback.
- * - We also guard against misconfiguration where the "backend" URL accidentally points
- *   at the frontend origin (port 3000), which would create a proxy loop and 504.
+ * Reliability goals:
+ * - Prefer the backend pooled endpoint first: GET {BACKEND}/api/recommendations/pool?personaId=...
+ * - Use fallback (GET {BACKEND}/api/recommendations/roles?personaId=...) ONLY after a real timeout/error.
+ *   This avoids returning guest_* fallback roles just because the proxy timed out too aggressively.
  *
- * Upstream backend targets:
- * - GET {BACKEND}/api/recommendations/initial?personaId=...(&allowPadding=true)
- * - GET {BACKEND}/api/recommendations/roles?personaId=...(&allowPadding=true)
+ * Misconfiguration guard:
+ * - If the backend URL accidentally points to the frontend origin, we'd create a proxy loop and 504.
  *
  * PUBLIC_INTERFACE
  */
@@ -65,9 +61,30 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Avoid waiting for upstream proxies to time out (preview environments often have a hard 30s cap).
-  const timeoutMs = Number(process.env.NEXT_PUBLIC_BACKEND_PROXY_TIMEOUT_MS || 25000);
-  const effectiveTimeoutMs = Number.isFinite(timeoutMs) ? timeoutMs : 25000;
+  /**
+   * Timeout tuning:
+   * - Backend pooled Bedrock runs can be ~35–40s on cold runs.
+   * - Prior default (~25s) caused the Next.js route to abort early and return 504.
+   *
+   * We keep a pool-specific timeout with a safer default, and allow override via env.
+   *
+   * Notes:
+   * - NEXT_PUBLIC_* is used here because this app already uses that pattern; however this
+   *   code runs server-side (route handler) so it’s safe to read non-public env vars too.
+   * - Prefer setting NEXT_PUBLIC_RECOMMENDATIONS_POOL_PROXY_TIMEOUT_MS in the deployment
+   *   environment if you need to tune without affecting other routes.
+   */
+  const poolTimeoutMsFromEnv = Number(
+    process.env.NEXT_PUBLIC_RECOMMENDATIONS_POOL_PROXY_TIMEOUT_MS ||
+      process.env.NEXT_PUBLIC_BACKEND_PROXY_TIMEOUT_MS ||
+      '',
+  );
+
+  // Default: 65s, to comfortably cover typical cold-start pool latency.
+  const poolTimeoutMs = Number.isFinite(poolTimeoutMsFromEnv) && poolTimeoutMsFromEnv > 0 ? poolTimeoutMsFromEnv : 65_000;
+
+  // Fallback should be fast/deterministic; we keep it bounded.
+  const fallbackTimeoutMs = 8_000;
 
   type FetchResult = { ok: boolean; status: number; data: any };
 
@@ -110,33 +127,33 @@ export async function GET(req: NextRequest) {
     };
   }
 
-  const initialController = new AbortController();
+  // 1) Pool-first: wait for backend pool to finish (with extended timeout).
+  const poolController = new AbortController();
   const rolesController = new AbortController();
 
-  // IMPORTANT (bugfix):
-  // This route must proxy to the backend's pooled endpoint:
-  //   GET {BACKEND}/api/recommendations/pool?personaId=...
-  // Falling back to /api/recommendations/roles should only happen when the pool
-  // endpoint fails or returns no roles. This prevents multiple upstream/model requests.
-  const poolPromise = fetchJsonWithTimeout({
-    targetUrl: `${backendUrl}/api/recommendations/pool${query}`,
-    controller: initialController,
-    timeoutMs: effectiveTimeoutMs,
-  });
-
   try {
-    const pool = await poolPromise;
+    const pool = await fetchJsonWithTimeout({
+      targetUrl: `${backendUrl}/api/recommendations/pool${query}`,
+      controller: poolController,
+      timeoutMs: poolTimeoutMs,
+    });
 
-    if (pool.ok && hasUsableRoles(pool.data)) {
+    /**
+     * IMPORTANT: “fallback only after timeout/error”.
+     * - If pool returns OK, we return it as-is (even if roles array is empty),
+     *   to avoid immediately substituting guest_* fallback roles when the backend is
+     *   still the source of truth for pooled Bedrock behavior/persistence.
+     * - If pool returns non-OK (>=400), *then* we attempt fallback.
+     */
+    if (pool.ok) {
       return NextResponse.json(attachFrontendSource(pool.data, 'initial'), { status: pool.status });
     }
 
-    // Backwards/defensive behavior:
-    // If pool isn't usable, fall back to deterministic roles endpoint (fast).
+    // 2) Pool returned an error; try deterministic fallback endpoint (fast).
     const roles = await fetchJsonWithTimeout({
       targetUrl: `${backendUrl}/api/recommendations/roles${query}`,
       controller: rolesController,
-      timeoutMs: Math.min(8000, effectiveTimeoutMs),
+      timeoutMs: fallbackTimeoutMs,
     });
 
     if (roles.ok && hasUsableRoles(roles.data)) {
@@ -159,14 +176,34 @@ export async function GET(req: NextRequest) {
       String(e?.message || '').toLowerCase().includes('aborted') ||
       String(e?.message || '').toLowerCase().includes('timeout');
 
-    initialController.abort();
-    rolesController.abort();
+    // Ensure we don't keep upstream requests running.
+    poolController.abort();
+
+    /**
+     * Pool timed out or errored. As a last-resort UX fallback, attempt roles.
+     * This meets the requirement: fallback happens only after timeout/error.
+     */
+    try {
+      const roles = await fetchJsonWithTimeout({
+        targetUrl: `${backendUrl}/api/recommendations/roles${query}`,
+        controller: rolesController,
+        timeoutMs: fallbackTimeoutMs,
+      });
+
+      if (roles.ok && hasUsableRoles(roles.data)) {
+        return NextResponse.json(attachFrontendSource(roles.data, 'roles'), { status: roles.status });
+      }
+    } catch {
+      // ignore fallback failure; we return the original error below
+    } finally {
+      rolesController.abort();
+    }
 
     return NextResponse.json(
       {
-        error: 'Failed to proxy to backend',
+        error: 'Failed to proxy to backend recommendations pool',
         detail: e?.message || String(e),
-        ...(isAbort ? { code: 'backend_proxy_timeout' } : {}),
+        ...(isAbort ? { code: 'backend_proxy_timeout', timeoutMs: poolTimeoutMs } : {}),
       },
       { status: isAbort ? 504 : 500 },
     );
