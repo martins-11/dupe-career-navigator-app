@@ -44,7 +44,7 @@
   }
 
   /*
-    Global app background image.
+    Global app background (CSS-only; no image dependency).
 
     IMPORTANT:
     - The class is applied server-side on <html> and <body> (see src/app/layout.tsx),
@@ -52,11 +52,33 @@
     - Keep the background on <body> so it sits behind all page content.
   */
   body.cn-app-bg {
-    /* Public assets resolve from /public -> /assets/... */
-    background-image: url('/assets/purp.png');
+    /*
+      CSS-only background designed to match the soft lavender/purple + cool grey
+      palette of the previous purp.png asset, without fetching any image.
+    */
+    background-color: #d8d2e6;
+
+    background-image:
+      /* Soft highlights / haze */
+      radial-gradient(1200px 700px at 20% 10%, rgba(244, 241, 255, 0.85) 0%, rgba(244, 241, 255, 0) 60%),
+      radial-gradient(900px 600px at 75% 25%, rgba(226, 218, 248, 0.55) 0%, rgba(226, 218, 248, 0) 62%),
+      radial-gradient(1000px 800px at 45% 65%, rgba(205, 196, 232, 0.40) 0%, rgba(205, 196, 232, 0) 65%),
+
+      /* Main field gradient (purple -> grey-lilac) */
+      linear-gradient(145deg, #f3f0ff 0%, #d9d2ee 38%, #cfc9e3 62%, #c9c4dc 100%),
+
+      /* Subtle texture */
+      repeating-linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.035) 0px,
+        rgba(255, 255, 255, 0.035) 10px,
+        rgba(0, 0, 0, 0.02) 10px,
+        rgba(0, 0, 0, 0.02) 20px
+      );
+
     background-repeat: no-repeat;
-    background-position: center top;
     background-size: cover;
+    background-position: center top;
 
     /* Helps keep the background stable during scroll on content-heavy routes. */
     background-attachment: fixed;
@@ -123,7 +145,7 @@
   background-image: linear-gradient(
     90deg,
     rgba(var(--cn-ink-rgb), 0.06) 0%,
-    rgba(var(--cn-ink-rgb), 0.10) 20%,
+    rgba(var(--cn-ink-rgb), 0.1) 20%,
     rgba(var(--cn-ink-rgb), 0.06) 40%,
     rgba(var(--cn-ink-rgb), 0.06) 100%
   );

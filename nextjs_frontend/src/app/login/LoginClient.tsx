@@ -155,7 +155,7 @@ export default function LoginClient() {
         aria-hidden="true"
         className="absolute inset-0 -z-10"
         style={{
-          // Keep a subtle login scrim, but allow the global purp.png background to show through.
+          // Keep a subtle login scrim, but allow the global CSS background to show through.
           background:
             'radial-gradient(circle at 50% 26%, rgba(255,255,255,0.08), transparent 55%), linear-gradient(135deg, rgba(109,104,123,0.28) 0%, rgba(91,85,114,0.28) 46%, rgba(60,57,71,0.28) 100%)',
         }}
