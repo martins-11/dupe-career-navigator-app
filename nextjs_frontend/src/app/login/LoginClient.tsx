@@ -26,38 +26,35 @@ function setAuthCookie(payload: { role: Role; email: string }) {
   document.cookie = `${AUTH_COOKIE_NAME}=${value}; Path=/; Max-Age=${60 * 60 * 24 * 7}; SameSite=Lax`;
 }
 
-function MountainPanelArt() {
+function DunesPanelArt() {
   /**
-   * Palette-constrained illustration:
-   * - Uses only ink/slate/primary/white/muted (with opacity).
+   * Reference-matching abstract "purple dunes" panel art.
+   * Intentionally uses local (non-global) colors so the /login page does not drift
+   * when the application's global palette/theme variables change.
    */
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 560 520"
-      className="absolute inset-0 h-full w-full"
-      preserveAspectRatio="xMidYMid slice"
-    >
+    <svg aria-hidden="true" viewBox="0 0 560 520" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid slice">
       <defs>
-        <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="var(--cn-primary)" />
-          <stop offset="60%" stopColor="var(--cn-slate)" />
-          <stop offset="100%" stopColor="var(--cn-ink)" />
+        <linearGradient id="cnLoginSky" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stopColor="#726A8E" />
+          <stop offset="45%" stopColor="#5B5572" />
+          <stop offset="100%" stopColor="#3C3947" />
         </linearGradient>
 
-        <linearGradient id="ridge" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="var(--cn-primary)" stopOpacity="0.45" />
-          <stop offset="70%" stopColor="var(--cn-slate)" stopOpacity="0.88" />
-          <stop offset="100%" stopColor="var(--cn-ink)" stopOpacity="1" />
+        <linearGradient id="cnLoginDune1" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stopColor="#6D57FF" stopOpacity="0.35" />
+          <stop offset="55%" stopColor="#4A445A" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#2F2C36" stopOpacity="1" />
         </linearGradient>
 
-        <linearGradient id="ridge2" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stopColor="var(--cn-primary)" stopOpacity="0.22" />
-          <stop offset="55%" stopColor="var(--cn-ink)" stopOpacity="0.98" />
+        <linearGradient id="cnLoginDune2" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#8B7CFF" stopOpacity="0.20" />
+          <stop offset="55%" stopColor="#4A445A" stopOpacity="0.90" />
+          <stop offset="100%" stopColor="#2A2730" stopOpacity="1" />
         </linearGradient>
 
-        <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur" />
+        <filter id="cnLoginGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="12" result="blur" />
           <feColorMatrix
             in="blur"
             type="matrix"
@@ -70,29 +67,24 @@ function MountainPanelArt() {
         </filter>
       </defs>
 
-      {/* sky */}
-      <rect width="560" height="520" fill="url(#sky)" />
+      <rect width="560" height="520" fill="url(#cnLoginSky)" />
 
-      {/* faint glow */}
-      <circle cx="140" cy="110" r="95" fill="var(--cn-white)" opacity="0.10" filter="url(#soft)" />
-      <circle cx="420" cy="175" r="120" fill="var(--cn-primary)" opacity="0.12" filter="url(#soft)" />
+      {/* soft highlight */}
+      <circle cx="150" cy="130" r="110" fill="#FFFFFF" opacity="0.10" filter="url(#cnLoginGlow)" />
+      <circle cx="420" cy="190" r="130" fill="#6D57FF" opacity="0.14" filter="url(#cnLoginGlow)" />
 
-      {/* far ridge */}
+      {/* dunes */}
       <path
-        d="M-10 300 C 80 250, 160 245, 240 285 C 315 320, 370 315, 460 270 C 520 240, 590 250, 590 250 L 590 520 L -10 520 Z"
-        fill="url(#ridge2)"
+        d="M-10 300 C 90 250, 180 250, 250 285 C 330 325, 400 320, 470 275 C 525 242, 600 252, 600 252 L 600 520 L -10 520 Z"
+        fill="url(#cnLoginDune1)"
       />
-
-      {/* main ridge */}
       <path
-        d="M-10 340 C 70 310, 170 265, 260 300 C 340 332, 420 370, 520 315 C 590 276, 620 285, 620 285 L 620 520 L -10 520 Z"
-        fill="url(#ridge)"
+        d="M-10 350 C 80 320, 170 270, 260 304 C 340 336, 420 385, 520 330 C 585 294, 620 304, 620 304 L 620 520 L -10 520 Z"
+        fill="url(#cnLoginDune2)"
       />
-
-      {/* dark foreground */}
       <path
-        d="M-10 395 C 110 370, 190 350, 280 380 C 380 412, 470 452, 610 410 L 610 520 L -10 520 Z"
-        fill="var(--cn-ink)"
+        d="M-10 400 C 110 370, 200 360, 285 386 C 380 416, 470 465, 620 420 L 620 520 L -10 520 Z"
+        fill="#1E1C24"
         opacity="0.92"
       />
     </svg>
@@ -100,27 +92,24 @@ function MountainPanelArt() {
 }
 
 function GoogleIcon(props: { className?: string }) {
+  /** Multi-color Google mark (reference-like). */
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className={props.className} fill="none">
+    <svg aria-hidden="true" viewBox="0 0 24 24" className={props.className}>
       <path
-        d="M21.6 12.23c0-.68-.06-1.18-.18-1.7H12v3.24h5.53c-.11.8-.71 2.01-2.02 2.82l-.02.11 2.98 2.24.2.02c1.85-1.66 2.93-4.1 2.93-6.75Z"
-        fill="currentColor"
-        opacity="0.92"
+        d="M21.6 12.23c0-.68-.06-1.18-.18-1.7H12v3.24h5.53c-.11.8-.71 2.01-2.02 2.82v.01l3.16 2.35c1.85-1.66 2.93-4.1 2.93-6.75Z"
+        fill="#4285F4"
       />
       <path
-        d="M12 22c2.7 0 4.97-.86 6.63-2.35l-3.16-2.37c-.85.58-1.99.99-3.47.99-2.65 0-4.9-1.66-5.7-3.96l-.11.01-3.09 2.29-.04.1C4.7 19.65 8.08 22 12 22Z"
-        fill="currentColor"
-        opacity="0.72"
+        d="M12 22c2.7 0 4.97-.86 6.63-2.35l-3.16-2.37c-.85.58-1.99.99-3.47.99-2.65 0-4.9-1.66-5.7-3.96l-3.2 2.39C4.7 19.65 8.08 22 12 22Z"
+        fill="#34A853"
       />
       <path
-        d="M6.3 14.31a6.2 6.2 0 0 1 0-4.62l-.01-.1-3.13-2.33-.1.05A9.8 9.8 0 0 0 2 12c0 1.58.38 3.07 1.06 4.39l3.24-2.08Z"
-        fill="currentColor"
-        opacity="0.55"
+        d="M6.3 14.31a6.2 6.2 0 0 1 0-4.62L3.06 7.31A9.86 9.86 0 0 0 2 12c0 1.58.38 3.07 1.06 4.39l3.24-2.08Z"
+        fill="#FBBC05"
       />
       <path
         d="M12 5.73c1.87 0 3.13.79 3.84 1.45l2.8-2.67C16.96 2.93 14.7 2 12 2 8.08 2 4.7 4.35 3.06 7.31l3.24 2.39C7.1 7.4 9.35 5.73 12 5.73Z"
-        fill="currentColor"
-        opacity="0.72"
+        fill="#EA4335"
       />
     </svg>
   );
@@ -136,7 +125,7 @@ function AppleIcon(props: { className?: string }) {
 
 // PUBLIC_INTERFACE
 export default function LoginClient() {
-  /** Login screen (prototype): single credential form + role switch (User/Admin), redirects to ingestion after setting cookie. */
+  /** Login screen (prototype): accepts any email/password, sets cn_auth cookie (role+email), then redirects to `next` or /ingestion. */
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -145,61 +134,64 @@ export default function LoginClient() {
   const [role, setRole] = useState<Role>('user');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
+  const [agreed, setAgreed] = useState(true);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
 
     setAuthCookie({ role, email: email.trim() });
-    void remember;
+
+    // UI-only field, not used by the prototype auth gate.
+    void password;
+    void agreed;
 
     router.replace(nextPath);
   };
 
   return (
-    <main
-      className="min-h-screen w-full px-5 py-10"
-      style={{
-        background: `linear-gradient(180deg, rgba(var(--cn-primary-rgb), 0.12) 0%, var(--cn-ink) 60%, var(--cn-ink) 100%)`,
-        color: 'var(--cn-white)',
-      }}
-    >
+    <main className="relative min-h-screen w-full px-5 py-10 text-white">
+      {/* Page background (reference-matching; isolated from global theme palette) */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 -z-10"
+        style={{
+          background: 'linear-gradient(120deg, #5b5572 0%, #4a445a 45%, #3c3947 100%)',
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 -z-10"
+        style={{
+          background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.06), transparent 55%)',
+        }}
+      />
+
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-[980px] items-center justify-center">
         <section
           aria-label="Login"
-          className="w-full overflow-hidden rounded-2xl shadow-[0_28px_70px_rgba(var(--cn-ink-rgb),0.55)] ring-1"
-          style={{
-            background: 'rgba(var(--cn-white-rgb), 0.10)',
-            borderColor: 'rgba(var(--cn-white-rgb), 0.14)',
-          }}
+          className="w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* Left panel (visual) */}
-            <div className="relative hidden min-h-[520px] md:block">
-              <MountainPanelArt />
-              <div
-                className="absolute inset-0"
-                style={{
-                  background:
-                    'linear-gradient(to bottom, rgba(var(--cn-ink-rgb), 0.10), transparent, rgba(var(--cn-ink-rgb), 0.40))',
-                }}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-[0.46fr_0.54fr]">
+            {/* Left panel (media) */}
+            <div className="p-4">
+              <div className="relative h-[260px] overflow-hidden rounded-xl shadow-[0_10px_24px_rgba(0,0,0,0.35)] md:h-[440px]">
+                <DunesPanelArt />
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background:
+                      'linear-gradient(to bottom, rgba(0,0,0,0.10), rgba(0,0,0,0.00) 55%, rgba(0,0,0,0.35))',
+                  }}
+                />
 
-              <div className="relative flex h-full flex-col p-8">
-                <div className="flex items-start justify-between">
-                  <div className="text-sm font-semibold tracking-wide" style={{ color: 'rgba(var(--cn-white-rgb), 0.92)' }}>
-                    Career Navigator
-                  </div>
-                </div>
+                <div className="relative flex h-full flex-col p-4">
+                  <div className="text-xs font-semibold tracking-wide text-white/90">Career Navigator</div>
 
-                <div className="mt-auto">
-                  <div className="max-w-[260px]">
-                    <p className="text-sm font-semibold leading-snug" style={{ color: 'var(--cn-white)' }}>
-                      Build a career that compounds.
+                  <div className="mt-auto pb-1 text-center">
+                    <p className="text-sm font-semibold leading-snug text-white/95">
+                      Capturing Moments,
                       <br />
-                      <span style={{ color: 'rgba(var(--cn-white-rgb), 0.70)' }}>
-                        Turn your experience into your next opportunity.
-                      </span>
+                      <span className="text-xs font-medium text-white/75">Creating Memories</span>
                     </p>
                   </div>
                 </div>
@@ -207,77 +199,72 @@ export default function LoginClient() {
             </div>
 
             {/* Right panel (form) */}
-            <div className="flex min-h-[520px] flex-col justify-center px-7 py-10 md:px-10">
-              <header className="mb-7">
-                <h1 className="text-2xl font-semibold leading-tight" style={{ color: 'var(--cn-white)' }}>
-                  Create an account
-                </h1>
-                <p className="mt-2 text-sm" style={{ color: 'rgba(var(--cn-white-rgb), 0.60)' }}>
+            <div className="flex flex-col px-7 py-9 md:px-9">
+              <div className="flex items-start justify-end">
+                <a
+                  href="/"
+                  className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/75 transition-colors hover:bg-white/10 hover:text-white/90"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  Back to website
+                </a>
+              </div>
+
+              <header className="mt-6">
+                <h1 className="text-[20px] font-bold leading-tight text-white/95">Create an account</h1>
+                <p className="mt-2 text-[12px] font-medium text-white/70">
                   Already have an account?{' '}
                   <a
                     href="/login"
-                    className="font-medium transition"
-                    style={{ color: 'rgba(var(--cn-white-rgb), 0.80)' }}
+                    className="font-semibold text-white/85 hover:underline"
                     onClick={(e) => e.preventDefault()}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--cn-white)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.80)')}
                   >
                     Log in
                   </a>
                 </p>
               </header>
 
-              {/* Role switch */}
-              <div
-                className="mb-5 inline-flex w-full rounded-lg p-1 ring-1"
-                role="tablist"
-                aria-label="Role"
-                style={{
-                  background: 'rgba(var(--cn-white-rgb), 0.05)',
-                  borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
-                }}
-              >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={role === 'user'}
-                  className={['h-9 flex-1 rounded-md text-sm font-medium transition', role === 'user' ? 'shadow-sm' : ''].join(' ')}
-                  style={{
-                    background: role === 'user' ? 'rgba(var(--cn-slate-rgb), 0.92)' : 'transparent',
-                    color: role === 'user' ? 'var(--cn-white)' : 'rgba(var(--cn-white-rgb), 0.70)',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (role !== 'user') e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.90)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (role !== 'user') e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.70)';
-                  }}
-                  onClick={() => setRole('user')}
+              {/* Role switch (segmented control) */}
+              <div className="mt-5">
+                <div
+                  className="inline-flex w-full rounded-full border border-white/10 bg-white/5 p-1"
+                  role="tablist"
+                  aria-label="Role"
                 >
-                  User
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={role === 'admin'}
-                  className={['h-9 flex-1 rounded-md text-sm font-medium transition', role === 'admin' ? 'shadow-sm' : ''].join(' ')}
-                  style={{
-                    background: role === 'admin' ? 'rgba(var(--cn-slate-rgb), 0.92)' : 'transparent',
-                    color: role === 'admin' ? 'var(--cn-white)' : 'rgba(var(--cn-white-rgb), 0.70)',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (role !== 'admin') e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.90)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (role !== 'admin') e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.70)';
-                  }}
-                  onClick={() => setRole('admin')}
-                >
-                  Admin
-                </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={role === 'user'}
+                    className={[
+                      'h-8 flex-1 rounded-full text-[11px] font-semibold transition',
+                      role === 'user' ? 'text-white shadow-sm' : 'text-white/65 hover:text-white/85',
+                    ].join(' ')}
+                    style={{
+                      background: role === 'user' ? 'rgba(109,87,255,0.35)' : 'transparent',
+                    }}
+                    onClick={() => setRole('user')}
+                  >
+                    User
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={role === 'admin'}
+                    className={[
+                      'h-8 flex-1 rounded-full text-[11px] font-semibold transition',
+                      role === 'admin' ? 'text-white shadow-sm' : 'text-white/65 hover:text-white/85',
+                    ].join(' ')}
+                    style={{
+                      background: role === 'admin' ? 'rgba(109,87,255,0.35)' : 'transparent',
+                    }}
+                    onClick={() => setRole('admin')}
+                  >
+                    Admin
+                  </button>
+                </div>
               </div>
 
-              <form onSubmit={submit} className="space-y-4">
+              <form onSubmit={submit} className="mt-5 space-y-3">
                 <label className="block">
                   <span className="sr-only">Email</span>
                   <input
@@ -287,12 +274,7 @@ export default function LoginClient() {
                     required
                     placeholder="Email"
                     autoComplete="email"
-                    className="h-11 w-full rounded-lg border px-4 text-sm outline-none transition"
-                    style={{
-                      borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
-                      background: 'rgba(var(--cn-white-rgb), 0.05)',
-                      color: 'var(--cn-white)',
-                    }}
+                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] text-white/90 outline-none placeholder:text-white/40 transition focus:border-[#6D57FF] focus:ring-4 focus:ring-[rgba(109,87,255,0.25)]"
                   />
                 </label>
 
@@ -305,101 +287,62 @@ export default function LoginClient() {
                     required
                     placeholder="Password"
                     autoComplete="current-password"
-                    className="h-11 w-full rounded-lg border px-4 text-sm outline-none transition"
-                    style={{
-                      borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
-                      background: 'rgba(var(--cn-white-rgb), 0.05)',
-                      color: 'var(--cn-white)',
-                    }}
+                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-4 text-[12px] text-white/90 outline-none placeholder:text-white/40 transition focus:border-[#6D57FF] focus:ring-4 focus:ring-[rgba(109,87,255,0.25)]"
                   />
                 </label>
 
-                <div className="flex items-center justify-between pt-1">
-                  <label className="inline-flex items-center gap-2 text-xs" style={{ color: 'rgba(var(--cn-white-rgb), 0.70)' }}>
+                <div className="pt-1">
+                  <label className="inline-flex items-center gap-2 text-[11px] font-medium text-white/70">
                     <input
                       type="checkbox"
-                      checked={remember}
-                      onChange={(e) => setRemember(e.target.checked)}
-                      className="h-4 w-4 rounded focus:ring-2"
-                      style={{
-                        borderColor: 'rgba(var(--cn-white-rgb), 0.20)',
-                        background: 'rgba(var(--cn-white-rgb), 0.05)',
-                        color: 'var(--cn-primary)',
-                      }}
+                      checked={agreed}
+                      onChange={(e) => setAgreed(e.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-white/5 text-[#6D57FF] focus:ring-4 focus:ring-[rgba(109,87,255,0.25)]"
                     />
-                    Remember me
+                    I agree to the{' '}
+                    <a href="/login" className="font-semibold text-white/85 hover:underline" onClick={(e) => e.preventDefault()}>
+                      Terms &amp; Conditions
+                    </a>
                   </label>
-
-                  <a
-                    href="/login"
-                    className="text-xs font-medium transition"
-                    style={{ color: 'rgba(var(--cn-white-rgb), 0.70)' }}
-                    onClick={(e) => e.preventDefault()}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.90)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(var(--cn-white-rgb), 0.70)')}
-                  >
-                    Forgot your password?
-                  </a>
                 </div>
 
                 <button
                   type="submit"
-                  className="mt-2 inline-flex h-11 w-full items-center justify-center rounded-lg text-sm font-semibold transition focus:outline-none focus:ring-4"
+                  className="mt-1 inline-flex h-10 w-full items-center justify-center rounded-lg text-[12px] font-bold text-white transition focus:outline-none focus:ring-4 focus:ring-[rgba(109,87,255,0.25)]"
                   style={{
-                    background: 'var(--cn-primary)',
-                    color: 'var(--cn-white)',
-                    boxShadow: '0 10px 28px rgba(var(--cn-primary-rgb), 0.22)',
+                    background: '#6D57FF',
+                    boxShadow: '0 10px 30px rgba(109,87,255,0.25)',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--primary-hover)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--cn-primary)')}
                 >
                   Create account
                 </button>
 
+                {/* Divider */}
                 <div className="relative py-2">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t" style={{ borderColor: 'rgba(var(--cn-white-rgb), 0.12)' }} />
+                    <div className="w-full border-t border-white/10" />
                   </div>
                   <div className="relative flex justify-center">
-                    <span
-                      className="px-3 text-xs"
-                      style={{
-                        background: 'rgba(var(--cn-white-rgb), 0.10)',
-                        color: 'rgba(var(--cn-white-rgb), 0.55)',
-                      }}
-                    >
+                    <span className="bg-[rgba(255,255,255,0.05)] px-3 text-[11px] font-medium text-white/60">
                       Or continue with
                     </span>
                   </div>
                 </div>
 
+                {/* Social buttons */}
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-medium ring-1 transition"
-                    style={{
-                      background: 'rgba(var(--cn-white-rgb), 0.05)',
-                      color: 'rgba(var(--cn-white-rgb), 0.88)',
-                      borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(var(--cn-white-rgb), 0.10)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(var(--cn-white-rgb), 0.05)')}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 text-[11px] font-semibold text-white/85 transition hover:bg-white/10 hover:-translate-y-[1px]"
                   >
                     <GoogleIcon className="h-4 w-4" />
                     Google
                   </button>
                   <button
                     type="button"
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-medium ring-1 transition"
-                    style={{
-                      background: 'rgba(var(--cn-white-rgb), 0.05)',
-                      color: 'rgba(var(--cn-white-rgb), 0.88)',
-                      borderColor: 'rgba(var(--cn-white-rgb), 0.12)',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(var(--cn-white-rgb), 0.10)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(var(--cn-white-rgb), 0.05)')}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 text-[11px] font-semibold text-white/85 transition hover:bg-white/10 hover:-translate-y-[1px]"
                   >
-                    <AppleIcon className="h-4 w-4" />
+                    <AppleIcon className="h-4 w-4 text-white" />
                     Apple
                   </button>
                 </div>
