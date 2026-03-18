@@ -12,7 +12,7 @@ import LoginClient from './LoginClient';
  */
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen w-full bg-black" />}>
+    <Suspense fallback={<div className="min-h-screen w-full bg-transparent" />}>
       <LoginClient />
     </Suspense>
   );

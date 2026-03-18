@@ -194,7 +194,7 @@ export default function ExploreClient() {
 
   if (isLoading) {
     return (
-      <div className="px-8 py-12 bg-background min-h-screen flex flex-col items-center justify-center">
+      <div className="px-8 py-12 bg-transparent min-h-screen flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-secondary border-t-primary rounded-full animate-spin mb-4" />
         <p className="text-muted-foreground font-medium animate-pulse">Mapping your career trajectory…</p>
       </div>
@@ -203,7 +203,7 @@ export default function ExploreClient() {
 
   if (error) {
     return (
-      <div className="px-8 py-12 bg-background min-h-screen">
+      <div className="px-8 py-12 bg-transparent min-h-screen">
         <div className="max-w-2xl mx-auto p-6 bg-secondary border border-border rounded-xl">
           <h1 className="text-xl font-bold text-foreground mb-2">Discovery Paused</h1>
           <p className="text-muted-foreground">{error}</p>
@@ -213,7 +213,7 @@ export default function ExploreClient() {
   }
 
   return (
-    <div className="px-8 py-8 bg-background min-h-screen font-sans text-foreground">
+    <div className="px-8 py-8 bg-transparent min-h-screen font-sans text-foreground">
       <div className="max-w-7xl mx-auto">
         <header className="flex justify-between items-end mb-10 border-b border-border pb-8">
           <div>

@@ -46,25 +46,12 @@
   /*
     Global app background image.
 
-    The class is toggled client-side (see GlobalBackground.tsx) so we can:
-    - apply the background across the app, and
-    - explicitly keep /login unchanged by NOT setting this class on that route.
+    IMPORTANT:
+    - The class is applied server-side on <html> and <body> (see src/app/layout.tsx),
+      so the background is present on ALL routes (including /login) without flicker.
+    - Keep the background on <body> so it sits behind all page content.
   */
-  /*
-    When the global background is enabled:
-    - Put the image on <body>.
-    - Override the --background token to be semi-transparent so any existing
-      `bg-background` wrappers don't completely hide the image.
-    - Keep /login unchanged by only activating via the cn-app-bg class toggle.
-  */
-  html.cn-app-bg {
-    --background: rgba(var(--cn-ink-rgb), 0.72);
-  }
-
   body.cn-app-bg {
-    /* Let the image read clearly; surfaces get the translucent --background. */
-    background-color: transparent;
-
     /* Public assets resolve from /public -> /assets/... */
     background-image: url('/assets/purp.png');
     background-repeat: no-repeat;

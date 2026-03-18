@@ -477,7 +477,7 @@ export default function MindmapClient() {
   const emptyState = computeEmptyStateReason({ isBooting, graphLoading, graphError, currentRoleTitle, graph });
 
   return (
-    <div className="min-h-screen font-sans" style={{ background: 'var(--mindmap-bg-canvas)' }}>
+    <div className="min-h-screen font-sans" style={{ background: 'transparent' }}>
       <div className="px-6 py-6">
         <div className="max-w-[1200px] mx-auto">
           {/* Header row (matches design: title left, meta right) */}

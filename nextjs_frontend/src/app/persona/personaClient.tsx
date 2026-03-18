@@ -76,7 +76,7 @@ export default function PersonaClient() {
   const displayDesignation = personaCurrentRole || currentRoleTitle || null;
 
   return (
-    <div className="px-8 py-8 bg-background min-h-screen font-sans text-foreground">
+    <div className="px-8 py-8 bg-transparent min-h-screen font-sans text-foreground">
       <div className="max-w-4xl mx-auto space-y-6">
         <header className="border-b border-border pb-6">
           <div className="space-y-1">

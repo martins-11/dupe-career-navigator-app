@@ -1382,7 +1382,8 @@ export default function App() {
     <div
       className="min-h-screen"
       style={{
-        background: 'linear-gradient(180deg, rgba(79, 70, 229, 0.06) 0%, #F9FAFB 55%, #F9FAFB 100%)',
+        // Let the global body background image show through on this route.
+        background: 'transparent',
         fontFamily: 'Inter, sans-serif',
       }}
     >
