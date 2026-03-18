@@ -72,36 +72,14 @@ interface PersonaData {
   profileImage?: string;
 }
 
-type UploadCategory = 'resume' | 'job_description' | 'performance_review';
-
-const UPLOAD_CATEGORIES: UploadCategory[] = ['resume', 'job_description', 'performance_review'];
-
-function uploadCategoryLabel(category: UploadCategory): string {
-  switch (category) {
-    case 'resume':
-      return 'Resume';
-    case 'job_description':
-      return 'Job Description';
-    case 'performance_review':
-      return 'Performance Review';
-  }
-}
-
-function uploadCategoryHelperText(category: UploadCategory): string {
-  switch (category) {
-    case 'resume':
-      return 'Upload your most recent resume (PDF, DOCX, TXT).';
-    case 'job_description':
-      return 'Upload the job description you are targeting (PDF, DOCX, TXT).';
-    case 'performance_review':
-      return 'Upload a recent performance review (PDF, DOCX, TXT).';
-  }
-}
-
 interface UploadedFileData {
   id: string;
-  category: UploadCategory;
   file: File;
+  /**
+   * Optional user-facing display name.
+   * (We keep this for backward compatibility with earlier UI behavior.)
+   */
+  displayName?: string;
 }
 
 function asStringArray(value: unknown): string[] {
@@ -446,11 +424,7 @@ export default function App() {
   const profileImageInputRef = useRef<HTMLInputElement>(null);
   const newSkillInputRef = useRef<HTMLInputElement>(null);
 
-  /**
-   * The initial step has 3 upload containers. We keep a single hidden file input and
-   * set the "active category" before opening the picker.
-   */
-  const selectedUploadCategoryRef = useRef<UploadCategory>('resume');
+
 
   /**
    * Guard against re-entrant file-picker triggering.
@@ -544,13 +518,7 @@ export default function App() {
     [openHiddenFileInput]
   );
 
-  const openFilePickerForCategory = useCallback(
-    (category: UploadCategory, e?: React.SyntheticEvent) => {
-      selectedUploadCategoryRef.current = category;
-      openFilePicker(e);
-    },
-    [openFilePicker]
-  );
+
 
   // Helps correlate logs across multiple async flows; increments per draft generation.
   const generationIdRef = useRef<number>(0);
@@ -584,64 +552,42 @@ export default function App() {
 
   const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.txt'];
 
-  // UX update: 3 upload containers (one per required category).
-  const MAX_FILES = 3;
-
-  const categorySortIndex = useCallback((category: UploadCategory): number => {
-    return UPLOAD_CATEGORIES.indexOf(category);
-  }, []);
-
-  const sortUploadedFiles = useCallback(
-    (items: UploadedFileData[]): UploadedFileData[] => {
-      return items.slice().sort((a, b) => categorySortIndex(a.category) - categorySortIndex(b.category));
-    },
-    [categorySortIndex]
-  );
+  // Restored behavior: single upload area that supports multiple documents.
+  const MAX_FILES = 5;
 
   const validateFile = (file: File): boolean => {
     const fileName = file.name.toLowerCase();
     return ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
   };
 
-  const addFiles = (category: UploadCategory, files: File[]) => {
+  const addFiles = (files: File[]) => {
     setUploadError('');
     setBackendError('');
 
     if (!files || files.length === 0) return;
 
-    // UX requirement: one file per container.
-    if (files.length > 1) {
-      setUploadError('Please upload only one file per section (Resume, Job Description, Performance Review).');
-      return;
-    }
-
-    const file = files[0];
-
-    if (!validateFile(file)) {
+    // Validate up-front
+    const invalidFiles = files.filter((file) => !validateFile(file));
+    if (invalidFiles.length > 0) {
       setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
       return;
     }
 
-    // Replace any existing file for this category; keep other categories intact.
     setUploadedFiles((prev) => {
-      const withoutCategory = prev.filter((p) => p.category !== category);
-
-      // Safety guard: prevent more than MAX_FILES total in state.
-      if (withoutCategory.length + 1 > MAX_FILES) {
+      if (prev.length + files.length > MAX_FILES) {
         setUploadError(`Maximum ${MAX_FILES} documents allowed.`);
         return prev;
       }
 
       const next: UploadedFileData[] = [
-        ...withoutCategory,
-        {
+        ...prev,
+        ...files.map((file) => ({
           id: Math.random().toString(36).substr(2, 9),
-          category,
           file,
-        },
+        })),
       ];
 
-      return sortUploadedFiles(next);
+      return next;
     });
   };
 
@@ -697,65 +643,33 @@ export default function App() {
     e.target.value = '';
 
     const newBytes = newFiles.reduce((sum, f) => sum + (f.size ?? 0), 0);
-    const category = selectedUploadCategoryRef.current;
 
     // Defer UI state updates to next tick to reduce chance of freezes.
     window.setTimeout(() => {
-      setUploadedFiles((prev) => {
-        const existingBytes = prev.reduce((sum, f) => sum + (f.file?.size ?? 0), 0);
+      const existingBytes = uploadedFiles.reduce((sum, f) => sum + (f.file?.size ?? 0), 0);
 
-        if (existingBytes + newBytes > MAX_TOTAL_UPLOAD_BYTES) {
-          setUploadError(
-            `Selected files are too large for in-browser processing. Please keep total upload size under ${Math.round(
-              MAX_TOTAL_UPLOAD_BYTES / (1024 * 1024)
-            )}MB.`
-          );
-          return prev;
-        }
+      if (existingBytes + newBytes > MAX_TOTAL_UPLOAD_BYTES) {
+        setUploadError(
+          `Selected files are too large for in-browser processing. Please keep total upload size under ${Math.round(
+            MAX_TOTAL_UPLOAD_BYTES / (1024 * 1024)
+          )}MB.`
+        );
+        return;
+      }
 
-        // Validate up-front so we don't accept files that the UI will reject anyway.
-        const invalidFiles = newFiles.filter((file) => !validateFile(file));
-        if (invalidFiles.length > 0) {
-          setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
-          return prev;
-        }
-
-        // Enforce one file per category.
-        if (newFiles.length > 1) {
-          setUploadError('Please upload only one file per section (Resume, Job Description, Performance Review).');
-          return prev;
-        }
-
-        // Replace any existing file for this category.
-        const withoutCategory = prev.filter((p) => p.category !== category);
-
-        if (withoutCategory.length + 1 > MAX_FILES) {
-          setUploadError(`Maximum ${MAX_FILES} documents allowed.`);
-          return prev;
-        }
-
-        setUploadError('');
-        setBackendError('');
-
-        const next: UploadedFileData[] = [
-          ...withoutCategory,
-          { id: Math.random().toString(36).substr(2, 9), category, file: newFiles[0] },
-        ];
-
-        return sortUploadedFiles(next);
-      });
+      addFiles(newFiles);
     }, 0);
   };
 
-  const handleDropForCategory =
-    (category: UploadCategory) =>
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      if (e.dataTransfer.files) {
-        const newFiles = Array.from(e.dataTransfer.files);
-        addFiles(category, newFiles);
-      }
-    };
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (e.dataTransfer.files) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      addFiles(newFiles);
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -795,13 +709,11 @@ export default function App() {
     try {
       setState('processing');
 
-      const hasAllCategories = UPLOAD_CATEGORIES.every((cat) => uploadedFiles.some((f) => f.category === cat));
-      if (!hasAllCategories) {
-        throw new Error('Please upload a Resume, Job Description, and Performance Review before generating your persona.');
+      if (uploadedFiles.length === 0) {
+        throw new Error('Please upload at least one document before generating your persona.');
       }
 
       const files = uploadedFiles.map((f) => f.file);
-      const categories = uploadedFiles.map((f) => f.category);
 
       // eslint-disable-next-line no-console
       console.log(`[draft][gen:${generationId}] uploading documents`, {
@@ -813,11 +725,7 @@ export default function App() {
 
       // Upload first (side effects: persists document rows + extracted text rows best-effort).
       await import('@/lib/apiClient').then(async ({ uploadDocuments }) => {
-        const uploadResp = await uploadDocuments({
-          files,
-          categories,
-          requireCategories: true,
-        });
+        const uploadResp = await uploadDocuments({ files });
         // eslint-disable-next-line no-console
         console.log(`[draft][gen:${generationId}] uploadDocuments response summary:`, {
           uploadId: (uploadResp as any)?.uploadId,
@@ -1473,8 +1381,8 @@ export default function App() {
   const step3Complete = state === 'finalized';
 
   const hasAllRequiredUploads = useMemo(() => {
-    return UPLOAD_CATEGORIES.every((cat) => uploadedFiles.some((f) => f.category === cat));
-  }, [uploadedFiles]);
+    return uploadedFiles.length > 0;
+  }, [uploadedFiles.length]);
 
   const getFileType = (fileName: string): string => {
     const extension = fileName.split('.').pop()?.toUpperCase();
@@ -1633,9 +1541,17 @@ export default function App() {
                 style={{
                   borderColor: '#D1D5DB',
                   backgroundColor: uploadedFiles.length > 0 ? 'rgba(var(--cn-primary-rgb), 0.05)' : 'transparent',
+                  cursor: isFileDialogActive ? 'not-allowed' : 'pointer',
                 }}
-                role="region"
-                aria-label="Upload documents"
+                role="button"
+                tabIndex={0}
+                aria-label="Upload documents (click to browse or drag and drop)"
+                onClick={(e) => openFilePicker(e)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') openFilePicker(e as any);
+                }}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
               >
                 <div className="mb-5">
                   <Upload className="mx-auto mb-3" size={44} style={{ color: 'var(--primary)' }} />
@@ -1643,74 +1559,31 @@ export default function App() {
                     Upload your Documents
                   </p>
                   <p style={{ fontSize: '14px', color: '#6B7280' }}>
-                    Please upload one file for each section: Resume, Job Description, Performance Review.
+                    Drag & drop your documents here, or browse to upload (up to {MAX_FILES}).
                   </p>
                   <p style={{ fontSize: '14px', color: '#6B7280', marginTop: '8px' }}>
                     Supported formats: PDF, DOCX, TXT
                   </p>
                 </div>
 
-                <div className="cn-upload-card-group" role="group" aria-label="Upload sections">
-                  <div className="cn-upload-card-grid">
-                    {UPLOAD_CATEGORIES.map((category) => {
-                      const current = uploadedFiles.find((f) => f.category === category);
-
-                      return (
-                        <div
-                          key={category}
-                          onDrop={handleDropForCategory(category)}
-                          onDragOver={handleDragOver}
-                          className="cn-upload-card"
-                          role="region"
-                          aria-label={`${uploadCategoryLabel(category)} upload`}
-                        >
-                          <div className="cn-upload-card-content">
-                            <div className="cn-upload-card-title">{uploadCategoryLabel(category)}</div>
-
-                            <div className="cn-upload-card-desc">{uploadCategoryHelperText(category)}</div>
-
-                            {current ? (
-                              <div className="cn-upload-card-file" aria-label={`${uploadCategoryLabel(category)} file selected`}>
-                                <div className="cn-upload-card-file-meta">
-                                  <div className="cn-upload-card-file-name" title={current.file.name}>
-                                    {current.file.name}
-                                  </div>
-                                  <div className="cn-upload-card-file-type">{getFileType(current.file.name)}</div>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeFile(current.id);
-                                  }}
-                                  className="cn-upload-card-remove"
-                                  aria-label={`Remove ${uploadCategoryLabel(category)} file`}
-                                  title="Remove"
-                                >
-                                  <X size={16} />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="cn-upload-card-hint">Drag & drop here, or browse.</div>
-                            )}
-
-                            <div className="cn-upload-card-actions">
-                              <button
-                                type="button"
-                                onClick={(e) => openFilePickerForCategory(category, e)}
-                                disabled={isFileDialogActive}
-                                className="cn-upload-card-button"
-                                aria-disabled={isFileDialogActive}
-                              >
-                                Browse File
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={(e) => openFilePicker(e)}
+                    disabled={isFileDialogActive}
+                    className="rounded-lg transition-all duration-200"
+                    style={{
+                      backgroundColor: isFileDialogActive ? '#D1D5DB' : 'var(--primary)',
+                      color: isFileDialogActive ? '#6B7280' : 'white',
+                      padding: '10px 16px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: isFileDialogActive ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    Browse Files
+                  </button>
                 </div>
               </div>
 
@@ -1729,7 +1602,7 @@ export default function App() {
                 </motion.p>
               )}
 
-              {/* Keep the original "uploaded list" behavior, but show a category tag for clarity. */}
+              {/* Uploaded files list (restored single-upload behavior). */}
               {uploadedFiles.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
@@ -1748,18 +1621,12 @@ export default function App() {
                       <div className="flex items-center gap-3 min-w-0">
                         <span
                           className="px-2 py-1 rounded text-xs font-medium"
-                          style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.1)', color: 'var(--primary)' }}
-                        >
-                          {uploadCategoryLabel(fileData.category)}
-                        </span>
-                        <span
-                          className="px-2 py-1 rounded text-xs font-medium"
                           style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.08)', color: '#0F766E' }}
                         >
                           {getFileType(fileData.file.name)}
                         </span>
                         <span className="truncate" style={{ fontSize: '14px', color: '#1F2937', fontWeight: 600 }}>
-                          {(fileData as any).displayName || fileData.file.name}
+                          {fileData.displayName || fileData.file.name}
                         </span>
                       </div>
                       <button
