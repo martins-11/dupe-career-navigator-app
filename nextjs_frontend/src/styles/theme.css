@@ -152,6 +152,18 @@
   --mindmap-r-card: 10px;
   --mindmap-r-bubble: 14px;
   --mindmap-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35);
+
+  /* -----------------------------------------------------------------------
+   * Explore mindmap tokens (defaults; Explore page overrides via .cn-explore-theme)
+   * --------------------------------------------------------------------- */
+  --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.35);
+
+  /* Selected-edge halo/accent (behind the black stroke) */
+  --explore-mindmap-selected-edge-halo: rgba(139, 92, 246, 0.85);
+
+  --explore-mindmap-node-rec-fill: var(--cn-slate);
+  --explore-mindmap-node-rec-stroke: rgba(0, 0, 0, 0);
+  --explore-mindmap-node-rec-text: rgba(var(--cn-white-rgb), 0.92);
 }
 
 /*
@@ -210,4 +222,122 @@
   --mindmap-charcoal: rgba(var(--cn-slate-rgb), 0.92);
   --mindmap-control-icon: rgba(var(--cn-white-rgb), 0.55);
   --mindmap-path-stroke: rgba(var(--cn-white-rgb), 0.35);
+}
+
+/*
+  Explore page theme overrides (scoped via class on Explore route only)
+
+  Goal:
+  - Containers (search bar, filters, role cards, mindmap panels) use a light violet/lavender surface.
+  - Text becomes bold + black for readability on the global lavender/white background.
+  - Explore mindmap edges/nodes are adjusted for visibility under the lighter surface.
+*/
+.cn-explore-theme {
+  /* Surface primitives for Explore */
+  --cn-explore-surface: #f1eaff;   /* light violet */
+  --cn-explore-surface-2: #e9dfff; /* slightly deeper violet */
+  --cn-explore-border: rgba(107, 91, 218, 0.25);
+
+  /* Semantic tokens (used by Tailwind classes like bg-card/bg-background/text-foreground) */
+  --background: var(--cn-explore-surface);
+  --foreground: #0b0b0f;
+
+  --card: var(--cn-explore-surface);
+  --card-foreground: #0b0b0f;
+
+  /* Popovers (autocomplete, dropdowns) stay “clean” and readable */
+  --popover: rgba(var(--cn-white-rgb), 0.92);
+  --popover-foreground: #0b0b0f;
+
+  --secondary: #efe7ff;
+  --secondary-foreground: #0b0b0f;
+
+  --muted: rgba(0, 0, 0, 0.04);
+  --muted-foreground: rgba(11, 11, 15, 0.62);
+
+  --accent: rgba(var(--cn-primary-rgb), 0.12);
+  --accent-foreground: #0b0b0f;
+
+  --border: var(--cn-explore-border);
+  --input: var(--cn-explore-border);
+  --input-background: rgba(var(--cn-white-rgb), 0.78);
+
+  --ring: rgba(var(--cn-primary-rgb), 0.28);
+
+  /* Explore helper tokens used by Filters (inline styles) */
+  --bg-canvas: #ffffff;
+  --bg-surface: var(--cn-explore-surface);
+  --text-strong: #0b0b0f;
+  --text-body: rgba(11, 11, 15, 0.84);
+  --text-muted: rgba(11, 11, 15, 0.62);
+  --border-subtle: var(--cn-explore-border);
+
+  /* Bold black feel without rewriting each component */
+  color: var(--foreground);
+  font-weight: 700;
+
+  /* Explore mindmap-specific tokens */
+  --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.55);
+  --explore-mindmap-node-rec-fill: rgba(255, 255, 255, 0.92);
+  --explore-mindmap-node-rec-stroke: rgba(var(--cn-primary-rgb), 0.42);
+  --explore-mindmap-node-rec-text: #0b0b0f;
+}
+
+/*
+  Explore page theme overrides (scoped via class on Explore route only)
+
+  Goal:
+  - Containers (search bar, filters, role cards, mindmap panels) use a light violet/lavender surface.
+  - Text becomes bold + black for readability on the global lavender/white background.
+  - Mindmap edges/nodes are adjusted for visibility under the lighter surface.
+*/
+.cn-explore-theme {
+  /* Surface primitives for Explore */
+  --cn-explore-surface: #f1eaff;     /* light violet */
+  --cn-explore-surface-2: #e9dfff;   /* slightly deeper violet */
+  --cn-explore-border: rgba(107, 91, 218, 0.25);
+
+  /* Semantic tokens (used by Tailwind classes like bg-card/bg-background/text-foreground) */
+  --background: var(--cn-explore-surface);
+  --foreground: #0b0b0f;
+
+  --card: var(--cn-explore-surface);
+  --card-foreground: #0b0b0f;
+
+  /* Popovers (autocomplete, dropdowns) stay “clean” and readable */
+  --popover: rgba(var(--cn-white-rgb), 0.92);
+  --popover-foreground: #0b0b0f;
+
+  --secondary: color-mix(in srgb, var(--cn-explore-surface-2) 78%, #ffffff 22%);
+  --secondary-foreground: #0b0b0f;
+
+  --muted: rgba(0, 0, 0, 0.04);
+  --muted-foreground: rgba(11, 11, 15, 0.62);
+
+  --accent: rgba(var(--cn-primary-rgb), 0.12);
+  --accent-foreground: #0b0b0f;
+
+  --border: var(--cn-explore-border);
+  --input: var(--cn-explore-border);
+  --input-background: rgba(var(--cn-white-rgb), 0.78);
+
+  --ring: rgba(var(--cn-primary-rgb), 0.28);
+
+  /* Explore helper tokens used by Filters (inline styles) */
+  --bg-canvas: #ffffff;
+  --bg-surface: var(--cn-explore-surface);
+  --text-strong: #0b0b0f;
+  --text-body: rgba(11, 11, 15, 0.84);
+  --text-muted: rgba(11, 11, 15, 0.62);
+  --border-subtle: var(--cn-explore-border);
+
+  /* Make Explore typography read as “bold black” without rewriting every component */
+  color: var(--foreground);
+  font-weight: 600;
+
+  /* Explore mindmap-specific tokens */
+  --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.55);
+  --explore-mindmap-node-rec-fill: rgba(255, 255, 255, 0.92);
+  --explore-mindmap-node-rec-stroke: rgba(var(--cn-primary-rgb), 0.42);
+  --explore-mindmap-node-rec-text: #0b0b0f;
 }

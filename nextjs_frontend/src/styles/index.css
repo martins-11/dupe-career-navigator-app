@@ -44,7 +44,7 @@
   }
 
   /*
-    Global app background image.
+    Global app background (CSS-only; no image dependency).
 
     IMPORTANT:
     - The class is applied server-side on <html> and <body> (see src/app/layout.tsx),
@@ -52,14 +52,36 @@
     - Keep the background on <body> so it sits behind all page content.
   */
   body.cn-app-bg {
-    /* Public assets resolve from /public -> /assets/... */
-    background-image: url('/assets/purp.png');
-    background-repeat: no-repeat;
-    background-position: center top;
-    background-size: cover;
+    /*
+      Global app background (polished + modern):
+      - a clean lavender → white gradient base
+      - subtle “ambient light” highlights to avoid looking flat
+      - no texture/noise layers (keeps it crisp and premium)
+    */
 
-    /* Helps keep the background stable during scroll on content-heavy routes. */
-    background-attachment: fixed;
+    /* Fallback solid color (e.g., if gradients are disabled). */
+    background-color: #ffffff;
+
+    background-image:
+      /* Ambient highlights (very subtle) */
+      radial-gradient(900px 560px at 18% 8%, rgba(167, 139, 250, 0.18) 0%, rgba(167, 139, 250, 0) 62%),
+      radial-gradient(760px 520px at 86% 22%, rgba(196, 181, 253, 0.14) 0%, rgba(196, 181, 253, 0) 58%),
+
+      /* Main field gradient (lavender -> white) */
+      linear-gradient(180deg, #f7f3ff 0%, #ffffff 70%, #ffffff 100%);
+
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center top;
+
+    /* Avoid iOS jank; enable fixed background only on larger screens. */
+    background-attachment: scroll;
+  }
+
+  @media (min-width: 768px) {
+    body.cn-app-bg {
+      background-attachment: fixed;
+    }
   }
 
   /*
@@ -123,10 +145,41 @@
   background-image: linear-gradient(
     90deg,
     rgba(var(--cn-ink-rgb), 0.06) 0%,
-    rgba(var(--cn-ink-rgb), 0.10) 20%,
+    rgba(var(--cn-ink-rgb), 0.1) 20%,
     rgba(var(--cn-ink-rgb), 0.06) 40%,
     rgba(var(--cn-ink-rgb), 0.06) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.2s ease-in-out infinite;
 }
+
+/* Explore RoleCard: flashy shine sweep (used via Tailwind arbitrary animate class) */
+@keyframes cnRoleCardShine {
+  0% {
+    transform: translateX(-38%) rotate(12deg);
+  }
+  100% {
+    transform: translateX(38%) rotate(12deg);
+  }
+}
+
+/* Explore RoleCard: click "pop" (used on inner wrapper so hover transforms remain intact) */
+@keyframes cnRoleCardPop {
+  0% {
+    transform: scale(1);
+    filter: saturate(1) contrast(1);
+  }
+  35% {
+    transform: scale(0.985);
+    filter: saturate(1.06) contrast(1.02);
+  }
+  70% {
+    transform: scale(1.012);
+    filter: saturate(1.1) contrast(1.03);
+  }
+  100% {
+    transform: scale(1);
+    filter: saturate(1) contrast(1);
+  }
+}
+

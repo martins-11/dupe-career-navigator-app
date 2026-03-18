@@ -108,7 +108,7 @@ export function ExploreMindmapDetailsPanel(props: {
         : null;
 
   return (
-    <aside className="h-full rounded-2xl border border-border bg-background overflow-hidden flex flex-col">
+    <aside className="h-full rounded-2xl border border-border bg-card text-card-foreground overflow-hidden flex flex-col">
       <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Role details</div>
@@ -123,7 +123,9 @@ export function ExploreMindmapDetailsPanel(props: {
 
       <div className="flex-1 overflow-auto px-5 py-4">
         {!selectedRole ? (
-          <div className="text-sm leading-relaxed text-slate-500">Select a recommended role node to view its details.</div>
+          <div className="text-sm leading-relaxed text-muted-foreground">
+            Select a recommended role node to view its details.
+          </div>
         ) : loading ? (
           <div className="space-y-4">
             <Skeleton className="h-6 w-3/4" />
@@ -140,35 +142,35 @@ export function ExploreMindmapDetailsPanel(props: {
         ) : (
           <div className="space-y-5">
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-3">
-                <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Industry</div>
-                <div className="mt-1 text-sm font-bold text-slate-900">{industry}</div>
+              <div className="rounded-xl border border-border bg-secondary/40 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Industry</div>
+                <div className="mt-1 text-sm font-bold text-foreground">{industry}</div>
               </div>
 
-              <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-3">
-                <div className="text-[11px] uppercase tracking-wide text-slate-500 font-semibold">Compatibility</div>
-                <div className="mt-1 text-sm font-bold text-slate-900">{score === null ? '—' : `${score}%`}</div>
+              <div className="rounded-xl border border-border bg-secondary/40 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Compatibility</div>
+                <div className="mt-1 text-sm font-bold text-foreground">{score === null ? '—' : `${score}%`}</div>
               </div>
             </div>
 
             {description ? (
               <div>
-                <div className="text-[11px] uppercase tracking-[0.10em] text-slate-600 font-bold">Summary</div>
-                <div className="mt-2 text-sm text-slate-700 leading-relaxed">{description}</div>
+                <div className="text-[11px] uppercase tracking-[0.10em] text-muted-foreground font-bold">Summary</div>
+                <div className="mt-2 text-sm text-foreground leading-relaxed">{description}</div>
               </div>
             ) : null}
 
             <div>
-              <div className="text-[11px] uppercase tracking-[0.10em] text-slate-600 font-bold">Required skills</div>
+              <div className="text-[11px] uppercase tracking-[0.10em] text-muted-foreground font-bold">Required skills</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {requiredSkills.length > 0 ? (
                   requiredSkills.slice(0, 40).map((s: string) => (
-                    <Badge key={s} variant="secondary" className="bg-white border border-slate-200 text-slate-700">
+                    <Badge key={s} variant="secondary" className="bg-white/80 border border-border text-foreground">
                       {s}
                     </Badge>
                   ))
                 ) : (
-                  <div className="text-sm text-slate-500">No skills provided.</div>
+                  <div className="text-sm text-muted-foreground">No skills provided.</div>
                 )}
               </div>
             </div>
@@ -177,10 +179,10 @@ export function ExploreMindmapDetailsPanel(props: {
               <>
                 <Separator />
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.10em] text-slate-600 font-bold">Tags</div>
+                  <div className="text-[11px] uppercase tracking-[0.10em] text-muted-foreground font-bold">Tags</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {tags.slice(0, 40).map((t) => (
-                      <Badge key={t} className="bg-slate-50 text-slate-700 border border-slate-200">
+                      <Badge key={t} className="bg-white/65 text-foreground border border-border">
                         {t}
                       </Badge>
                     ))}
@@ -190,9 +192,9 @@ export function ExploreMindmapDetailsPanel(props: {
             ) : null}
 
             {enrichLoading ? (
-              <div className="text-xs text-slate-400">Loading more details…</div>
+              <div className="text-xs text-muted-foreground">Loading more details…</div>
             ) : enrichError ? (
-              <div className="text-xs text-slate-400">{enrichError}</div>
+              <div className="text-xs text-muted-foreground">{enrichError}</div>
             ) : null}
           </div>
         )}

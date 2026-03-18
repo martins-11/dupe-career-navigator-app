@@ -155,6 +155,23 @@ const nextConfig = {
       },
     ];
   },
+
+  /**
+   * Fix build-time server chunk resolution:
+   * During `next build`, Next loads `/.next/server/pages/_document.js`, which uses the
+   * server webpack runtime to load additional chunks via `require("./" + chunkFile)`.
+   *
+   * In this repo's build output, server chunks are emitted under `.next/server/chunks/*.js`.
+   * Without this override, the runtime may try to load `./<id>.js` from `.next/server/`,
+   * causing `Cannot find module './682.js'` during "Collecting page data ...".
+   */
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.output = config.output || {};
+      config.output.chunkFilename = 'chunks/[id].js';
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

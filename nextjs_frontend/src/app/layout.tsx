@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-
 /**
  * Global CSS entrypoint.
  *
@@ -8,6 +7,8 @@ import type { Metadata } from 'next';
  * `@layer base` (e.g. theme.css), otherwise Tailwind compilation can fail.
  */
 import '@/styles/index.css';
+
+import GlobalSidebarLayout from '@/app/components/layout/GlobalSidebarLayout';
 
 export const metadata: Metadata = {
   title: 'Career Navigator',
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   /** Root layout for the Next.js App Router application. */
   return (
     <html lang="en" className="cn-app-bg">
-      <body className="cn-app-bg">{children}</body>
+      <body className="cn-app-bg">
+        <GlobalSidebarLayout>{children}</GlobalSidebarLayout>
+      </body>
     </html>
   );
 }

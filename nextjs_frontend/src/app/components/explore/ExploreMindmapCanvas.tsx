@@ -87,10 +87,11 @@ function computeRadialLayout(nodes: ExploreMindmapNode[]) {
 // PUBLIC_INTERFACE
 export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
   /**
-   * SVG renderer for Explore mind map (palette-constrained):
-   * - current role: primary circle
-   * - recommended roles: slate pills
-   * - connectors: primary alpha
+   * SVG renderer for Explore mind map.
+   *
+   * UX goals (per request):
+   * - Make connectors very visible: thick + black.
+   * - Especially ensure "current role → target roles" connections are unmistakable.
    */
   const { nodes, edges, selectedNodeId, viewport, onViewportChange, onNodeClick } = props;
 
@@ -99,6 +100,8 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
   const panStart = React.useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
 
   const positions = React.useMemo(() => computeRadialLayout(nodes), [nodes]);
+
+  const centerNode = React.useMemo(() => nodes.find((n) => n.kind === 'current') ?? nodes[0], [nodes]);
 
   const viewBox = React.useMemo(() => {
     const baseW = 1200;
@@ -192,8 +195,6 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
     panStart.current = null;
   };
 
-  const centerNode = nodes.find((n) => n.kind === 'current') ?? nodes[0];
-
   return (
     <div className="w-full h-full rounded-2xl overflow-hidden flex flex-col min-h-0 bg-background border border-border">
       <svg
@@ -207,28 +208,105 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
         aria-label="Explore mind map"
         style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
       >
-        <g aria-hidden="true">
-          {edges.map((e, idx) => {
-            const a = positions.get(e.source);
-            const b = positions.get(e.target);
-            if (!a || !b) return null;
+        <defs>
+          {/* Subtle drop shadow to prevent thick black edges from blending into dark nodes. */}
+          <filter id="exploreEdgeShadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="#000000" floodOpacity="0.28" />
+            <feDropShadow dx="0" dy="0.6" stdDeviation="0.6" floodColor="#000000" floodOpacity="0.18" />
+          </filter>
+        </defs>
 
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const curvature = Math.min(180, Math.max(60, Math.abs(dy) * 0.5 + Math.abs(dx) * 0.12));
-            const cx = a.x + dx * 0.5;
-            const cy = Math.min(a.y, b.y) - curvature;
+        <g aria-hidden="true" filter="url(#exploreEdgeShadow)">
+          {/**
+           * Selected-edge highlighting:
+           * - Keep the existing high-contrast black connector as the “main” stroke.
+           * - Add a slightly thicker primary-color halo behind it to make connected edges unmistakable
+           *   when a node is selected (without losing the black styling).
+           * - Render selected edges last so they sit on top visually.
+           */}
+          {edges
+            .filter((e) => !(selectedNodeId && (e.source === selectedNodeId || e.target === selectedNodeId)))
+            .map((e, idx) => {
+              const a = positions.get(e.source);
+              const b = positions.get(e.target);
+              if (!a || !b) return null;
 
-            return (
-              <path
-                key={`${e.source}-${e.target}-${idx}`}
-                d={`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`}
-                fill="none"
-                stroke={`rgba(var(--cn-primary-rgb), 0.35)`}
-                strokeWidth={2}
-              />
-            );
-          })}
+              const isCenterEdge =
+                Boolean(centerNode?.id) && (e.source === centerNode?.id || e.target === centerNode?.id);
+
+              const dx = b.x - a.x;
+              const dy = b.y - a.y;
+
+              // Gentle arc so lines don't intersect the node bodies too harshly.
+              const curvature = Math.min(190, Math.max(80, Math.abs(dy) * 0.55 + Math.abs(dx) * 0.14));
+              const cx = a.x + dx * 0.5;
+              const cy = Math.min(a.y, b.y) - curvature;
+
+              const strokeWidth = isCenterEdge ? 6.25 : 5.25;
+
+              return (
+                <path
+                  key={`${e.source}-${e.target}-${idx}`}
+                  d={`M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`}
+                  fill="none"
+                  stroke="#000000"
+                  strokeOpacity={0.92}
+                  strokeWidth={strokeWidth}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              );
+            })}
+
+          {edges
+            .filter((e) => Boolean(selectedNodeId) && (e.source === selectedNodeId || e.target === selectedNodeId))
+            .map((e, idx) => {
+              const a = positions.get(e.source);
+              const b = positions.get(e.target);
+              if (!a || !b) return null;
+
+              const isCenterEdge =
+                Boolean(centerNode?.id) && (e.source === centerNode?.id || e.target === centerNode?.id);
+
+              const dx = b.x - a.x;
+              const dy = b.y - a.y;
+
+              // Gentle arc so lines don't intersect the node bodies too harshly.
+              const curvature = Math.min(190, Math.max(80, Math.abs(dy) * 0.55 + Math.abs(dx) * 0.14));
+              const cx = a.x + dx * 0.5;
+              const cy = Math.min(a.y, b.y) - curvature;
+
+              const mainStrokeWidth = isCenterEdge ? 7.5 : 7.5;
+              const haloStrokeWidth = mainStrokeWidth + 4;
+
+              const d = `M ${a.x} ${a.y} Q ${cx} ${cy} ${b.x} ${b.y}`;
+
+              return (
+                <g key={`${e.source}-${e.target}-selected-${idx}`}>
+                  {/* Primary-color halo (behind) */}
+                  <path
+                    d={d}
+                    fill="none"
+                    /* Violet halo behind the black stroke for selected-node connected edges. */
+                    stroke="var(--explore-mindmap-selected-edge-halo)"
+                    strokeOpacity={1}
+                    strokeWidth={haloStrokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {/* Black high-contrast stroke (on top) */}
+                  <path
+                    d={d}
+                    fill="none"
+                    stroke="#000000"
+                    strokeOpacity={1}
+                    strokeWidth={mainStrokeWidth}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              );
+            })}
         </g>
 
         <g>
@@ -312,16 +390,16 @@ export function ExploreMindmapCanvas(props: ExploreMindmapCanvasProps) {
                   width={w}
                   height={h}
                   rx={rx}
-                  fill="var(--cn-slate)"
-                  stroke={isSelected ? `rgba(var(--cn-primary-rgb), 0.95)` : 'rgba(0,0,0,0)'}
-                  strokeWidth={isSelected ? 3 : 0}
-                  opacity={0.96}
+                  fill="var(--explore-mindmap-node-rec-fill)"
+                  stroke={isSelected ? `rgba(var(--cn-primary-rgb), 0.90)` : 'var(--explore-mindmap-node-rec-stroke)'}
+                  strokeWidth={isSelected ? 3 : 2}
+                  opacity={1}
                 />
                 <text
                   fontSize={12}
-                  fill="var(--cn-white)"
+                  fill="var(--explore-mindmap-node-rec-text)"
                   textAnchor="middle"
-                  style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }}
+                  style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 900 }}
                 >
                   {lines.map((ln, i) => (
                     <tspan key={i} x={0} y={labelStartY + i * lineHeight}>
