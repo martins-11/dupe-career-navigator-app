@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SendHorizonal } from 'lucide-react';
 
@@ -278,7 +277,6 @@ export default function SkillValidationClient() {
           content:
             `No problem. When you’re ready, come back here and we’ll do a quick competency validation run.\n\n` +
             `Tip: generate a persona first for more tailored questions.`,
-          options: ['Go to Ingestion', 'Go to Persona'],
         });
         setStep('done');
         setIsSending(false);
@@ -363,11 +361,7 @@ export default function SkillValidationClient() {
     const v = safeTrim(option);
     if (!v) return;
 
-    if (step === 'done') {
-      // Navigation-like options when done.
-      if (v.toLowerCase().includes('ingestion')) return;
-      if (v.toLowerCase().includes('persona')) return;
-    }
+
 
     // Map some options to more specific transitions.
     if (step === 'intro') {
@@ -480,7 +474,7 @@ export default function SkillValidationClient() {
     <main className="w-full">
       <div className="mx-auto w-full max-w-4xl px-4 md:px-8 py-6 md:py-10">
         <header className="mb-5 md:mb-7">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground">
                 Skill Validation
@@ -488,15 +482,6 @@ export default function SkillValidationClient() {
               <p className="mt-1 text-sm md:text-[15px] text-muted-foreground">
                 A short guided chat to validate competencies for {personaLabel}.
               </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button variant="outline" asChild>
-                <Link href="/persona">Persona</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/ingestion">Ingestion</Link>
-              </Button>
             </div>
           </div>
         </header>
@@ -558,36 +543,17 @@ export default function SkillValidationClient() {
                 {/* Quick options: only show for the latest assistant message that has them and while not sending */}
                 {!isSending && latestAssistantWithOptions?.options?.length ? (
                   <div className="mt-1 flex flex-wrap gap-2">
-                    {latestAssistantWithOptions.options.map((opt) => {
-                      const lower = opt.toLowerCase();
-                      const isNav = step === 'done' && (lower.includes('ingestion') || lower.includes('persona'));
-                      if (isNav && lower.includes('ingestion')) {
-                        return (
-                          <Button key={opt} variant="outline" size="sm" className={quickOptionClassName} asChild>
-                            <Link href="/ingestion">{opt}</Link>
-                          </Button>
-                        );
-                      }
-                      if (isNav && lower.includes('persona')) {
-                        return (
-                          <Button key={opt} variant="outline" size="sm" className={quickOptionClassName} asChild>
-                            <Link href="/persona">{opt}</Link>
-                          </Button>
-                        );
-                      }
-
-                      return (
-                        <Button
-                          key={opt}
-                          variant="outline"
-                          size="sm"
-                          className={quickOptionClassName}
-                          onClick={() => void handleQuickOption(opt)}
-                        >
-                          {opt}
-                        </Button>
-                      );
-                    })}
+                    {latestAssistantWithOptions.options.map((opt) => (
+                      <Button
+                        key={opt}
+                        variant="outline"
+                        size="sm"
+                        className={quickOptionClassName}
+                        onClick={() => void handleQuickOption(opt)}
+                      >
+                        {opt}
+                      </Button>
+                    ))}
                   </div>
                 ) : null}
               </div>
@@ -605,7 +571,7 @@ export default function SkillValidationClient() {
               <Textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder={step === 'done' ? 'Start another validation or navigate above…' : 'Type your response…'}
+                placeholder={step === 'done' ? 'Start another validation…' : 'Type your response…'}
                 className="min-h-10 max-h-36"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
