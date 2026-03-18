@@ -108,8 +108,8 @@ async function fetchRecommendations(personaId: string) {
   }
 
   const roles = (Array.isArray(data) ? data : data?.roles || []).filter(Boolean);
-  // Keep it stable: show top 5 like grid.
-  return roles.slice(0, 5);
+  // IMPORTANT: Mindmap must use the full stored recommendation set (not just 5).
+  return roles;
 }
 
 function toViewport(state: ExploreMindmapViewState): ExploreMindmapViewport {
