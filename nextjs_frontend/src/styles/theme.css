@@ -1,5 +1,5 @@
 /*
-  Global theme variables aligned to the cn_login.png palette (purple/teal-on-dark).
+  Global theme variables aligned to the cn_login.png palette (purple-on-dark).
 
   Goal:
   - Apply the cn_login.png purple-dominant, glass-on-dark look across the app
@@ -100,8 +100,8 @@
   /* -----------------------------------------------------------------------
    * ZIP tokens (Explore styling helpers)
    * --------------------------------------------------------------------- */
-  --zip-teal: var(--cn-primary);
-  --zip-teal-hover: var(--primary-hover);
+  --zip-accent: var(--cn-primary);
+  --zip-accent-hover: var(--primary-hover);
 
   --bg-canvas: var(--background);
   --bg-surface: var(--card);
@@ -118,7 +118,7 @@
 
   --shadow-card-hover: 0 10px 24px rgba(var(--cn-primary-rgb), 0.22);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --ring-teal: 0 0 0 3px rgba(var(--cn-primary-rgb), 0.35);
+  --ring-accent: 0 0 0 3px rgba(var(--cn-primary-rgb), 0.35);
 
   /* -----------------------------------------------------------------------
    * Mindmap tokens (kept readable on dark, using the same palette)
@@ -129,9 +129,9 @@
   --mindmap-text-muted: rgba(var(--cn-white-rgb), 0.75);
   --mindmap-text-meta: rgba(var(--cn-white-rgb), 0.65);
 
-  --mindmap-teal-900: #24212F; /* node pills */
-  --mindmap-teal-700: var(--cn-primary); /* circles + badges */
-  --mindmap-teal-600: rgba(var(--cn-primary-rgb), 0.70); /* connector strokes */
+  --mindmap-node-pill-surface: #24212F; /* node pills */
+  --mindmap-accent-700: var(--cn-primary); /* circles + badges */
+  --mindmap-accent-600: rgba(var(--cn-primary-rgb), 0.70); /* connector strokes */
   --mindmap-path-stroke: rgba(var(--cn-white-rgb), 0.35);
 
   --mindmap-cta-green: var(--cn-primary);

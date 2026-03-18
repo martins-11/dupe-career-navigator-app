@@ -31,7 +31,7 @@ export function EmptyState({ onResetAll }: EmptyStateProps) {
         <button
           onClick={onResetAll}
           className="text-sm font-semibold px-4 py-2 cursor-pointer"
-          style={{ borderRadius: 12, background: 'var(--zip-teal)', color: 'var(--cn-white)' }}
+          style={{ borderRadius: 12, background: 'var(--primary)', color: 'var(--cn-white)' }}
         >
           Reset all filters
         </button>

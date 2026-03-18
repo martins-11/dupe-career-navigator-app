@@ -236,8 +236,8 @@ export function TargetRoleDetailsPanel(props: TargetRoleDetailsPanelProps) {
               <>
                 <Separator />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4">
-                    <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">
+                  <div className="rounded-xl border border-primary/20 bg-primary/10 p-4">
+                    <div className="text-[11px] font-bold text-primary uppercase tracking-wide">
                       Mastery ({masteryAreas.length})
                     </div>
                     <ul className="mt-2 space-y-1">

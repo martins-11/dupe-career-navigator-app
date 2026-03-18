@@ -657,7 +657,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
             if (a.lane === 'bottomHidden' || b.lane === 'bottomHidden') return null;
 
             const isDimmed = dimmedNodeIds ? dimmedNodeIds.has(a.id) || dimmedNodeIds.has(b.id) : false;
-            const stroke = isDimmed ? 'rgba(var(--cn-primary-rgb), 0.22)' : 'var(--mindmap-teal-600)';
+            const stroke = isDimmed ? 'rgba(var(--cn-primary-rgb), 0.22)' : 'var(--mindmap-accent-600)';
 
             // Simple quadratic curve whose control point is biased upward for "branch" feel.
             const x1 = a.x;
@@ -698,7 +698,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
 
             const title = normString(n.title) || n.id;
 
-            const stroke = isSelected ? 'rgba(13,148,136,0.9)' : 'rgba(0,0,0,0)';
+            const stroke = isSelected ? 'rgba(var(--cn-primary-rgb), 0.9)' : 'rgba(0,0,0,0)';
             const strokeWidth = isSelected ? 3 : 0;
             const opacity = isDimmed ? 0.45 : 1;
 
@@ -721,7 +721,7 @@ export function MindmapCanvas(props: MindmapCanvasProps) {
                   style={{ cursor: 'pointer', opacity }}
                   aria-label={`Role node: ${title}`}
                 >
-                  <circle r={r} fill="var(--mindmap-teal-700)" stroke={stroke} strokeWidth={strokeWidth} />
+                  <circle r={r} fill="var(--mindmap-accent-700)" stroke={stroke} strokeWidth={strokeWidth} />
                   {pct ? (
                     <text fontSize={22} fill="#FFFFFF" textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 800 }} y={6}>
                       {pct.left}

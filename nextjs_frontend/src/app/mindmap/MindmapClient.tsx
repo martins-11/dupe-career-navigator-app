@@ -580,7 +580,10 @@ export default function MindmapClient() {
                   {graphLoading ? (
                     <div
                       className="w-10 h-10 border-4 rounded-full animate-spin"
-                      style={{ borderColor: 'rgba(31,138,138,0.2)', borderTopColor: 'var(--mindmap-teal-700)' }}
+                      style={{
+                        borderColor: 'rgba(var(--cn-primary-rgb), 0.20)',
+                        borderTopColor: 'var(--mindmap-accent-700)',
+                      }}
                     />
                   ) : null}
                   <div className="text-lg font-semibold mt-3" style={{ color: 'var(--mindmap-text-title)' }}>
