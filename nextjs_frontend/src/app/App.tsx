@@ -1650,108 +1650,67 @@ export default function App() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {UPLOAD_CATEGORIES.map((category) => {
-                    const current = uploadedFiles.find((f) => f.category === category);
-                    return (
-                      <div
-                        key={category}
-                        onDrop={handleDropForCategory(category)}
-                        onDragOver={handleDragOver}
-                        className="rounded-xl p-4 transition-colors"
-                        style={{
-                          border: '1px solid #D1D5DB',
-                          backgroundColor: current ? 'rgba(var(--cn-primary-rgb), 0.06)' : 'white',
-                        }}
-                        role="region"
-                        aria-label={`${uploadCategoryLabel(category)} upload`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>
-                              {uploadCategoryLabel(category)}
-                            </div>
-                            <div style={{ fontSize: '12.5px', color: '#6B7280', lineHeight: 1.4 }}>
-                              {uploadCategoryHelperText(category)}
-                            </div>
-                          </div>
+                <div className="cn-upload-card-group" role="group" aria-label="Upload sections">
+                  <div className="cn-upload-card-grid">
+                    {UPLOAD_CATEGORIES.map((category) => {
+                      const current = uploadedFiles.find((f) => f.category === category);
 
-                          {current ? (
-                            <span
-                              className="rounded-full px-2 py-1"
-                              style={{
-                                backgroundColor: 'rgba(var(--cn-primary-rgb), 0.12)',
-                                color: 'var(--primary)',
-                                fontSize: 12,
-                                fontWeight: 600,
-                                flexShrink: 0,
-                              }}
-                            >
-                              Added
-                            </span>
-                          ) : null}
-                        </div>
+                      return (
+                        <div
+                          key={category}
+                          onDrop={handleDropForCategory(category)}
+                          onDragOver={handleDragOver}
+                          className="cn-upload-card"
+                          role="region"
+                          aria-label={`${uploadCategoryLabel(category)} upload`}
+                        >
+                          <div className="cn-upload-card-content">
+                            <div className="cn-upload-card-title">{uploadCategoryLabel(category)}</div>
 
-                        <div className="mt-3">
-                          {current ? (
-                            <div
-                              className="flex items-center justify-between gap-2 rounded-lg px-3 py-2"
-                              style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}
-                            >
-                              <div className="min-w-0">
-                                <div className="truncate" style={{ fontSize: 13, color: '#1F2937', fontWeight: 600 }}>
-                                  {current.file.name}
+                            <div className="cn-upload-card-desc">{uploadCategoryHelperText(category)}</div>
+
+                            {current ? (
+                              <div className="cn-upload-card-file" aria-label={`${uploadCategoryLabel(category)} file selected`}>
+                                <div className="cn-upload-card-file-meta">
+                                  <div className="cn-upload-card-file-name" title={current.file.name}>
+                                    {current.file.name}
+                                  </div>
+                                  <div className="cn-upload-card-file-type">{getFileType(current.file.name)}</div>
                                 </div>
-                                <div style={{ fontSize: 12, color: '#6B7280' }}>{getFileType(current.file.name)}</div>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeFile(current.id);
+                                  }}
+                                  className="cn-upload-card-remove"
+                                  aria-label={`Remove ${uploadCategoryLabel(category)} file`}
+                                  title="Remove"
+                                >
+                                  <X size={16} />
+                                </button>
                               </div>
+                            ) : (
+                              <div className="cn-upload-card-hint">Drag & drop here, or browse.</div>
+                            )}
+
+                            <div className="cn-upload-card-actions">
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeFile(current.id);
-                                }}
-                                className="p-1 rounded hover:bg-gray-200 transition-colors"
-                                style={{ color: '#6B7280', flexShrink: 0 }}
-                                aria-label={`Remove ${uploadCategoryLabel(category)} file`}
+                                type="button"
+                                onClick={(e) => openFilePickerForCategory(category, e)}
+                                disabled={isFileDialogActive}
+                                className="cn-upload-card-button"
+                                aria-disabled={isFileDialogActive}
                               >
-                                <X size={16} />
+                                Browse File
                               </button>
                             </div>
-                          ) : (
-                            <div style={{ fontSize: 13, color: '#6B7280' }}>Drag & drop here, or browse.</div>
-                          )}
+                          </div>
                         </div>
-
-                        <div className="mt-3">
-                          <button
-                            type="button"
-                            onClick={(e) => openFilePickerForCategory(category, e)}
-                            disabled={isFileDialogActive}
-                            className="inline-flex items-center justify-center rounded-lg transition-all duration-200 w-full"
-                            style={{
-                              backgroundColor: 'var(--primary)',
-                              color: 'white',
-                              padding: '10px 12px',
-                              fontSize: '14px',
-                              fontWeight: 700,
-                              border: 'none',
-                              cursor: isFileDialogActive ? 'not-allowed' : 'pointer',
-                              opacity: isFileDialogActive ? 0.85 : 1,
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!shouldAllowHoverEffects()) return;
-                              e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!shouldAllowHoverEffects()) return;
-                              e.currentTarget.style.backgroundColor = 'var(--primary)';
-                            }}
-                          >
-                            {current ? 'Replace File' : 'Browse File'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
