@@ -469,6 +469,13 @@ export default function SkillValidationClient() {
     await handleUserText(draft);
   };
 
+  // Quick-reply option "chips" styling (page-specific override on top of the shared outline button variant).
+  // Requirements:
+  // - default: white container with black text
+  // - hover: highlight text purple (do NOT flip the text to white)
+  const quickOptionClassName =
+    'bg-white text-black border-black/15 hover:bg-white hover:text-violet-600 focus-visible:ring-violet-500/25 focus-visible:border-violet-400';
+
   return (
     <main className="w-full">
       <div className="mx-auto w-full max-w-4xl px-4 md:px-8 py-6 md:py-10">
@@ -556,14 +563,14 @@ export default function SkillValidationClient() {
                       const isNav = step === 'done' && (lower.includes('ingestion') || lower.includes('persona'));
                       if (isNav && lower.includes('ingestion')) {
                         return (
-                          <Button key={opt} variant="outline" size="sm" asChild>
+                          <Button key={opt} variant="outline" size="sm" className={quickOptionClassName} asChild>
                             <Link href="/ingestion">{opt}</Link>
                           </Button>
                         );
                       }
                       if (isNav && lower.includes('persona')) {
                         return (
-                          <Button key={opt} variant="outline" size="sm" asChild>
+                          <Button key={opt} variant="outline" size="sm" className={quickOptionClassName} asChild>
                             <Link href="/persona">{opt}</Link>
                           </Button>
                         );
@@ -574,6 +581,7 @@ export default function SkillValidationClient() {
                           key={opt}
                           variant="outline"
                           size="sm"
+                          className={quickOptionClassName}
                           onClick={() => void handleQuickOption(opt)}
                         >
                           {opt}
