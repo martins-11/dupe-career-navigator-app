@@ -70,12 +70,15 @@ function roleMatchesFilters(params: {
       ...safeStringArray(role?.skills_required),
       ...safeStringArray(role?.required_skills),
       ...safeStringArray(role?.skills),
-    ].map((s) => s.toLowerCase());
+    ]
+      .map((s) => s.toLowerCase())
+      .filter(Boolean);
 
-    for (const s of selectedSkills) {
-      const key = s.trim().toLowerCase();
-      if (!key) continue;
-      if (!roleSkills.some((rs) => rs.includes(key))) return false;
+    // OR semantics: if multiple skills are selected, match roles that have ANY selected skill.
+    const wanted = selectedSkills.map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (wanted.length > 0) {
+      const matchesAny = wanted.some((key) => roleSkills.some((rs) => rs.includes(key)));
+      if (!matchesAny) return false;
     }
   }
 
