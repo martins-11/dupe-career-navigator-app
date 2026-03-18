@@ -1,51 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from 'next/server';
+
+import { proxyToBackend } from '@/app/api/_utils/backendProxy';
 
 /**
- * Proxy for target-role selection persistence.
+ * Personas target-role API proxy (Next.js App Router).
  *
- * Forwards incoming requests to backend Express API:
- *   POST {BACKEND}/api/personas/target-role
+ * Backend endpoint:
+ *  - POST {BACKEND}/api/personas/target-role
  *
  * Body:
- *   { user_id: uuid, role_id: uuid, time_horizon: "Near"|"Mid"|"Far" }
+ *  - { user_id: uuid, role_id: uuid, time_horizon: "Near"|"Mid"|"Far" }
  *
  * PUBLIC_INTERFACE
  */
+export const runtime = 'nodejs';
+
+// PUBLIC_INTERFACE
 export async function POST(req: NextRequest) {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
+  /** Proxies POST /api/personas/target-role to the backend. */
+  return proxyToBackend(req, '/api/personas/target-role');
+}
 
-  if (!backendUrl) {
-    return NextResponse.json({ error: "Backend URL env variable not set" }, { status: 500 });
-  }
-
-  let body: any;
-  try {
-    body = await req.json();
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: "invalid_json", detail: e?.message || String(e) },
-      { status: 400 }
-    );
-  }
-
-  try {
-    const res = await fetch(`${backendUrl}/api/personas/target-role`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(req.headers.get("authorization")
-          ? { authorization: req.headers.get("authorization")! }
-          : {}),
-      },
-      body: JSON.stringify(body ?? {}),
-    });
-
-    const data = await res.json().catch(() => null);
-    return NextResponse.json(data ?? {}, { status: res.status });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: "Failed to proxy to backend", detail: e?.message || String(e) },
-      { status: 500 }
-    );
-  }
+// PUBLIC_INTERFACE
+export async function OPTIONS(req: NextRequest) {
+  /** Proxies OPTIONS /api/personas/target-role to the backend. */
+  return proxyToBackend(req, '/api/personas/target-role');
 }

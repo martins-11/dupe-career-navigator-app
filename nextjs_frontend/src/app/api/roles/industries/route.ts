@@ -1,42 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from 'next/server';
+
+import { proxyToBackend } from '@/app/api/_utils/backendProxy';
 
 /**
- * Proxy for roles industries metadata API.
- *
- * Forwards incoming requests to the backend Express API.
+ * Roles industries API proxy (Next.js App Router).
  *
  * Backend endpoint:
- * - GET /api/roles/industries
+ *  - GET {BACKEND}/api/roles/industries
  *
  * Response:
- * - { industries: string[] }
+ *  - { industries: string[] }
  *
  * PUBLIC_INTERFACE
  */
+export const runtime = 'nodejs';
+
+// PUBLIC_INTERFACE
 export async function GET(req: NextRequest) {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.REACT_APP_BACKEND_URL;
+  /** Proxies GET /api/roles/industries to the backend (query string preserved). */
+  return proxyToBackend(req, '/api/roles/industries');
+}
 
-  if (!backendUrl) {
-    return NextResponse.json({ error: "Backend URL env variable not set" }, { status: 500 });
-  }
-
-  try {
-    const res = await fetch(`${backendUrl}/api/roles/industries`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        ...(req.headers.get("authorization")
-          ? { authorization: req.headers.get("authorization")! }
-          : {}),
-      },
-    });
-
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: "Failed to proxy to backend", detail: e.message },
-      { status: 500 }
-    );
-  }
+// PUBLIC_INTERFACE
+export async function OPTIONS(req: NextRequest) {
+  /** Proxies OPTIONS /api/roles/industries to the backend. */
+  return proxyToBackend(req, '/api/roles/industries');
 }
