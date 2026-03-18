@@ -52,7 +52,8 @@ const nextConfig = {
    * IMPORTANT:
    * - Next.js compares the *full origin* (scheme + host + port).
    * - In Kavia preview environments, the vscode-internal host can change between sessions.
-   * - Hardcoding a single preview host is brittle, so we also allow the active origin via env.
+   * - Hardcoding a single preview host is brittle, so we allow wildcard vscode-internal origins
+   *   (plus the active origin via env).
    */
   allowedDevOrigins: [
     // Local dev defaults
