@@ -39,9 +39,35 @@ function rmDirIfExists(dirPath, label) {
   log(`[clean-next-cache] Removed ${label}: ${dirPath}`);
 }
 
+function ensureDir(dirPath, label) {
+  try {
+    fs.mkdirSync(dirPath, { recursive: true });
+    log(`[clean-next-cache] Ensured ${label} exists: ${dirPath}`);
+  } catch (err) {
+    log(
+      `[clean-next-cache] Failed ensuring ${label} exists (${dirPath}): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    process.exit(1);
+  }
+}
+
 try {
   rmDirIfExists(nextCacheDir, ".next");
   rmDirIfExists(nodeModulesCacheDir, "node_modules/.cache");
+
+  /**
+   * Some preview/packaging environments can omit directories that are not part of the
+   * selected output set. Next.js may still attempt to scan for the Pages Router at
+   * `<project>/src/pages` (or `<project>/pages`) on startup/build, and in those environments
+   * it can surface as an ENOENT scandir error.
+   *
+   * Creating these directories (even if we only use the App Router) is harmless and prevents
+   * noisy logs or hard failures in those environments.
+   */
+  ensureDir(path.join(projectRoot, "src", "pages"), "src/pages");
+  ensureDir(path.join(projectRoot, "pages"), "pages");
 } catch (err) {
   log(`[clean-next-cache] Failed cache cleanup: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);

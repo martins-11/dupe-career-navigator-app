@@ -1,17 +1,96 @@
 /** @type {import('next').NextConfig} */
+function toOrigin(value) {
+  try {
+    if (!value) return null;
+    // Accept either a full URL (https://host:port/path) or a bare origin (https://host:port)
+    const url = value.includes('://') ? new URL(value) : new URL(`https://${value}`);
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+const frontendOriginFromEnv =
+  toOrigin(process.env.NEXT_PUBLIC_FRONTEND_URL) ||
+  toOrigin(process.env.REACT_APP_FRONTEND_URL) ||
+  null;
+
+/** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
+  /**
+   * Ensure the dev client uses the current browser origin for the HMR websocket.
+   * This can reduce HMR WS failures in proxied preview environments where host/port
+   * inference differs between the dev server and the outer proxy layer.
+   *
+   * Safe: dev-only; ignored in production builds.
+   */
+  experimental: {
+    ...(process.env.NODE_ENV === 'development'
+      ? (() => {
+          /**
+           * Prefer an explicit websocket URL when we know the active frontend origin (preview).
+           * This helps when "auto" mis-infers ws:// vs wss:// or hostnames behind proxies.
+           *
+           * If the preview layer still blocks websockets entirely, HMR will remain unavailable,
+           * but the application will continue to run.
+           */
+          const wsFromOrigin = frontendOriginFromEnv
+            ? frontendOriginFromEnv.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+            : null;
+
+          return { websocketUrl: wsFromOrigin || 'auto' };
+        })()
+      : {}),
+  },
 
   /**
    * Silence Next.js dev warning:
    * "Cross origin request detected ... you will need to explicitly configure allowedDevOrigins"
    *
-   * In Kavia preview/dev environments the UI may be served from a vscode-internal*.cloud.kavia.ai origin.
+   * IMPORTANT:
+   * - Next.js compares the *full origin* (scheme + host + port).
+   * - In Kavia preview environments, the vscode-internal host can change between sessions.
+   * - Hardcoding a single preview host is brittle, so we also allow the active origin via env.
    */
   allowedDevOrigins: [
+    // Local dev defaults
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://vscode-internal-29588-beta.beta01.cloud.kavia.ai',
+
+    // Allow the actively configured preview/frontend origin when provided.
+    ...(frontendOriginFromEnv ? [frontendOriginFromEnv] : []),
+
+    /**
+     * Preview environment (Kavia):
+     * The vscode-internal host changes between sessions, so hardcoding a single hostname is brittle.
+     * Next.js (>=14) supports wildcard patterns here.
+     *
+     * Observed host patterns include BOTH:
+     * - https://vscode-internal-<id>.cloud.kavia.ai:3000
+     * - https://vscode-internal-<id>-beta.beta01.cloud.kavia.ai:3000
+     *
+     * Some preview layers may expose the dev server over http (or normalize origins differently),
+     * so we allow both http and https wildcard forms.
+     */
+    'https://vscode-internal-*.cloud.kavia.ai:3000',
+    'https://vscode-internal-*.beta.beta01.cloud.kavia.ai:3000',
+    'http://vscode-internal-*.cloud.kavia.ai:3000',
+    'http://vscode-internal-*.beta.beta01.cloud.kavia.ai:3000',
+
+    // Extra safety: allow origin patterns without an explicit port (some proxies strip it).
+    'https://vscode-internal-*.cloud.kavia.ai',
+    'https://vscode-internal-*.beta.beta01.cloud.kavia.ai',
+    'http://vscode-internal-*.cloud.kavia.ai',
+    'http://vscode-internal-*.beta.beta01.cloud.kavia.ai',
+
+    /**
+     * Explicit fallbacks (kept for extra safety; not relied upon).
+     * Always include explicit port when using https.
+     */
+    'https://vscode-internal-17827-beta.beta01.cloud.kavia.ai:3000',
+    'https://vscode-internal-29588-beta.beta01.cloud.kavia.ai:3000',
   ],
 
   /**

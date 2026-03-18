@@ -9,7 +9,11 @@ import { getRoleSuggestions, type RoleSuggestion } from "@/lib/rolesApi";
 interface SearchBarProps {
   query: string;
   onQueryChange: (q: string) => void;
-  onSearch: () => void;
+  /**
+   * Execute a search for the provided query.
+   * If omitted, the parent should interpret it as the current input value.
+   */
+  onSearch: (q?: string) => void;
   isSticky: boolean;
   /** Optional persona id to enable persona-aware Bedrock autocomplete. */
   personaId?: string;
@@ -91,9 +95,9 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
         onQueryChange(picked.title);
         setSuggestions([]);
         setIsFocused(false);
-        onSearch();
+        onSearch(picked.title);
       } else {
-        onSearch();
+        onSearch(query);
         setIsFocused(false);
       }
     } else if (e.key === "Escape") {
@@ -151,7 +155,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
         <button
           type="button"
           onClick={() => {
-            onSearch();
+            onSearch(query);
             setIsFocused(false);
           }}
           className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold px-6 py-2 rounded-xl mr-1.5 transition-all active:scale-95"
@@ -175,8 +179,7 @@ export function SearchBar({ query, onQueryChange, onSearch, isSticky, personaId 
                   onQueryChange(s.title);
                   setSuggestions([]);
                   setIsFocused(false);
-                  // Ensure the parent search reads the updated query (state updates are async).
-                  queueMicrotask(() => onSearch());
+                  onSearch(s.title);
                 }}
               >
                 <Search className="h-4 w-4 shrink-0 opacity-50" />

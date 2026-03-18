@@ -5,30 +5,114 @@ import { useSearchParams } from "next/navigation";
 
 // Component Imports
 import { RecommendationGrid } from "../components/recommendations/recommendation-grid";
+import { ExploreMindmapView } from "../components/explore/ExploreMindmapView";
+import { Tabs, TabsList, TabsTrigger } from "../components/ui/tabs";
 
 import { Filters, ActiveFilterTags } from "../components/explore/filters";
 import { SearchBar } from "../components/explore/search-bar";
 import RoleCard from "../components/explore/role-card";
+import { EmptyState } from "../components/explore/empty-state";
 // Utility & Storage Imports
 import { loadPersonaId, persistPersonaId } from "@/lib/personaStorage";
 import { apiFetch } from "@/lib/apiClient";
+import { getExploreViewMode, persistExploreViewMode } from "@/lib/exploreMindmapViewStateStorage";
+
+function normString(v: unknown): string {
+  return String(v ?? "").trim();
+}
+
+function safeStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => normString(x)).filter(Boolean);
+}
+
+function parseSalaryRangeToLakhs(role: any): { min: number | null; max: number | null } {
+  const raw = normString(role?.salary_range ?? role?.salary_lpa_range ?? role?.salaryRange ?? role?.salary);
+  if (!raw) return { min: null, max: null };
+
+  const nums = raw
+    .replace(/,/g, "")
+    .match(/\d+(\.\d+)?/g)
+    ?.map((s) => Number(s))
+    .filter((n) => Number.isFinite(n));
+
+  if (!nums || nums.length === 0) return { min: null, max: null };
+  if (nums.length === 1) return { min: nums[0], max: nums[0] };
+  return { min: Math.min(...nums), max: Math.max(...nums) };
+}
+
+function roleTitleFromRole(role: any): string {
+  return normString(role?.title ?? role?.role_title ?? role?.roleTitle);
+}
+
+function roleMatchesFilters(params: {
+  role: any;
+  selectedIndustry: string;
+  selectedSkills: string[];
+  salaryRange: [number, number];
+  titleQuery: string;
+}): boolean {
+  const { role, selectedIndustry, selectedSkills, salaryRange, titleQuery } = params;
+
+  if (titleQuery) {
+    const roleTitle = roleTitleFromRole(role).toLowerCase();
+    if (!roleTitle.includes(titleQuery.toLowerCase())) return false;
+  }
+
+  if (selectedIndustry) {
+    const industry = normString(role?.industry);
+    if (!industry) return false;
+    if (industry.toLowerCase() !== selectedIndustry.toLowerCase()) return false;
+  }
+
+  if (selectedSkills.length > 0) {
+    const roleSkills = [
+      ...safeStringArray(role?.skills_required),
+      ...safeStringArray(role?.required_skills),
+      ...safeStringArray(role?.skills),
+    ]
+      .map((s) => s.toLowerCase())
+      .filter(Boolean);
+
+    // OR semantics: if multiple skills are selected, match roles that have ANY selected skill.
+    const wanted = selectedSkills.map((s) => s.trim().toLowerCase()).filter(Boolean);
+    if (wanted.length > 0) {
+      const matchesAny = wanted.some((key) => roleSkills.some((rs) => rs.includes(key)));
+      if (!matchesAny) return false;
+    }
+  }
+
+  const salary = parseSalaryRangeToLakhs(role);
+  if (salary.min !== null && salary.max !== null) {
+    const [minWanted, maxWanted] = salaryRange;
+    const overlaps = salary.max >= minWanted && salary.min <= maxWanted;
+    if (!overlaps) return false;
+  }
+
+  return true;
+}
 
 export default function ExploreClient() {
   // --- UI State ---
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Explore view mode: cards vs mindmap (persisted)
+  const [viewMode, setViewMode] = useState<"cards" | "mindmap">(getExploreViewMode());
+
   // --- Search Results State ---
   // When populated, we render these instead of the persona recommendations grid.
   const [searchResults, setSearchResults] = useState<any[] | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [lastSearchQuery, setLastSearchQuery] = useState<string>("");
 
   // --- Filter State ---
   const [selectedTitle, setSelectedTitle] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [salaryRange, setSalaryRange] = useState<[number, number]>([0, 200]);
+  // Keep in sync with <Filters /> slider (0–60L).
+  const [salaryRange, setSalaryRange] = useState<[number, number]>([0, 60]);
 
   // --- Options Data State ---
   const [industryOptions, setIndustryOptions] = useState<string[]>([]);
@@ -37,7 +121,7 @@ export default function ExploreClient() {
   const [optionsError, setOptionsError] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
-  const personaIdQuery = searchParams.get("personaId");
+  const personaIdQuery = searchParams?.get("personaId") ?? null;
   const effectivePersonaId = personaIdQuery || loadPersonaId();
 
   // 1. Fetch Filter Options (Industries/Skills) on Mount
@@ -90,16 +174,18 @@ export default function ExploreClient() {
   // Triggered when user clicks "Search" or selects an autocomplete suggestion
   // IMPORTANT: Autocomplete returns titles-only strings; selecting one must still execute
   // a full search request so results render.
-  const handleManualSearch = async () => {
-    const q = String(selectedTitle ?? "").trim();
+  const handleManualSearch = async (qOverride?: string) => {
+    const q = String((qOverride ?? selectedTitle) ?? "").trim();
 
     // If user clears the query, return to the default persona recommendations view.
     if (q.length === 0) {
+      setLastSearchQuery("");
       setSearchResults(null);
       setSearchError(null);
       return;
     }
 
+    setLastSearchQuery(q);
     setIsSearching(true);
     setSearchError(null);
 
@@ -107,10 +193,11 @@ export default function ExploreClient() {
       const qs = new URLSearchParams();
       qs.set("q", q);
       if (effectivePersonaId) qs.set("personaId", effectivePersonaId);
+
+      // Forward filters additively (backend may ignore some; we also apply filters client-side).
       if (selectedIndustry) qs.set("industry", selectedIndustry);
-      // Backend schema supports q/industry/salary_range/limit; skills may be ignored by backend,
-      // but we keep it for forward-compatibility if implemented later.
       if (selectedSkills.length > 0) qs.set("skills", selectedSkills.join(","));
+      qs.set("limit", "100");
 
       const data = await apiFetch(`/api/roles/search?${qs.toString()}`);
       setSearchResults(Array.isArray(data) ? data : []);
@@ -168,7 +255,7 @@ export default function ExploreClient() {
         <main className="space-y-10">
           {/* --- SEARCH BAR WITH AUTOCOMPLETE --- */}
           <section className="flex justify-center">
-            <SearchBar 
+            <SearchBar
               query={selectedTitle}
               onQueryChange={setSelectedTitle}
               onSearch={handleManualSearch}
@@ -179,7 +266,7 @@ export default function ExploreClient() {
 
           {/* --- FILTERS SECTION --- */}
           <section className="space-y-6">
-            <Filters 
+            <Filters
               selectedTitle={selectedTitle}
               onTitleChange={setSelectedTitle}
               selectedIndustry={selectedIndustry}
@@ -196,7 +283,7 @@ export default function ExploreClient() {
               showJobTitleFilter={false} // Hidden because the SearchBar above handles it
             />
 
-            <ActiveFilterTags 
+            <ActiveFilterTags
               selectedTitle={selectedTitle}
               onTitleChange={setSelectedTitle}
               selectedIndustry={selectedIndustry}
@@ -208,7 +295,7 @@ export default function ExploreClient() {
             />
           </section>
 
-          {/* --- RESULTS GRID --- */}
+          {/* --- RESULTS GRID / MINDMAP --- */}
           {isSearching ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <div className="w-10 h-10 border-4 border-teal-100 border-t-[#0D9488] rounded-full animate-spin"></div>
@@ -220,67 +307,139 @@ export default function ExploreClient() {
               <p className="text-sm mt-1">{searchError}</p>
             </div>
           ) : Array.isArray(searchResults) ? (
-            searchResults.length === 0 ? (
-              <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                <p className="text-slate-400 font-medium text-lg">No roles found for “{selectedTitle}”.</p>
-              </div>
-            ) : (
-              // Keep rendering using the existing RoleCard UI via RecommendationGrid by
-              // temporarily reusing it would require refactor; instead render a minimal grid here.
-              <div className="space-y-6">
-                <div className="text-sm text-slate-500">
-                  Showing {searchResults.length} results for <span className="font-semibold text-slate-700">“{selectedTitle}”</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {searchResults.map((role: any, idx: number) => {
-                    const derivedIdRaw =
-                      role?.id ??
-                      role?.role_id ??
-                      role?.onet_id ??
-                      role?.code ??
-                      role?.title ??
-                      role?.role_title;
+            (() => {
+              const selectedIndustryNorm = normString(selectedIndustry);
+              const selectedSkillsNorm = Array.isArray(selectedSkills) ? selectedSkills : [];
+              const titleQuery = normString(lastSearchQuery);
+              const salaryRangeNorm = salaryRange;
 
-                    const derivedId = String(derivedIdRaw ?? "").trim();
-                    const stableUniqueId = derivedId !== "" ? derivedId : `role-${idx}`;
+              const filtered = searchResults.filter((r) =>
+                roleMatchesFilters({
+                  role: r,
+                  selectedIndustry: selectedIndustryNorm,
+                  selectedSkills: selectedSkillsNorm,
+                  salaryRange: salaryRangeNorm,
+                  titleQuery,
+                })
+              );
 
-                    const normalizedRole = {
-                      ...role,
-                      id: stableUniqueId,
-                      title: role?.title ?? role?.role_title,
-                    };
+              const hasAnyFilter =
+                Boolean(titleQuery) ||
+                Boolean(selectedIndustryNorm) ||
+                selectedSkillsNorm.length > 0 ||
+                salaryRangeNorm[0] !== 0 ||
+                salaryRangeNorm[1] !== 60;
 
-                    return (
-                      <RoleCard
-                        key={stableUniqueId}
-                        role={normalizedRole}
-                        // Some RoleCard actions are persona-dependent; pass through when available.
-                        personaId={effectivePersonaId || ""}
-                        // Search results grid doesn't need the accordion behavior used in recommendations;
-                        // leave it collapsed by default.
-                        expanded={false}
-                        onExpandedChange={() => {}}
-                      />
-                    );
-                  })}
+              if (filtered.length === 0) {
+                return (
+                  <EmptyState
+                    onResetAll={() => {
+                      setSelectedTitle("");
+                      setLastSearchQuery("");
+                      setSelectedIndustry("");
+                      setSelectedSkills([]);
+                      setSalaryRange([0, 60]);
+                      setSearchResults(null);
+                      setSearchError(null);
+                    }}
+                  />
+                );
+              }
+
+              return (
+                <div className="space-y-6">
+                  <div className="text-sm text-slate-500">
+                    Showing {filtered.length} result{filtered.length === 1 ? "" : "s"}
+                    {titleQuery ? (
+                      <>
+                        {" "}
+                        for <span className="font-semibold text-slate-700">“{titleQuery}”</span>
+                      </>
+                    ) : null}
+                    {hasAnyFilter ? (
+                      <span className="text-slate-400"> (with filters applied)</span>
+                    ) : null}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {filtered.map((role: any, idx: number) => {
+                      const derivedIdRaw =
+                        role?.id ??
+                        role?.role_id ??
+                        role?.onet_id ??
+                        role?.code ??
+                        role?.title ??
+                        role?.role_title;
+
+                      const derivedId = String(derivedIdRaw ?? "").trim();
+                      const stableUniqueId = derivedId !== "" ? derivedId : `role-${idx}`;
+
+                      const normalizedRole = {
+                        ...role,
+                        id: stableUniqueId,
+                        title: role?.title ?? role?.role_title,
+                      };
+
+                      return (
+                        <RoleCard
+                          key={stableUniqueId}
+                          role={normalizedRole}
+                          personaId={effectivePersonaId || ""}
+                          expanded={false}
+                          onExpandedChange={() => {}}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <div className="text-xs text-slate-400">
+                    Tip: Clear the search input to return to AI persona recommendations.
+                  </div>
                 </div>
-                <div className="text-xs text-slate-400">
-                  Tip: Clear the search to return to AI persona recommendations.
-                </div>
-              </div>
-            )
+              );
+            })()
           ) : (
-            <RecommendationGrid
-              personaId={effectivePersonaId || ""}
-              filters={{
-                industry: selectedIndustry,
-                skills: selectedSkills,
-                title: selectedTitle,
-              }}
-            />
+            <div className="space-y-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-sm text-slate-500">
+                  Persona recommendations view
+                </div>
+
+                <Tabs
+                  value={viewMode}
+                  onValueChange={(v) => {
+                    const next = (v === "mindmap" ? "mindmap" : "cards") as "cards" | "mindmap";
+                    setViewMode(next);
+                    persistExploreViewMode(next);
+                  }}
+                >
+                  <TabsList className="grid grid-cols-2 w-[240px]">
+                    <TabsTrigger value="cards">Cards</TabsTrigger>
+                    <TabsTrigger value="mindmap">Mind Map</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              {viewMode === "mindmap" ? (
+                <ExploreMindmapView
+                  personaId={effectivePersonaId || ""}
+                  selectedIndustry={selectedIndustry}
+                  selectedSkills={selectedSkills}
+                  salaryRange={salaryRange}
+                />
+              ) : (
+                <RecommendationGrid
+                  personaId={effectivePersonaId || ""}
+                  filters={{
+                    industry: selectedIndustry,
+                    skills: selectedSkills,
+                    title: selectedTitle,
+                    salaryRange,
+                  }}
+                />
+              )}
+            </div>
           )}
-
-
         </main>
       </div>
     </div>
