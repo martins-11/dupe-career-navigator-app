@@ -1,13 +1,11 @@
-import IngestionClient from './IngestionClient';
+import DocumentIngestion from '@/app/components/DocumentIngestion';
 
 /**
  * Ingestion route (App Router).
  *
- * UI-only Document Ingestion screen (per latest UX update):
- * - 3 upload containers
- * - LinkedIn connect toggle (visual only)
- * - Animated uploaded file list preview (local state only)
+ * Restored original ingestion flow UI (header/steps/buttons) implemented by `App`,
+ * with only the upload section customized to support 3 upload containers.
  */
 export default function IngestionPage() {
-  return <IngestionClient />;
+  return <DocumentIngestion />;
 }

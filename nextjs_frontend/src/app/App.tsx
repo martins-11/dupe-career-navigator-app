@@ -72,8 +72,35 @@ interface PersonaData {
   profileImage?: string;
 }
 
+type UploadCategory = 'resume' | 'job_description' | 'performance_review';
+
+const UPLOAD_CATEGORIES: UploadCategory[] = ['resume', 'job_description', 'performance_review'];
+
+function uploadCategoryLabel(category: UploadCategory): string {
+  switch (category) {
+    case 'resume':
+      return 'Resume';
+    case 'job_description':
+      return 'Job Description';
+    case 'performance_review':
+      return 'Performance Review';
+  }
+}
+
+function uploadCategoryHelperText(category: UploadCategory): string {
+  switch (category) {
+    case 'resume':
+      return 'Upload your most recent resume (PDF, DOCX, TXT).';
+    case 'job_description':
+      return 'Upload the job description you are targeting (PDF, DOCX, TXT).';
+    case 'performance_review':
+      return 'Upload a recent performance review (PDF, DOCX, TXT).';
+  }
+}
+
 interface UploadedFileData {
   id: string;
+  category: UploadCategory;
   file: File;
 }
 
@@ -420,6 +447,12 @@ export default function App() {
   const newSkillInputRef = useRef<HTMLInputElement>(null);
 
   /**
+   * The initial step has 3 upload containers. We keep a single hidden file input and
+   * set the "active category" before opening the picker.
+   */
+  const selectedUploadCategoryRef = useRef<UploadCategory>('resume');
+
+  /**
    * Guard against re-entrant file-picker triggering.
    */
   const isOpeningFilePickerRef = useRef(false);
@@ -511,6 +544,14 @@ export default function App() {
     [openHiddenFileInput]
   );
 
+  const openFilePickerForCategory = useCallback(
+    (category: UploadCategory, e?: React.SyntheticEvent) => {
+      selectedUploadCategoryRef.current = category;
+      openFilePicker(e);
+    },
+    [openFilePicker]
+  );
+
   // Helps correlate logs across multiple async flows; increments per draft generation.
   const generationIdRef = useRef<number>(0);
 
@@ -542,35 +583,66 @@ export default function App() {
   const personaSummary = personaData?.summary ?? '';
 
   const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.txt'];
-  const MAX_FILES = 5;
+
+  // UX update: 3 upload containers (one per required category).
+  const MAX_FILES = 3;
+
+  const categorySortIndex = useCallback((category: UploadCategory): number => {
+    return UPLOAD_CATEGORIES.indexOf(category);
+  }, []);
+
+  const sortUploadedFiles = useCallback(
+    (items: UploadedFileData[]): UploadedFileData[] => {
+      return items.slice().sort((a, b) => categorySortIndex(a.category) - categorySortIndex(b.category));
+    },
+    [categorySortIndex]
+  );
 
   const validateFile = (file: File): boolean => {
     const fileName = file.name.toLowerCase();
     return ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
   };
 
-  const addFiles = (files: File[]) => {
+  const addFiles = (category: UploadCategory, files: File[]) => {
     setUploadError('');
     setBackendError('');
 
-    const invalidFiles = files.filter((file) => !validateFile(file));
-    if (invalidFiles.length > 0) {
+    if (!files || files.length === 0) return;
+
+    // UX requirement: one file per container.
+    if (files.length > 1) {
+      setUploadError('Please upload only one file per section (Resume, Job Description, Performance Review).');
+      return;
+    }
+
+    const file = files[0];
+
+    if (!validateFile(file)) {
       setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
       return;
     }
 
-    const currentCount = uploadedFiles.length;
-    if (currentCount + files.length > MAX_FILES) {
-      setUploadError(`Maximum ${MAX_FILES} documents allowed.`);
-      return;
-    }
+    // Replace any existing file for this category; keep other categories intact.
+    setUploadedFiles((prev) => {
+      const withoutCategory = prev.filter((p) => p.category !== category);
 
-    const newUploadedFiles = files.map((file) => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-    }));
+      // Safety guard: prevent more than MAX_FILES total in state.
+      if (withoutCategory.length + 1 > MAX_FILES) {
+        setUploadError(`Maximum ${MAX_FILES} documents allowed.`);
+        return prev;
+      }
 
-    setUploadedFiles((prev) => [...prev, ...newUploadedFiles]);
+      const next: UploadedFileData[] = [
+        ...withoutCategory,
+        {
+          id: Math.random().toString(36).substr(2, 9),
+          category,
+          file,
+        },
+      ];
+
+      return sortUploadedFiles(next);
+    });
   };
 
   /**
@@ -618,21 +690,14 @@ export default function App() {
     // Some browsers can fire a change event with a null/empty file list (e.g., cancel).
     if (!list || list.length === 0) return;
 
-    // CRITICAL: snapshot as a real array NOW (do not retain FileList reference).
+    // Snapshot as a real array now (do not retain FileList reference).
     const newFiles = Array.from(list);
 
     // Ensure the input can trigger future selections of the same file.
-    // NOTE: do this AFTER snapshotting.
     e.target.value = '';
 
-    // Validate up-front so we don't accept files that the UI will reject anyway.
-    const invalidFiles = newFiles.filter((file) => !validateFile(file));
-    if (invalidFiles.length > 0) {
-      setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
-      return;
-    }
-
     const newBytes = newFiles.reduce((sum, f) => sum + (f.size ?? 0), 0);
+    const category = selectedUploadCategoryRef.current;
 
     // Defer UI state updates to next tick to reduce chance of freezes.
     window.setTimeout(() => {
@@ -648,7 +713,23 @@ export default function App() {
           return prev;
         }
 
-        if (prev.length + newFiles.length > MAX_FILES) {
+        // Validate up-front so we don't accept files that the UI will reject anyway.
+        const invalidFiles = newFiles.filter((file) => !validateFile(file));
+        if (invalidFiles.length > 0) {
+          setUploadError('Unsupported file format. Please upload PDF, DOCX, or TXT.');
+          return prev;
+        }
+
+        // Enforce one file per category.
+        if (newFiles.length > 1) {
+          setUploadError('Please upload only one file per section (Resume, Job Description, Performance Review).');
+          return prev;
+        }
+
+        // Replace any existing file for this category.
+        const withoutCategory = prev.filter((p) => p.category !== category);
+
+        if (withoutCategory.length + 1 > MAX_FILES) {
           setUploadError(`Maximum ${MAX_FILES} documents allowed.`);
           return prev;
         }
@@ -656,23 +737,25 @@ export default function App() {
         setUploadError('');
         setBackendError('');
 
-        const newUploadedFiles = newFiles.map((file) => ({
-          id: Math.random().toString(36).substr(2, 9),
-          file,
-        }));
+        const next: UploadedFileData[] = [
+          ...withoutCategory,
+          { id: Math.random().toString(36).substr(2, 9), category, file: newFiles[0] },
+        ];
 
-        return [...prev, ...newUploadedFiles];
+        return sortUploadedFiles(next);
       });
     }, 0);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (e.dataTransfer.files) {
-      const newFiles = Array.from(e.dataTransfer.files);
-      addFiles(newFiles);
-    }
-  };
+  const handleDropForCategory =
+    (category: UploadCategory) =>
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      if (e.dataTransfer.files) {
+        const newFiles = Array.from(e.dataTransfer.files);
+        addFiles(category, newFiles);
+      }
+    };
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -712,7 +795,13 @@ export default function App() {
     try {
       setState('processing');
 
+      const hasAllCategories = UPLOAD_CATEGORIES.every((cat) => uploadedFiles.some((f) => f.category === cat));
+      if (!hasAllCategories) {
+        throw new Error('Please upload a Resume, Job Description, and Performance Review before generating your persona.');
+      }
+
       const files = uploadedFiles.map((f) => f.file);
+      const categories = uploadedFiles.map((f) => f.category);
 
       // eslint-disable-next-line no-console
       console.log(`[draft][gen:${generationId}] uploading documents`, {
@@ -724,27 +813,47 @@ export default function App() {
 
       // Upload first (side effects: persists document rows + extracted text rows best-effort).
       await import('@/lib/apiClient').then(async ({ uploadDocuments }) => {
-        const uploadResp = await uploadDocuments({ files });
+        const uploadResp = await uploadDocuments({
+          files,
+          categories,
+          requireCategories: true,
+        });
         // eslint-disable-next-line no-console
         console.log(`[draft][gen:${generationId}] uploadDocuments response summary:`, {
           uploadId: (uploadResp as any)?.uploadId,
-          receivedFilesCount: Array.isArray((uploadResp as any)?.receivedFiles) ? (uploadResp as any).receivedFiles.length : undefined,
+          receivedFilesCount: Array.isArray((uploadResp as any)?.receivedFiles)
+            ? (uploadResp as any).receivedFiles.length
+            : undefined,
           message: (uploadResp as any)?.message,
         });
       });
 
       // CRITICAL: Do NOT rely on backend “useLatestCategoryDocs” auto-selection for anonymous sessions,
-      // because userId is typically null in this UI and the backend may pick up older anonymous docs
-      // (e.g., an archived/stale persona source like “Rossini”).
+      // because userId is typically null in this UI and the backend may pick up older anonymous docs.
       //
-      // Instead, explicitly fetch the newest documents and pass their ids to orchestration.
+      // Instead, explicitly fetch documents and pick the ones that correspond to our uploaded filenames.
       const { listDocuments } = await import('@/lib/apiClient');
-      const docs = await listDocuments({ limit: 50, offset: 0 });
-      const newestDocIds = docs
-        .slice()
-        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
-        .slice(0, files.length) // pick as many as we just uploaded
-        .map((d) => d.id);
+      const docs = await listDocuments({ limit: 75, offset: 0 });
+
+      const docsByNewest = docs.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+      // Pick the best matching doc id for each uploaded file (by filename, newest-first).
+      const usedDocIds = new Set<string>();
+      const selectedDocIds: string[] = [];
+
+      for (const f of files) {
+        const hit = docsByNewest.find((d) => d.originalFilename === f.name && !usedDocIds.has(d.id));
+        if (hit) {
+          usedDocIds.add(hit.id);
+          selectedDocIds.push(hit.id);
+        }
+      }
+
+      // Fallback if matching fails (e.g., backend renames filenames).
+      const newestDocIds =
+        selectedDocIds.length === files.length
+          ? selectedDocIds
+          : docsByNewest.slice(0, files.length).map((d) => d.id);
 
       if (newestDocIds.length === 0) {
         throw new Error('Upload succeeded but no documents are available for orchestration. Please retry.');
@@ -1363,6 +1472,10 @@ export default function App() {
   const step2Complete = state === 'finalized';
   const step3Complete = state === 'finalized';
 
+  const hasAllRequiredUploads = useMemo(() => {
+    return UPLOAD_CATEGORIES.every((cat) => uploadedFiles.some((f) => f.category === cat));
+  }, [uploadedFiles]);
+
   const getFileType = (fileName: string): string => {
     const extension = fileName.split('.').pop()?.toUpperCase();
     return extension || 'FILE';
@@ -1486,7 +1599,6 @@ export default function App() {
             <input
               ref={fileInputRef}
               type="file"
-              multiple
               accept=".pdf,.docx,.txt"
               onChange={handleFileChange}
               style={{
@@ -1517,49 +1629,130 @@ export default function App() {
               }}
             >
               <div
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                className="border-2 border-dashed rounded-xl p-12 transition-colors hover:bg-gray-50"
+                className="border-2 border-dashed rounded-xl p-6 transition-colors hover:bg-gray-50"
                 style={{
                   borderColor: '#D1D5DB',
                   backgroundColor: uploadedFiles.length > 0 ? 'rgba(var(--cn-primary-rgb), 0.05)' : 'transparent',
                 }}
                 role="region"
-                aria-label="Upload documents (drag and drop)"
+                aria-label="Upload documents"
               >
-                <Upload className="mx-auto mb-4" size={48} style={{ color: 'var(--primary)' }} />
-                <p style={{ fontSize: '16px', fontWeight: 500, color: '#1F2937', marginBottom: '8px' }}>
-                  {uploadedFiles.length > 0 ? `${uploadedFiles.length} file(s) uploaded` : 'Upload your Documents '}
-                </p>
-                <p style={{ fontSize: '14px', color: '#6B7280' }}>Resume, Job Description, Performance Review, Certifications</p>
-                <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '12px' }}>Supported formats: PDF, DOCX, TXT (Max {MAX_FILES} files)</p>
+                <div className="mb-5">
+                  <Upload className="mx-auto mb-3" size={44} style={{ color: 'var(--primary)' }} />
+                  <p style={{ fontSize: '16px', fontWeight: 600, color: '#1F2937', marginBottom: '6px' }}>
+                    Upload your Documents
+                  </p>
+                  <p style={{ fontSize: '14px', color: '#6B7280' }}>
+                    Please upload one file for each section: Resume, Job Description, Performance Review.
+                  </p>
+                  <p style={{ fontSize: '14px', color: '#6B7280', marginTop: '8px' }}>
+                    Supported formats: PDF, DOCX, TXT
+                  </p>
+                </div>
 
-                <button
-                  type="button"
-                  onClick={openFilePicker}
-                  disabled={isFileDialogActive}
-                  className="inline-flex items-center justify-center rounded-lg transition-all duration-200"
-                  style={{
-                    backgroundColor: 'var(--primary)',
-                    color: 'white',
-                    padding: '10px 14px',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: isFileDialogActive ? 'not-allowed' : 'pointer',
-                    opacity: isFileDialogActive ? 0.85 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!shouldAllowHoverEffects()) return;
-                    e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!shouldAllowHoverEffects()) return;
-                    e.currentTarget.style.backgroundColor = 'var(--primary)';
-                  }}
-                >
-                  Select Files
-                </button>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {UPLOAD_CATEGORIES.map((category) => {
+                    const current = uploadedFiles.find((f) => f.category === category);
+                    return (
+                      <div
+                        key={category}
+                        onDrop={handleDropForCategory(category)}
+                        onDragOver={handleDragOver}
+                        className="rounded-xl p-4 transition-colors"
+                        style={{
+                          border: '1px solid #D1D5DB',
+                          backgroundColor: current ? 'rgba(var(--cn-primary-rgb), 0.06)' : 'white',
+                        }}
+                        role="region"
+                        aria-label={`${uploadCategoryLabel(category)} upload`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div style={{ fontSize: '14px', fontWeight: 700, color: '#1F2937', marginBottom: 6 }}>
+                              {uploadCategoryLabel(category)}
+                            </div>
+                            <div style={{ fontSize: '12.5px', color: '#6B7280', lineHeight: 1.4 }}>
+                              {uploadCategoryHelperText(category)}
+                            </div>
+                          </div>
+
+                          {current ? (
+                            <span
+                              className="rounded-full px-2 py-1"
+                              style={{
+                                backgroundColor: 'rgba(var(--cn-primary-rgb), 0.12)',
+                                color: 'var(--primary)',
+                                fontSize: 12,
+                                fontWeight: 600,
+                                flexShrink: 0,
+                              }}
+                            >
+                              Added
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-3">
+                          {current ? (
+                            <div
+                              className="flex items-center justify-between gap-2 rounded-lg px-3 py-2"
+                              style={{ backgroundColor: '#F9FAFB', border: '1px solid #E5E7EB' }}
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate" style={{ fontSize: 13, color: '#1F2937', fontWeight: 600 }}>
+                                  {current.file.name}
+                                </div>
+                                <div style={{ fontSize: 12, color: '#6B7280' }}>{getFileType(current.file.name)}</div>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeFile(current.id);
+                                }}
+                                className="p-1 rounded hover:bg-gray-200 transition-colors"
+                                style={{ color: '#6B7280', flexShrink: 0 }}
+                                aria-label={`Remove ${uploadCategoryLabel(category)} file`}
+                              >
+                                <X size={16} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 13, color: '#6B7280' }}>Drag & drop here, or browse.</div>
+                          )}
+                        </div>
+
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={(e) => openFilePickerForCategory(category, e)}
+                            disabled={isFileDialogActive}
+                            className="inline-flex items-center justify-center rounded-lg transition-all duration-200 w-full"
+                            style={{
+                              backgroundColor: 'var(--primary)',
+                              color: 'white',
+                              padding: '10px 12px',
+                              fontSize: '14px',
+                              fontWeight: 700,
+                              border: 'none',
+                              cursor: isFileDialogActive ? 'not-allowed' : 'pointer',
+                              opacity: isFileDialogActive ? 0.85 : 1,
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!shouldAllowHoverEffects()) return;
+                              e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!shouldAllowHoverEffects()) return;
+                              e.currentTarget.style.backgroundColor = 'var(--primary)';
+                            }}
+                          >
+                            {current ? 'Replace File' : 'Browse File'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {uploadError && (
@@ -1577,8 +1770,14 @@ export default function App() {
                 </motion.p>
               )}
 
+              {/* Keep the original "uploaded list" behavior, but show a category tag for clarity. */}
               {uploadedFiles.length > 0 && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="mt-6 space-y-2">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="mt-6 space-y-2"
+                >
                   {uploadedFiles.map((fileData) => (
                     <div
                       key={fileData.id}
@@ -1587,11 +1786,20 @@ export default function App() {
                         e.stopPropagation();
                       }}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.1)', color: 'var(--primary)' }}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className="px-2 py-1 rounded text-xs font-medium"
+                          style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.1)', color: 'var(--primary)' }}
+                        >
+                          {uploadCategoryLabel(fileData.category)}
+                        </span>
+                        <span
+                          className="px-2 py-1 rounded text-xs font-medium"
+                          style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.08)', color: '#0F766E' }}
+                        >
                           {getFileType(fileData.file.name)}
                         </span>
-                        <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: 500 }}>
+                        <span className="truncate" style={{ fontSize: '14px', color: '#1F2937', fontWeight: 600 }}>
                           {(fileData as any).displayName || fileData.file.name}
                         </span>
                       </div>
@@ -1601,7 +1809,8 @@ export default function App() {
                           removeFile(fileData.id);
                         }}
                         className="p-1 rounded hover:bg-gray-200 transition-colors"
-                        style={{ color: '#6B7280' }}
+                        style={{ color: '#6B7280', flexShrink: 0 }}
+                        aria-label={`Remove ${fileData.file.name}`}
                       >
                         <X size={16} />
                       </button>
@@ -1613,22 +1822,22 @@ export default function App() {
 
             <button
               onClick={handleGenerateDraft}
-              disabled={uploadedFiles.length === 0}
+              disabled={!hasAllRequiredUploads}
               className="rounded-lg transition-all duration-200"
               style={{
-                backgroundColor: uploadedFiles.length > 0 ? 'var(--primary)' : '#D1D5DB',
-                color: uploadedFiles.length > 0 ? 'white' : '#6B7280',
+                backgroundColor: hasAllRequiredUploads ? 'var(--primary)' : '#D1D5DB',
+                color: hasAllRequiredUploads ? 'white' : '#6B7280',
                 padding: '12px 20px',
                 fontSize: '14px',
                 fontWeight: 500,
                 border: 'none',
-                cursor: uploadedFiles.length > 0 ? 'pointer' : 'not-allowed',
+                cursor: hasAllRequiredUploads ? 'pointer' : 'not-allowed',
               }}
               onMouseEnter={(e) => {
-                if (uploadedFiles.length > 0) e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
+                if (hasAllRequiredUploads) e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
               }}
               onMouseLeave={(e) => {
-                if (uploadedFiles.length > 0) e.currentTarget.style.backgroundColor = 'var(--primary)';
+                if (hasAllRequiredUploads) e.currentTarget.style.backgroundColor = 'var(--primary)';
               }}
             >
               Generate Draft Persona
