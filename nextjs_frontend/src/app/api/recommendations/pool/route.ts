@@ -113,51 +113,42 @@ export async function GET(req: NextRequest) {
   const initialController = new AbortController();
   const rolesController = new AbortController();
 
-  // Run both in parallel for reliability; return first usable payload.
-  const initialPromise = fetchJsonWithTimeout({
-    targetUrl: `${backendUrl}/api/recommendations/initial${query}`,
+  // IMPORTANT (bugfix):
+  // This route must proxy to the backend's pooled endpoint:
+  //   GET {BACKEND}/api/recommendations/pool?personaId=...
+  // Falling back to /api/recommendations/roles should only happen when the pool
+  // endpoint fails or returns no roles. This prevents multiple upstream/model requests.
+  const poolPromise = fetchJsonWithTimeout({
+    targetUrl: `${backendUrl}/api/recommendations/pool${query}`,
     controller: initialController,
     timeoutMs: effectiveTimeoutMs,
   });
 
-  const rolesPromise = fetchJsonWithTimeout({
-    targetUrl: `${backendUrl}/api/recommendations/roles${query}`,
-    controller: rolesController,
-    // Roles fallback should be fast; give it a smaller cap but still reasonable.
-    timeoutMs: Math.min(8000, effectiveTimeoutMs),
-  });
-
   try {
-    const first = await Promise.race([
-      initialPromise.then((r) => ({ source: 'initial' as const, result: r })),
-      rolesPromise.then((r) => ({ source: 'roles' as const, result: r })),
-    ]);
+    const pool = await poolPromise;
 
-    // If the first completed result is usable, return it immediately and abort the other.
-    if (first.result.ok && hasUsableRoles(first.result.data)) {
-      if (first.source === 'initial') rolesController.abort();
-      else initialController.abort();
-      return NextResponse.json(attachFrontendSource(first.result.data, first.source), { status: first.result.status });
+    if (pool.ok && hasUsableRoles(pool.data)) {
+      return NextResponse.json(attachFrontendSource(pool.data, 'initial'), { status: pool.status });
     }
 
-    // Otherwise await the other one and use it if usable.
-    const second = first.source === 'initial' ? await rolesPromise : await initialPromise;
-    const secondSource = first.source === 'initial' ? ('roles' as const) : ('initial' as const);
+    // Backwards/defensive behavior:
+    // If pool isn't usable, fall back to deterministic roles endpoint (fast).
+    const roles = await fetchJsonWithTimeout({
+      targetUrl: `${backendUrl}/api/recommendations/roles${query}`,
+      controller: rolesController,
+      timeoutMs: Math.min(8000, effectiveTimeoutMs),
+    });
 
-    if (second.ok && hasUsableRoles(second.data)) {
-      // Abort the first controller if still running (best-effort).
-      if (secondSource === 'initial') rolesController.abort();
-      else initialController.abort();
-      return NextResponse.json(attachFrontendSource(second.data, secondSource), { status: second.status });
+    if (roles.ok && hasUsableRoles(roles.data)) {
+      return NextResponse.json(attachFrontendSource(roles.data, 'roles'), { status: roles.status });
     }
 
-    // Neither produced a usable payload; return a stable error envelope.
     return NextResponse.json(
       {
         error: 'Failed to load recommendations pool',
         details: {
-          initialStatus: first.source === 'initial' ? first.result.status : (secondSource === 'initial' ? second.status : undefined),
-          rolesStatus: first.source === 'roles' ? first.result.status : (secondSource === 'roles' ? second.status : undefined),
+          poolStatus: pool.status,
+          rolesStatus: roles.status,
         },
       },
       { status: 502 },
@@ -168,7 +159,6 @@ export async function GET(req: NextRequest) {
       String(e?.message || '').toLowerCase().includes('aborted') ||
       String(e?.message || '').toLowerCase().includes('timeout');
 
-    // Ensure we don't leak work if we already decided to fail.
     initialController.abort();
     rolesController.abort();
 
