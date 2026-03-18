@@ -3,7 +3,7 @@
 Goal: remove remaining **teal/cyan/emerald** usage across the frontend theme and UI and use only **purple/dark purple/white/black/grey** equivalents, **without changing layout/structure** and keeping **`/login` visuals unchanged**.
 
 ## Status (as of latest pass)
-✅ **Completed** — there are **no remaining teal/cyan/emerald Tailwind classes**, **no teal-ish hardcoded hex/RGBA values**, and **no teal/green-named CSS tokens** in the actual frontend source (`src/**`).
+✅ **Completed** — there are **no remaining teal/cyan/emerald Tailwind classes**, **no teal-ish hardcoded hex/RGBA values**, and **no teal/green-named CSS tokens** in the actual frontend source (`src/**`, excluding `/login`).
 
 The only remaining occurrences of the strings “teal/cyan/emerald” are in this documentation file itself (for historical tracking).
 

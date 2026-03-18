@@ -1394,8 +1394,8 @@ export default function App() {
             <div
               className="w-9 h-9 rounded-lg flex items-center justify-center"
               style={{
-                backgroundColor: '#14B8A6',
-                boxShadow: '0 2px 4px rgba(20, 184, 166, 0.15)',
+                backgroundColor: 'var(--primary)',
+                boxShadow: '0 2px 4px rgba(var(--cn-primary-rgb), 0.15)',
               }}
             >
               <Compass size={20} style={{ color: 'white' }} />
@@ -1432,7 +1432,7 @@ export default function App() {
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200"
               style={{
-                backgroundColor: '#14B8A6',
+                backgroundColor: 'var(--primary)',
                 color: 'white',
                 fontSize: '14px',
                 fontWeight: 600,
@@ -1472,7 +1472,7 @@ export default function App() {
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
               style={{
-                backgroundColor: step1Complete ? '#14B8A6' : currentStep === 1 ? '#14B8A6' : 'transparent',
+                backgroundColor: step1Complete ? 'var(--primary)' : currentStep === 1 ? 'var(--primary)' : 'transparent',
                 border: step1Complete || currentStep === 1 ? 'none' : '2px solid #D1D5DB',
                 color: step1Complete || currentStep === 1 ? 'white' : '#D1D5DB',
                 fontSize: '16px',
@@ -1492,13 +1492,13 @@ export default function App() {
             </span>
           </div>
 
-          <div className="h-0.5 w-12 transition-colors duration-300" style={{ backgroundColor: step1Complete ? '#14B8A6' : '#D1D5DB' }} />
+          <div className="h-0.5 w-12 transition-colors duration-300" style={{ backgroundColor: step1Complete ? 'var(--primary)' : '#D1D5DB' }} />
 
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
               style={{
-                backgroundColor: step2Complete ? '#14B8A6' : currentStep === 2 ? '#14B8A6' : 'transparent',
+                backgroundColor: step2Complete ? 'var(--primary)' : currentStep === 2 ? 'var(--primary)' : 'transparent',
                 border: step2Complete || currentStep === 2 ? 'none' : '2px solid #D1D5DB',
                 color: step2Complete || currentStep === 2 ? 'white' : '#D1D5DB',
                 fontSize: '16px',
@@ -1518,13 +1518,13 @@ export default function App() {
             </span>
           </div>
 
-          <div className="h-0.5 w-12 transition-colors duration-300" style={{ backgroundColor: step2Complete ? '#14B8A6' : '#D1D5DB' }} />
+          <div className="h-0.5 w-12 transition-colors duration-300" style={{ backgroundColor: step2Complete ? 'var(--primary)' : '#D1D5DB' }} />
 
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
               style={{
-                backgroundColor: step3Complete ? '#14B8A6' : currentStep === 3 ? '#14B8A6' : 'transparent',
+                backgroundColor: step3Complete ? 'var(--primary)' : currentStep === 3 ? 'var(--primary)' : 'transparent',
                 border: step3Complete || currentStep === 3 ? 'none' : '2px solid #D1D5DB',
                 color: step3Complete || currentStep === 3 ? 'white' : '#D1D5DB',
                 fontSize: '16px',
@@ -1559,7 +1559,7 @@ export default function App() {
               style={{
                 fontSize: '36px',
                 fontWeight: 700,
-                color: '#14B8A6',
+                color: 'var(--primary)',
                 marginBottom: '8px',
                 transition: 'color 0.3s ease',
               }}
@@ -1589,16 +1589,16 @@ export default function App() {
               style={{
                 boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)',
                 marginBottom: '24px',
-                border: '1px solid rgba(20, 184, 166, 0.3)',
+                border: '1px solid rgba(var(--cn-primary-rgb), 0.3)',
               }}
               onMouseEnter={(e) => {
                 if (!shouldAllowHoverEffects()) return;
-                e.currentTarget.style.border = '1px solid #14B8A6';
-                e.currentTarget.style.boxShadow = '0px 6px 16px rgba(20, 184, 166, 0.15)';
+                e.currentTarget.style.border = '1px solid var(--primary)';
+                e.currentTarget.style.boxShadow = '0px 6px 16px rgba(var(--cn-primary-rgb), 0.15)';
               }}
               onMouseLeave={(e) => {
                 if (!shouldAllowHoverEffects()) return;
-                e.currentTarget.style.border = '1px solid rgba(20, 184, 166, 0.3)';
+                e.currentTarget.style.border = '1px solid rgba(var(--cn-primary-rgb), 0.3)';
                 e.currentTarget.style.boxShadow = '0px 4px 12px rgba(0, 0, 0, 0.05)';
               }}
             >
@@ -1608,12 +1608,12 @@ export default function App() {
                 className="border-2 border-dashed rounded-xl p-12 transition-colors hover:bg-gray-50"
                 style={{
                   borderColor: '#D1D5DB',
-                  backgroundColor: uploadedFiles.length > 0 ? 'rgba(20, 184, 166, 0.05)' : 'transparent',
+                  backgroundColor: uploadedFiles.length > 0 ? 'rgba(var(--cn-primary-rgb), 0.05)' : 'transparent',
                 }}
                 role="region"
                 aria-label="Upload documents (drag and drop)"
               >
-                <Upload className="mx-auto mb-4" size={48} style={{ color: '#14B8A6' }} />
+                <Upload className="mx-auto mb-4" size={48} style={{ color: 'var(--primary)' }} />
                 <p style={{ fontSize: '16px', fontWeight: 500, color: '#1F2937', marginBottom: '8px' }}>
                   {uploadedFiles.length > 0 ? `${uploadedFiles.length} file(s) uploaded` : 'Upload your Documents '}
                 </p>
@@ -1626,7 +1626,7 @@ export default function App() {
                   disabled={isFileDialogActive}
                   className="inline-flex items-center justify-center rounded-lg transition-all duration-200"
                   style={{
-                    backgroundColor: '#14B8A6',
+                    backgroundColor: 'var(--primary)',
                     color: 'white',
                     padding: '10px 14px',
                     fontSize: '14px',
@@ -1637,11 +1637,11 @@ export default function App() {
                   }}
                   onMouseEnter={(e) => {
                     if (!shouldAllowHoverEffects()) return;
-                    e.currentTarget.style.backgroundColor = '#0FB9B1';
+                    e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
                   }}
                   onMouseLeave={(e) => {
                     if (!shouldAllowHoverEffects()) return;
-                    e.currentTarget.style.backgroundColor = '#14B8A6';
+                    e.currentTarget.style.backgroundColor = 'var(--primary)';
                   }}
                 >
                   Select Files
@@ -1674,7 +1674,7 @@ export default function App() {
                       }}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: 'rgba(20, 184, 166, 0.1)', color: '#14B8A6' }}>
+                        <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.1)', color: 'var(--primary)' }}>
                           {getFileType(fileData.file.name)}
                         </span>
                         <span style={{ fontSize: '14px', color: '#1F2937', fontWeight: 500 }}>
@@ -1702,7 +1702,7 @@ export default function App() {
               disabled={uploadedFiles.length === 0}
               className="rounded-lg transition-all duration-200"
               style={{
-                backgroundColor: uploadedFiles.length > 0 ? '#14B8A6' : '#D1D5DB',
+                backgroundColor: uploadedFiles.length > 0 ? 'var(--primary)' : '#D1D5DB',
                 color: uploadedFiles.length > 0 ? 'white' : '#6B7280',
                 padding: '12px 20px',
                 fontSize: '14px',
@@ -1711,10 +1711,10 @@ export default function App() {
                 cursor: uploadedFiles.length > 0 ? 'pointer' : 'not-allowed',
               }}
               onMouseEnter={(e) => {
-                if (uploadedFiles.length > 0) e.currentTarget.style.backgroundColor = '#0FB9B1';
+                if (uploadedFiles.length > 0) e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
               }}
               onMouseLeave={(e) => {
-                if (uploadedFiles.length > 0) e.currentTarget.style.backgroundColor = '#14B8A6';
+                if (uploadedFiles.length > 0) e.currentTarget.style.backgroundColor = 'var(--primary)';
               }}
             >
               Generate Draft Persona
@@ -1741,7 +1741,7 @@ export default function App() {
               style={{
                 fontSize: state === 'draft' ? '36px' : '32px',
                 fontWeight: 700,
-                color: state === 'draft' ? '#14B8A6' : '#1F2937',
+                color: state === 'draft' ? 'var(--primary)' : '#1F2937',
                 marginBottom: '32px',
                 display: 'block',
                 textAlign: 'center',
@@ -1762,7 +1762,7 @@ export default function App() {
                     width: '100%',
                     height: '2px',
                     backgroundColor: '#14B8A6',
-                    boxShadow: '0 0 8px rgba(20, 184, 166, 0.4)',
+                    boxShadow: '0 0 8px rgba(var(--cn-primary-rgb), 0.4)',
                     transformOrigin: 'left',
                   }}
                 />
@@ -1777,7 +1777,7 @@ export default function App() {
                     onClick={() => setState('initial')}
                     className="mb-4 flex items-center gap-2 transition-all duration-200 hover:opacity-80"
                     style={{
-                      color: '#14B8A6',
+                      color: 'var(--primary)',
                       fontWeight: 500,
                       fontSize: '14px',
                       background: 'none',
@@ -1794,7 +1794,7 @@ export default function App() {
                   style={{
                     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)',
                     padding: '24px',
-                    border: '1px solid rgba(20, 184, 166, 0.3)',
+                    border: '1px solid rgba(var(--cn-primary-rgb), 0.3)',
                   }}
                   onMouseEnter={(e) => {
                     if (!shouldAllowHoverEffects()) return;
@@ -1828,12 +1828,12 @@ export default function App() {
                   <div className="flex items-center gap-2 mb-3">
                     {state === 'processing' ? (
                       <>
-                        <Loader2 className="animate-spin" size={16} style={{ color: '#14B8A6' }} />
+                        <Loader2 className="animate-spin" size={16} style={{ color: 'var(--primary)' }} />
                         <span
                           className="rounded-full px-3 py-1"
                           style={{
-                            backgroundColor: 'rgba(20, 184, 166, 0.1)',
-                            color: '#14B8A6',
+                            backgroundColor: 'rgba(var(--cn-primary-rgb), 0.1)',
+                            color: 'var(--primary)',
                             fontSize: '12px',
                             fontWeight: 500,
                           }}
@@ -1845,12 +1845,12 @@ export default function App() {
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 size={16} style={{ color: '#22C55E' }} />
+                        <CheckCircle2 size={16} style={{ color: 'var(--primary)' }} />
                         <span
                           className="rounded-full px-3 py-1"
                           style={{
-                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                            color: '#22C55E',
+                            backgroundColor: 'rgba(var(--cn-primary-rgb), 0.1)',
+                            color: 'var(--primary)',
                             fontSize: '12px',
                             fontWeight: 500,
                           }}
@@ -1895,7 +1895,7 @@ export default function App() {
                     style={{
                       boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)',
                       padding: '24px',
-                      border: '1px solid rgba(20, 184, 166, 0.3)',
+                      border: '1px solid rgba(var(--cn-primary-rgb), 0.3)',
                     }}
                     onMouseEnter={(e) => {
                       if (!shouldAllowHoverEffects()) return;
@@ -1913,11 +1913,11 @@ export default function App() {
                         style={{
                           fontSize: '20px',
                           fontWeight: 700,
-                          color: '#14B8A6',
+                          color: 'var(--primary)',
                           transition: 'filter 0.3s ease',
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.filter = 'drop-shadow(0 0 8px rgba(20, 184, 166, 0.4))';
+                          e.currentTarget.style.filter = 'drop-shadow(0 0 8px rgba(var(--cn-primary-rgb), 0.4))';
                         }}
                         onMouseLeave={(e) => {
                           e.currentTarget.style.filter = 'none';
@@ -1947,17 +1947,17 @@ export default function App() {
                           className="rounded-lg transition-all duration-200"
                           style={{
                             padding: '8px 14px',
-                            backgroundColor: '#14B8A6',
+                            backgroundColor: 'var(--primary)',
                             color: 'white',
                             border: 'none',
                             fontSize: '14px',
                             fontWeight: 500,
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = '#0FB9B1';
+                            e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = '#14B8A6';
+                            e.currentTarget.style.backgroundColor = 'var(--primary)';
                           }}
                         >
                           Finalize Persona
@@ -1969,17 +1969,17 @@ export default function App() {
                             className="flex items-center gap-2 rounded-lg transition-all duration-200"
                             style={{
                               padding: '8px 14px',
-                              backgroundColor: 'rgba(20, 184, 166, 0.10)',
-                              color: '#0F766E',
-                              border: '1px solid rgba(20, 184, 166, 0.35)',
+                              backgroundColor: 'rgba(var(--cn-primary-rgb), 0.10)',
+                              color: 'var(--primary)',
+                              border: '1px solid rgba(var(--cn-primary-rgb), 0.35)',
                               fontSize: '14px',
                               fontWeight: 600,
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = 'rgba(20, 184, 166, 0.16)';
+                              e.currentTarget.style.backgroundColor = 'rgba(var(--cn-primary-rgb), 0.16)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = 'rgba(20, 184, 166, 0.10)';
+                              e.currentTarget.style.backgroundColor = 'rgba(var(--cn-primary-rgb), 0.10)';
                             }}
                           >
                             Save Changes
@@ -1996,7 +1996,7 @@ export default function App() {
                               className="flex items-center gap-1.5"
                               style={{
                                 fontSize: '14px',
-                                color: '#22C55E',
+                                color: 'var(--primary)',
                                 fontWeight: 500,
                               }}
                             >
@@ -2013,8 +2013,8 @@ export default function App() {
                             style={{
                               padding: '8px 14px',
                               backgroundColor: 'transparent',
-                              color: '#14B8A6',
-                              border: '1px solid #14B8A6',
+                              color: 'var(--primary)',
+                              border: '1px solid var(--primary)',
                               fontSize: '14px',
                               fontWeight: 500,
                             }}
@@ -2045,7 +2045,7 @@ export default function App() {
                         {personaData?.profileImage ? (
                           <img src={personaData.profileImage} alt="Profile" className="w-16 h-16 rounded-full object-cover flex-shrink-0" />
                         ) : (
-                          <div className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#14B8A6', color: 'white', fontSize: '24px', fontWeight: 600 }}>
+                          <div className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--primary)', color: 'white', fontSize: '24px', fontWeight: 600 }}>
                             {personaCardInitials}
                           </div>
                         )}
@@ -2198,7 +2198,7 @@ export default function App() {
                             autoFocus
                             className="rounded-full px-3 py-1.5 border"
                             style={{
-                              borderColor: '#14B8A6',
+                              borderColor: 'var(--primary)',
                               fontSize: '12px',
                               fontWeight: 500,
                               outline: 'none',
@@ -2375,7 +2375,7 @@ export default function App() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {(personaData?.careerHighlights ?? []).map((item, idx) => (
                           <div key={`${idx}-${item.highlight}`} className="p-3 rounded-lg border flex items-start gap-2" style={{ borderColor: '#D1D5DB', backgroundColor: '#FAFAFA' }}>
-                            <Award size={16} style={{ color: '#14B8A6', marginTop: '2px', flexShrink: 0 }} />
+                            <Award size={16} style={{ color: 'var(--primary)', marginTop: '2px', flexShrink: 0 }} />
                             <div className="min-w-0 w-full">
                               <p style={{ fontSize: '13px', color: '#1F2937', lineHeight: '1.5', marginBottom: item.sourceExperience ? '6px' : 0 }}>{item.highlight}</p>
 
@@ -2383,14 +2383,14 @@ export default function App() {
                                 <div
                                   className="flex items-start gap-2 rounded-md px-2 py-1 w-full max-w-full"
                                   style={{
-                                    backgroundColor: 'rgba(20, 184, 166, 0.10)',
-                                    border: '1px solid rgba(20, 184, 166, 0.25)',
+                                    backgroundColor: 'rgba(var(--cn-primary-rgb), 0.10)',
+                                    border: '1px solid rgba(var(--cn-primary-rgb), 0.25)',
                                   }}
                                 >
                                   <span
                                     style={{
                                       fontSize: '12px',
-                                      color: '#0F766E',
+                                      color: 'var(--primary)',
                                       fontWeight: 600,
                                       flexShrink: 0,
                                       lineHeight: '1.2',
@@ -2452,7 +2452,7 @@ export default function App() {
               <h2
                 onMouseEnter={(e) => {
                   setIsHoveringHeading(true);
-                  e.currentTarget.style.filter = 'drop-shadow(0 0 8px rgba(20, 184, 166, 0.4))';
+                  e.currentTarget.style.filter = 'drop-shadow(0 0 8px rgba(var(--cn-primary-rgb), 0.4))';
                 }}
                 onMouseLeave={(e) => {
                   setIsHoveringHeading(false);
@@ -2462,7 +2462,7 @@ export default function App() {
                 style={{
                   fontSize: '32px',
                   fontWeight: 700,
-                  color: '#14B8A6',
+                  color: 'var(--primary)',
                   marginBottom: '32px',
                   textAlign: 'center',
                   display: 'block',
@@ -2482,8 +2482,8 @@ export default function App() {
                       transform: 'translateX(-50%)',
                       width: '100%',
                       height: '2px',
-                      backgroundColor: '#14B8A6',
-                      boxShadow: '0 0 8px rgba(20, 184, 166, 0.4)',
+                      backgroundColor: 'var(--primary)',
+                      boxShadow: '0 0 8px rgba(var(--cn-primary-rgb), 0.4)',
                       transformOrigin: 'left',
                     }}
                   />
@@ -2502,7 +2502,7 @@ export default function App() {
                 }}
                 onMouseEnter={(e) => {
                   if (!shouldAllowHoverEffects()) return;
-                  e.currentTarget.style.boxShadow = '0px 8px 20px rgba(20, 184, 166, 0.2)';
+                  e.currentTarget.style.boxShadow = '0px 8px 20px rgba(var(--cn-primary-rgb), 0.2)';
                 }}
                 onMouseLeave={(e) => {
                   if (!shouldAllowHoverEffects()) return;
@@ -2514,7 +2514,7 @@ export default function App() {
                   {personaData?.profileImage ? (
                     <img src={personaData.profileImage} alt="Profile" className="w-20 h-20 rounded-full object-cover flex-shrink-0" />
                   ) : (
-                    <div className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: '#14B8A6', color: 'white', fontSize: '28px', fontWeight: 600 }}>
+                    <div className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--primary)', color: 'white', fontSize: '28px', fontWeight: 600 }}>
                       {personaCardInitials}
                     </div>
                   )}
@@ -2568,14 +2568,14 @@ export default function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {personaData.careerHighlights.map((item, idx) => (
                       <div key={`${idx}-${item.highlight}`} className="p-3 rounded-lg border flex items-start gap-2" style={{ borderColor: '#D1D5DB', backgroundColor: '#FAFAFA' }}>
-                        <Award size={16} style={{ color: '#14B8A6', marginTop: '2px', flexShrink: 0 }} />
+                        <Award size={16} style={{ color: 'var(--primary)', marginTop: '2px', flexShrink: 0 }} />
                         <div className="min-w-0 w-full">
                           <p style={{ fontSize: '13px', color: '#1F2937', lineHeight: '1.5', marginBottom: item.sourceExperience ? '6px' : 0 }}>{item.highlight}</p>
 
                           {item.sourceExperience && (
-                            <div className="flex items-start gap-2 rounded-md px-2 py-1 w-full max-w-full" style={{ backgroundColor: 'rgba(20, 184, 166, 0.10)', border: '1px solid rgba(20, 184, 166, 0.25)' }}>
-                              <span style={{ fontSize: '12px', color: '#0F766E', fontWeight: 600, flexShrink: 0, lineHeight: '1.2', marginTop: '1px' }}>Source</span>
-                              <span style={{ fontSize: '12px', color: '#0F766E', fontWeight: 500, lineHeight: '1.2', overflowWrap: 'anywhere', wordBreak: 'break-word' }} className="min-w-0">
+                            <div className="flex items-start gap-2 rounded-md px-2 py-1 w-full max-w-full" style={{ backgroundColor: 'rgba(var(--cn-primary-rgb), 0.10)', border: '1px solid rgba(var(--cn-primary-rgb), 0.25)' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600, flexShrink: 0, lineHeight: '1.2', marginTop: '1px' }}>Source</span>
+                              <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 500, lineHeight: '1.2', overflowWrap: 'anywhere', wordBreak: 'break-word' }} className="min-w-0">
                                 {item.sourceExperience}
                               </span>
                             </div>
@@ -2611,13 +2611,13 @@ export default function App() {
                     fontWeight: 700,
                     border: 'none',
                     cursor: 'pointer',
-                    boxShadow: '0px 10px 24px rgba(20, 184, 166, 0.18)',
+                    boxShadow: '0px 10px 24px rgba(var(--cn-primary-rgb), 0.18)',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#0FB9B1';
+                    e.currentTarget.style.backgroundColor = 'var(--primary-hover)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#14B8A6';
+                    e.currentTarget.style.backgroundColor = 'var(--primary)';
                   }}
                 >
                   Explore Roles
