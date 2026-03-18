@@ -13,6 +13,26 @@ const AUTH_COOKIE_NAME = 'cn_auth';
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
+  /**
+   * Some preview/proxy deployments emit requests for browser sourcemaps like:
+   * `/_next/static/<build-id>/chunks/app/page.mjs.map`
+   *
+   * When sourcemaps are not present/served, these become noisy 404s in logs.
+   * To keep logs clean, return 204 for `/_next/static/*.map` unless explicitly enabled.
+   */
+  if (pathname.startsWith('/_next/static') && pathname.endsWith('.map')) {
+    const enableSourceMaps = process.env.NEXT_PUBLIC_ENABLE_SOURCE_MAPS === 'true';
+    if (!enableSourceMaps) {
+      return new NextResponse(null, {
+        status: 204,
+        headers: {
+          // Avoid caching a "no content" response in case the deployment later enables maps.
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
+  }
+
   // Allow Next internals, public assets, and API routes without gating.
   const publicPrefixes = ['/login', '/api', '/_next', '/assets', '/health'];
   if (
