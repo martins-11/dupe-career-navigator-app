@@ -42,6 +42,21 @@ if grep -qi '<!DOCTYPE html' /tmp/body_reco_roles.txt; then
 fi
 
 echo
+echo "-- GET ${BACKEND_URL}/api/recommendations/pool"
+curl -sS -D /tmp/headers_reco_pool.txt \
+  "${BACKEND_URL}/api/recommendations/pool" \
+  -o /tmp/body_reco_pool.txt
+
+echo "Status/Content-Type:"
+grep -E '^(HTTP/|content-type:)' -i /tmp/headers_reco_pool.txt || true
+echo "Body (first 200 chars):"
+head -c 200 /tmp/body_reco_pool.txt; echo
+if grep -qi '<!DOCTYPE html' /tmp/body_reco_pool.txt; then
+  echo "ERROR: Backend returned HTML for /api/recommendations/pool (routing likely broken)."
+  exit 1
+fi
+
+echo
 echo "== Frontend proxy checks (Next.js rewrites) =="
 echo "-- GET ${FRONTEND_URL}/api/roles/autocomplete?q=manager"
 curl -sS -D /tmp/headers_front_roles_autocomplete.txt \
@@ -69,6 +84,21 @@ echo "Body (first 200 chars):"
 head -c 200 /tmp/body_front_reco_roles.txt; echo
 if grep -qi '<!DOCTYPE html' /tmp/body_front_reco_roles.txt; then
   echo "ERROR: Frontend returned HTML for /api/recommendations/roles (rewrite missing or backend unreachable)."
+  exit 1
+fi
+
+echo
+echo "-- GET ${FRONTEND_URL}/api/recommendations/pool"
+curl -sS -D /tmp/headers_front_reco_pool.txt \
+  "${FRONTEND_URL}/api/recommendations/pool" \
+  -o /tmp/body_front_reco_pool.txt
+
+echo "Status/Content-Type:"
+grep -E '^(HTTP/|content-type:)' -i /tmp/headers_front_reco_pool.txt || true
+echo "Body (first 200 chars):"
+head -c 200 /tmp/body_front_reco_pool.txt; echo
+if grep -qi '<!DOCTYPE html' /tmp/body_front_reco_pool.txt; then
+  echo "ERROR: Frontend returned HTML for /api/recommendations/pool (rewrite missing or backend unreachable)."
   exit 1
 fi
 

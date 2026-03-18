@@ -44,22 +44,37 @@ type ApiFetchInit = RequestInit & {
 
 function resolveBaseUrl(): string {
   /**
-   * Prefer Next.js same-origin API routes by default (baseUrl="").
-   * If the app is configured to call a full external origin from the browser, allow it via env vars.
+   * Resolve the base URL for API calls.
    *
-   * Environment variables available in this container include:
-   * - NEXT_PUBLIC_API_BASE
-   * - NEXT_PUBLIC_BACKEND_URL
+   * IMPORTANT (behavioral contract):
+   * - In the browser, requests to `/api/*` must remain same-origin so they hit the Next.js app
+   *   (port 3000). We enforce that in `apiFetch()` by NOT prefixing `/api/*` paths.
    *
-   * We do not assume their values; we just use them if present.
+   * SSR note:
+   * - Node fetch requires absolute URLs. For SSR usage, set NEXT_PUBLIC_API_BASE or
+   *   NEXT_PUBLIC_FRONTEND_URL to an absolute origin.
    */
   const fromApiBase = (process.env.NEXT_PUBLIC_API_BASE ?? '').trim();
-  if (fromApiBase) return fromApiBase.replace(/\/+$/, '');
+  if (fromApiBase) return fromApiBase.replace(/\/*$/, '').replace(/\/+$/, '');
 
-  const fromBackend = (process.env.NEXT_PUBLIC_BACKEND_URL ?? '').trim();
-  if (fromBackend) return fromBackend.replace(/\/+$/, '');
+  // Server-side only: allow absolute base to be provided for SSR fetches.
+  if (typeof window === 'undefined') {
+    const fromFrontend = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? '').trim();
+    if (fromFrontend) return fromFrontend.replace(/\/*$/, '').replace(/\/+$/, '');
+  }
 
+  // Browser default: same-origin.
   return '';
+}
+
+function normalizePath(path: string): string {
+  const p = String(path ?? '').trim();
+  return p.startsWith('/') ? p : `/${p}`;
+}
+
+function isNextJsApiPath(path: string): boolean {
+  const p = normalizePath(path);
+  return p === '/api' || p.startsWith('/api/');
 }
 
 async function safeParseJson(res: Response): Promise<unknown> {
@@ -82,9 +97,17 @@ export async function apiFetch<T = any>(path: string, init: ApiFetchInit = {}): 
    * - sets JSON headers by default for JSON bodies
    * - parses JSON responses
    * - throws ApiError on non-2xx unless init.noThrow is true
+   *
+   * CRITICAL ROUTING RULE (fix for /api/recommendations/pool 404):
+   * - In the browser, ALWAYS call `/api/*` as same-origin (no base URL prefix).
+   *   This ensures requests hit the Next.js route handlers on port 3000, not the
+   *   Express backend on port 3001.
    */
+  const normalizedPath = normalizePath(path);
   const baseUrl = resolveBaseUrl();
-  const url = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+
+  const url =
+    typeof window !== 'undefined' && isNextJsApiPath(normalizedPath) ? normalizedPath : `${baseUrl}${normalizedPath}`;
 
   const headers = new Headers(init.headers);
 
