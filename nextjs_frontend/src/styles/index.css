@@ -29,12 +29,38 @@
     @apply border-border;
   }
 
-  body {
-    @apply bg-background text-foreground;
-  }
-
   html {
     font-size: var(--font-size);
+  }
+
+  body {
+    /*
+      Body defaults: Segoe UI stack for maximum legibility across dense UI.
+      `font-sans` is mapped to the same stack in tailwind.config.js, but we set it
+      explicitly here so non-Tailwind text also inherits correctly.
+    */
+    font-family: var(--font-body);
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /*
+    Headings: Inter (bold/extra-bold) with slightly tight tracking to achieve a
+    modern, corporate/high-tech aesthetic globally.
+  */
+  h1,
+  h2 {
+    font-family: var(--font-heading);
+    @apply font-extrabold;
+    letter-spacing: -0.015em;
+  }
+
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    @apply font-bold;
+    letter-spacing: -0.015em;
   }
 }
 
