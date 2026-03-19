@@ -16,7 +16,14 @@ function safeJsonParse(input: string): unknown | null {
 
 // PUBLIC_INTERFACE
 export default function DraftPersonaClient() {
-  /** Legacy-style draft persona viewer: shows the last draft persona JSON stored in localStorage. */
+  /**
+   * Old-version draft persona UI (legacy-style viewer).
+   *
+   * This page shows the last draft persona JSON stored in localStorage under
+   * `career_navigator_latest_draft_persona_v1`.
+   *
+   * Note: The ingestion flow already persists this key and routes users here.
+   */
   const router = useRouter();
   const [rawText, setRawText] = React.useState<string | null>(null);
   const [parsed, setParsed] = React.useState<any | null>(null);
@@ -78,7 +85,10 @@ export default function DraftPersonaClient() {
                 Refresh
               </button>
 
-              <Link href="/ingestion" className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+              <Link
+                href="/ingestion"
+                className="rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              >
                 Back to ingestion
               </Link>
             </div>
@@ -95,7 +105,8 @@ export default function DraftPersonaClient() {
           <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-5">
             <div className="text-sm font-semibold text-slate-900">No draft persona found yet.</div>
             <div className="mt-1 text-sm text-slate-600">
-              Generate a draft from <Link className="underline" href="/ingestion">Ingestion</Link>. Once it completes, you will be redirected here.
+              Generate a draft from <Link className="underline" href="/ingestion">Ingestion</Link>. Once it completes,
+              you will be redirected here.
             </div>
           </div>
         ) : (
