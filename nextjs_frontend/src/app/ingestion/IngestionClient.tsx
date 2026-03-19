@@ -1,4 +1,5 @@
 'use client';
+import App from '@/app/App';
 
 import { useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
