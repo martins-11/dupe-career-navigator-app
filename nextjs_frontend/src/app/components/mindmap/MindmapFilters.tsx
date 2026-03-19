@@ -62,7 +62,7 @@ export function MindmapFiltersBar(props: {
               <span className="text-[11px]" style={{ color: 'var(--mindmap-text-meta)' }}>
                 Salary range
               </span>
-              <span className="text-[11px] font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>{`₹${salaryMin}L – ₹${salaryMax}L`}</span>
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>{`$${salaryMin}k – $${salaryMax}k`}</span>
             </div>
             <Slider min={0} max={60} step={1} value={[salaryMin, salaryMax]} onValueChange={(v) => setSalary(v as [number, number])} />
           </div>
