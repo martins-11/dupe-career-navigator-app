@@ -324,6 +324,7 @@ export default function IngestionClient() {
               aria-label="View draft persona"
               onClick={() => {
                 if (!hasUploads) return;
+                // The draft persona page lives at `/persona` (App Router). Note `/personas` is an alias redirect.
                 router.push('/persona');
               }}
               onMouseEnter={(e) => {
