@@ -240,18 +240,29 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
       {/* Inner wrapper gets the click-pop animation so hover transforms remain intact */}
       <div className={["relative z-10", isClickAnimating ? "animate-[cnRoleCardPop_420ms_ease-out]" : ""].join(" ")}>
         <div className="p-6">
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             className={[
               "w-full text-left cursor-pointer",
               "outline-none",
               "transition-colors duration-300",
+              // Keyboard focus ring similar to a button
+              "focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-xl",
             ].join(" ")}
             aria-expanded={expanded}
             aria-controls={expandedId}
             onClick={() => {
               triggerClickAnim();
               setExpanded((v) => !v);
+            }}
+            onKeyDown={(e) => {
+              // Space/Enter should toggle like a real button.
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                triggerClickAnim();
+                setExpanded((v) => !v);
+              }
             }}
           >
             <div className="flex justify-between items-start gap-4 mb-4">
@@ -314,7 +325,7 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
                 )}
               </div>
             )}
-          </button>
+          </div>
         </div>
 
         <div

@@ -303,6 +303,20 @@ export default function ExploreClient() {
               <p className="font-semibold">Search Error</p>
               <p className="text-sm mt-1 text-muted-foreground">{searchError}</p>
             </div>
+          ) : isMultiverseExplorer ? (
+            <div className="space-y-6">
+              <MultiverseExplorerView
+                personaId={effectivePersonaId}
+                pathType={multiversePathType}
+                selectedIndustry={selectedIndustry}
+                selectedSkills={selectedSkills}
+                salaryRange={salaryRange}
+                titleQuery={selectedTitle}
+              />
+              <div className="text-xs text-muted-foreground">
+                Tip: Use search + filters to narrow paths. Click a path to drill down and bookmark it for later.
+              </div>
+            </div>
           ) : Array.isArray(searchResults) ? (
             (() => {
               const selectedIndustryNorm = normString(selectedIndustry);
@@ -386,20 +400,6 @@ export default function ExploreClient() {
                 </div>
               );
             })()
-          ) : isMultiverseExplorer ? (
-            <div className="space-y-6">
-              <MultiverseExplorerView
-                personaId={effectivePersonaId}
-                pathType={multiversePathType}
-                selectedIndustry={selectedIndustry}
-                selectedSkills={selectedSkills}
-                salaryRange={salaryRange}
-                titleQuery={selectedTitle}
-              />
-              <div className="text-xs text-muted-foreground">
-                Tip: Use search + filters to narrow paths. Click a path to drill down and bookmark it for later.
-              </div>
-            </div>
           ) : (
             <div className="space-y-6">
               <div className="flex items-center justify-between gap-4">
