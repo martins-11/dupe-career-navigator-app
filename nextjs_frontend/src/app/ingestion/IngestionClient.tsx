@@ -377,16 +377,40 @@ export default function IngestionClient() {
         method: 'POST',
         body: JSON.stringify({
           mode: 'persona_build',
-          personaId: buildId,
+          // IMPORTANT: When autoCreatePersona=true, do NOT pass personaId.
+          // Passing personaId=buildId is incorrect and can cause backend validation issues.
           autoCreatePersona: true,
           useLatestCategoryDocs: true,
         }),
       });
 
-      // Persist the latest draft so the user can view it immediately on /persona/draft.
-      // This keeps the feature working even when backend persistence is not configured.
+      // Persist personaId (if backend created one) so other routes can pick it up.
       try {
-        const personaDraft = orchestrationRes?.orchestration?.persona ?? orchestrationRes?.results?.generate?.persona ?? null;
+        const personaIdCandidate =
+          orchestrationRes?.results?.generate?.personaId ??
+          orchestrationRes?.results?.finalize?.personaId ??
+          orchestrationRes?.orchestration?.personaId ??
+          orchestrationRes?.build?.personaId ??
+          orchestrationRes?.personaId ??
+          null;
+
+        const personaId = String(personaIdCandidate ?? '').trim();
+        if (personaId) {
+          window.localStorage.setItem('career_navigator_persona_id', personaId);
+        }
+      } catch {
+        // ignore storage failures
+      }
+
+      // Persist the latest draft so the user can view it immediately on /persona/draft.
+      // Backend Run-All response returns the draft persona under orchestration.personaDraft.
+      try {
+        const personaDraft =
+          orchestrationRes?.orchestration?.personaDraft ??
+          orchestrationRes?.orchestration?.persona ??
+          orchestrationRes?.persona ??
+          null;
+
         if (personaDraft && typeof personaDraft === 'object') {
           window.localStorage.setItem(LATEST_DRAFT_PERSONA_STORAGE_KEY, JSON.stringify(personaDraft));
         }
