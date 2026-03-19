@@ -78,8 +78,17 @@ export async function fetchMultiverseGraph(params: {
   personaId?: string | null;
   currentRoleTitle?: string | null;
   filters?: {
+    /**
+     * Salary filter in USD thousands (k USD).
+     * Example: minSalaryUsdK=120 means $120k.
+     */
+    minSalaryUsdK?: number;
+    maxSalaryUsdK?: number;
+
+    /** Legacy aliases (accepted by some older callers; prefer minSalaryUsdK/maxSalaryUsdK). */
     minSalaryLpa?: number;
     maxSalaryLpa?: number;
+
     minSkillSimilarity?: number;
     timeHorizon?: 'Near' | 'Mid' | 'Far';
   };
@@ -94,8 +103,13 @@ export async function fetchMultiverseGraph(params: {
   const currentRoleTitle = safeString(params.currentRoleTitle);
   if (currentRoleTitle) qs.set('currentRoleTitle', currentRoleTitle);
 
-  if (params.filters?.minSalaryLpa != null) qs.set('minSalaryLpa', String(params.filters.minSalaryLpa));
-  if (params.filters?.maxSalaryLpa != null) qs.set('maxSalaryLpa', String(params.filters.maxSalaryLpa));
+  const minSalaryUsdK =
+    params.filters?.minSalaryUsdK != null ? params.filters.minSalaryUsdK : params.filters?.minSalaryLpa;
+  const maxSalaryUsdK =
+    params.filters?.maxSalaryUsdK != null ? params.filters.maxSalaryUsdK : params.filters?.maxSalaryLpa;
+
+  if (minSalaryUsdK != null) qs.set('minSalaryUsdK', String(minSalaryUsdK));
+  if (maxSalaryUsdK != null) qs.set('maxSalaryUsdK', String(maxSalaryUsdK));
   if (params.filters?.minSkillSimilarity != null) qs.set('minSkillSimilarity', String(params.filters.minSkillSimilarity));
   if (params.filters?.timeHorizon) qs.set('timeHorizon', params.filters.timeHorizon);
   if (params.limit != null) qs.set('limit', String(params.limit));
@@ -133,8 +147,13 @@ export async function fetchMultiversePathDetails(params: {
   personaId?: string | null;
   currentRoleTitle?: string | null;
   filters?: {
+    minSalaryUsdK?: number;
+    maxSalaryUsdK?: number;
+
+    /** Legacy aliases (accepted by backend). Prefer minSalaryUsdK/maxSalaryUsdK. */
     minSalaryLpa?: number;
     maxSalaryLpa?: number;
+
     minSkillSimilarity?: number;
     timeHorizon?: 'Near' | 'Mid' | 'Far';
   };
@@ -150,8 +169,12 @@ export async function fetchMultiversePathDetails(params: {
   if (currentRoleTitle) qs.set('currentRoleTitle', currentRoleTitle);
 
   const f = params.filters || {};
-  if (f.minSalaryLpa != null) qs.set('minSalaryLpa', String(f.minSalaryLpa));
-  if (f.maxSalaryLpa != null) qs.set('maxSalaryLpa', String(f.maxSalaryLpa));
+
+  const minSalaryUsdK = f.minSalaryUsdK != null ? f.minSalaryUsdK : f.minSalaryLpa;
+  const maxSalaryUsdK = f.maxSalaryUsdK != null ? f.maxSalaryUsdK : f.maxSalaryLpa;
+
+  if (minSalaryUsdK != null) qs.set('minSalaryUsdK', String(minSalaryUsdK));
+  if (maxSalaryUsdK != null) qs.set('maxSalaryUsdK', String(maxSalaryUsdK));
   if (f.minSkillSimilarity != null) qs.set('minSkillSimilarity', String(f.minSkillSimilarity));
   if (f.timeHorizon) qs.set('timeHorizon', f.timeHorizon);
 

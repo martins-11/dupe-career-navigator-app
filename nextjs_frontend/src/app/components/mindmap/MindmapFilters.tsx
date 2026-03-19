@@ -16,7 +16,7 @@ export function MindmapFiltersBar(props: {
   const { value, onChange } = props;
 
   const salaryMin = typeof value.salaryMin === 'number' ? value.salaryMin : 0;
-  const salaryMax = typeof value.salaryMax === 'number' ? value.salaryMax : 60;
+  const salaryMax = typeof value.salaryMax === 'number' ? value.salaryMax : 300;
 
   const similarity = typeof value.skillSimilarityMin === 'number' ? value.skillSimilarityMin : 0.3;
   const similarityPct = Math.round(similarity * 100);
@@ -30,7 +30,7 @@ export function MindmapFiltersBar(props: {
   }
 
   function clear() {
-    onChange({ salaryMin: 0, salaryMax: 60, skillSimilarityMin: 0.3, timeHorizon: 'Any' });
+    onChange({ salaryMin: 0, salaryMax: 300, skillSimilarityMin: 0.3, timeHorizon: 'Any' });
   }
 
   return (
@@ -64,7 +64,7 @@ export function MindmapFiltersBar(props: {
               </span>
               <span className="text-[11px] font-semibold" style={{ color: 'var(--mindmap-text-muted)' }}>{`$${salaryMin}k – $${salaryMax}k`}</span>
             </div>
-            <Slider min={0} max={60} step={1} value={[salaryMin, salaryMax]} onValueChange={(v) => setSalary(v as [number, number])} />
+            <Slider min={0} max={300} step={1} value={[salaryMin, salaryMax]} onValueChange={(v) => setSalary(v as [number, number])} />
           </div>
 
           <div className="flex flex-col gap-2">

@@ -22,11 +22,18 @@ export const runtime = 'nodejs';
 // PUBLIC_INTERFACE
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  return proxyToBackend(req, `/api/orchestration/builds/${encodeURIComponent(id)}`);
+
+  /**
+   * IMPORTANT:
+   * Use the canonical backend mount `/orchestration/*` (not `/api/orchestration/*`).
+   * Although the backend mounts both, some preview/proxy environments route only one base path
+   * reliably; using the canonical path keeps this consistent with the other orchestration proxies.
+   */
+  return proxyToBackend(req, `/orchestration/builds/${encodeURIComponent(id)}`);
 }
 
 // PUBLIC_INTERFACE
 export async function OPTIONS(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  return proxyToBackend(req, `/api/orchestration/builds/${encodeURIComponent(id)}`);
+  return proxyToBackend(req, `/orchestration/builds/${encodeURIComponent(id)}`);
 }

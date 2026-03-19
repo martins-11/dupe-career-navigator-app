@@ -474,8 +474,8 @@ export function MultiverseExplorerView(props: {
       setError(null);
       try {
         const filters = {
-          minSalaryLpa: salaryRange?.[0],
-          maxSalaryLpa: salaryRange?.[1],
+          minSalaryUsdK: salaryRange?.[0],
+          maxSalaryUsdK: salaryRange?.[1],
         };
 
         const graph: any = await fetchMultiverseGraph({
@@ -563,7 +563,7 @@ export function MultiverseExplorerView(props: {
           pathId: selectedPathId,
           personaId,
           currentRoleTitle: null,
-          filters: { minSalaryLpa: salaryRange?.[0], maxSalaryLpa: salaryRange?.[1] },
+          filters: { minSalaryUsdK: salaryRange?.[0], maxSalaryUsdK: salaryRange?.[1] },
           pathType: pathType ?? undefined,
         } as any);
 

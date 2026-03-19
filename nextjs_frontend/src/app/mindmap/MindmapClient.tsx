@@ -33,7 +33,7 @@ function clamp(n: number, min: number, max: number) {
 }
 
 function defaultFilters(): MindmapFilters {
-  return { salaryMin: 0, salaryMax: 60, skillSimilarityMin: 0.3, timeHorizon: 'Any' };
+  return { salaryMin: 0, salaryMax: 300, skillSimilarityMin: 0.3, timeHorizon: 'Any' };
 }
 
 function defaultState(): MindmapViewState {

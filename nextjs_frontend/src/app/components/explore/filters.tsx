@@ -396,7 +396,7 @@ export function Filters(props: FiltersProps) {
           </div>
           <Slider
             min={0}
-            max={60}
+            max={300}
             step={1}
             value={salaryRange}
             onValueChange={(v) => onSalaryChange(v as [number, number])}
@@ -447,11 +447,11 @@ export function ActiveFilterTags({
       onRemove: () => onSkillsChange(selectedSkills.filter((s) => s !== skill)),
     });
   });
-  if (salaryRange[0] !== 0 || salaryRange[1] !== 60) {
+  if (salaryRange[0] !== 0 || salaryRange[1] !== 300) {
     tags.push({
       key: `salary:${salaryRange[0]}-${salaryRange[1]}`,
       label: `$${salaryRange[0]}k–$${salaryRange[1]}k`,
-      onRemove: () => onSalaryChange([0, 60]),
+      onRemove: () => onSalaryChange([0, 300]),
     });
   }
 
@@ -461,7 +461,7 @@ export function ActiveFilterTags({
     onTitleChange("");
     onIndustryChange("");
     onSkillsChange([]);
-    onSalaryChange([0, 60]);
+    onSalaryChange([0, 300]);
   }
 
   return (

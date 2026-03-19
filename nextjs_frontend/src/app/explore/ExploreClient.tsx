@@ -112,7 +112,9 @@ export default function ExploreClient() {
   const [selectedTitle, setSelectedTitle] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState("");
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [salaryRange, setSalaryRange] = useState<[number, number]>([0, 60]);
+
+  // USD salary range in $k (canonical UI semantics).
+  const [salaryRange, setSalaryRange] = useState<[number, number]>([0, 300]);
 
   const [industryOptions, setIndustryOptions] = useState<string[]>([]);
   const [skillsOptions, setSkillsOptions] = useState<string[]>([]);
@@ -339,7 +341,7 @@ export default function ExploreClient() {
                 Boolean(selectedIndustryNorm) ||
                 selectedSkillsNorm.length > 0 ||
                 salaryRangeNorm[0] !== 0 ||
-                salaryRangeNorm[1] !== 60;
+                salaryRangeNorm[1] !== 300;
 
               if (filtered.length === 0) {
                 return (
@@ -349,7 +351,7 @@ export default function ExploreClient() {
                       setLastSearchQuery("");
                       setSelectedIndustry("");
                       setSelectedSkills([]);
-                      setSalaryRange([0, 60]);
+                      setSalaryRange([0, 300]);
                       setSearchResults(null);
                       setSearchError(null);
                     }}
@@ -396,7 +398,9 @@ export default function ExploreClient() {
                     })}
                   </div>
 
-                  <div className="text-xs text-muted-foreground">Tip: Clear the search input to return to AI persona recommendations.</div>
+                  <div className="text-xs text-muted-foreground">
+                    Tip: Clear the search input to return to AI persona recommendations.
+                  </div>
                 </div>
               );
             })()
