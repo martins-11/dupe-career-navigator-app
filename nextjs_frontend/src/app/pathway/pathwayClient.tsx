@@ -6,19 +6,30 @@ import { ArrowRight, Compass, GitBranch, Route, Sparkles } from 'lucide-react';
 
 import { Button } from '@/app/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
-import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import { Badge } from '@/app/components/ui/badge';
 import { Separator } from '@/app/components/ui/separator';
 import StepProgressHeader from '@/app/components/StepProgressHeader';
 import { loadPersonaId } from '@/lib/personaStorage';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/app/components/ui/select';
 
 type MultiversePathType = 'vertical' | 'lateral' | 'pivot' | 'non_linear';
 
-function normString(v: unknown): string {
-  return String(v ?? '').trim();
-}
+type TargetRoleOption = {
+  value: string;
+  label: string;
+};
+
+const TARGET_ROLE_OPTIONS: TargetRoleOption[] = [
+  { value: 'Senior Product Manager', label: 'Senior Product Manager' },
+  { value: 'Product Lead', label: 'Product Lead' },
+  { value: 'Staff Product Manager', label: 'Staff Product Manager' },
+  { value: 'Data Product Manager', label: 'Data Product Manager' },
+  { value: 'Technical Product Manager', label: 'Technical Product Manager' },
+  { value: 'Program Manager', label: 'Program Manager' },
+  { value: 'Product Strategy Manager', label: 'Product Strategy Manager' },
+];
 
 function multiverseLabel(t: MultiversePathType): string {
   switch (t) {
@@ -54,7 +65,7 @@ export default function PathwayClient() {
 
   const [activeTab, setActiveTab] = React.useState<'direct' | 'multiverse'>('direct');
 
-  // Direct trajectory input
+  // Direct trajectory selection-only
   const [directTargetRole, setDirectTargetRole] = React.useState<string>('');
 
   // Multiverse selection
@@ -83,6 +94,8 @@ export default function PathwayClient() {
 
     router.push(`/explore?${qs.toString()}`);
   };
+
+  const lavenderCardClass = 'border-violet-200 bg-violet-50/70';
 
   return (
     <div className="min-h-svh w-full bg-white">
@@ -115,30 +128,36 @@ export default function PathwayClient() {
             </TabsList>
 
             <TabsContent value="direct" className="mt-6">
-              <Card className="border-violet-100">
+              <Card className={lavenderCardClass}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Route className="h-5 w-5 text-violet-700" />
                     Direct Trajectory
                   </CardTitle>
                   <CardDescription>
-                    Best when you already know your target role. We’ll route you to Explore with the target role prefilled so you can
-                    start gap analysis and roadmap planning.
+                    Best when you already know your target role. Select one below (no typing) and we’ll route you to Explore with the
+                    target role prefilled.
                   </CardDescription>
                 </CardHeader>
 
                 <CardContent className="space-y-5">
                   <div className="grid gap-2">
                     <Label htmlFor="directTarget">Target role</Label>
-                    <Input
-                      id="directTarget"
-                      value={directTargetRole}
-                      onChange={(e) => setDirectTargetRole(e.target.value)}
-                      placeholder="e.g., Senior Product Manager"
-                    />
+                    <Select value={directTargetRole} onValueChange={setDirectTargetRole}>
+                      <SelectTrigger id="directTarget" className="bg-white">
+                        <SelectValue placeholder="Select a target role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TARGET_ROLE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <p className="text-xs text-slate-500">
-                      Placeholder: Explore will eventually show “direct roles based on your current role” and then run gap analysis +
-                      requirements + personalized roadmap.
+                      Selection-only for now. Explore will later surface “direct roles based on your current role” and then run gap
+                      analysis + requirements + personalized roadmap.
                     </p>
                   </div>
 
@@ -157,18 +176,25 @@ export default function PathwayClient() {
                     <Button
                       type="button"
                       className="sm:self-end"
-                      onClick={() => goToExplore({ mode: 'direct', targetRole: normString(directTargetRole) || undefined })}
+                      disabled={!directTargetRole}
+                      onClick={() => goToExplore({ mode: 'direct', targetRole: directTargetRole || undefined })}
                     >
                       Continue to Explore <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
+
+                  {!directTargetRole ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                      Select a target role to continue.
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             </TabsContent>
 
             <TabsContent value="multiverse" className="mt-6">
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <Card className="border-violet-100 lg:col-span-2">
+                <Card className={[lavenderCardClass, 'lg:col-span-2'].join(' ')}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Sparkles className="h-5 w-5 text-violet-700" />
@@ -176,7 +202,7 @@ export default function PathwayClient() {
                     </CardTitle>
                     <CardDescription>
                       Explore multiple possible career paths (lateral moves, pivots, traditional progressions, and non‑linear paths).
-                      Select a path type to discover roles, then route into Explore for deeper analysis.
+                      Select a path type (and optionally a target role) to route into Explore.
                     </CardDescription>
                   </CardHeader>
 
@@ -191,7 +217,7 @@ export default function PathwayClient() {
                             onClick={() => setSelectedPathType(t)}
                             className={[
                               'rounded-xl border p-4 text-left transition-colors',
-                              selected ? 'border-violet-400 bg-violet-50' : 'border-slate-200 hover:bg-slate-50',
+                              selected ? 'border-violet-400 bg-violet-100/70' : 'border-violet-200/80 bg-white hover:bg-violet-50',
                             ].join(' ')}
                             aria-pressed={selected}
                           >
@@ -212,16 +238,26 @@ export default function PathwayClient() {
                     </div>
 
                     <div className="grid gap-2">
-                      <Label htmlFor="multiTarget">Optional target role (can be decided later)</Label>
-                      <Input
-                        id="multiTarget"
+                      <Label htmlFor="multiTarget">Optional target role (selection-only)</Label>
+                      <Select
                         value={multiverseTargetRole}
-                        onChange={(e) => setMultiverseTargetRole(e.target.value)}
-                        placeholder="e.g., Data Product Manager"
-                      />
+                        onValueChange={(v) => setMultiverseTargetRole(v === '__none__' ? '' : v)}
+                      >
+                        <SelectTrigger id="multiTarget" className="bg-white">
+                          <SelectValue placeholder="Select a target role (optional)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No target role yet</SelectItem>
+                          {TARGET_ROLE_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <p className="text-xs text-slate-500">
-                        Placeholder: after choosing a path type, Explore will show roles that fall under the selected path, then run
-                        the same gap analysis + roadmap generation.
+                        Optional: you can decide later. After choosing a path type, Explore will show roles under the selected path,
+                        then run gap analysis + roadmap generation.
                       </p>
                     </div>
 
@@ -243,7 +279,7 @@ export default function PathwayClient() {
                           goToExplore({
                             mode: 'multiverse',
                             pathType: selectedPathType ?? undefined,
-                            targetRole: normString(multiverseTargetRole) || undefined,
+                            targetRole: multiverseTargetRole || undefined,
                           })
                         }
                       >
@@ -259,10 +295,10 @@ export default function PathwayClient() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-slate-200">
+                <Card className={lavenderCardClass}>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Compass className="h-5 w-5 text-slate-700" />
+                      <Compass className="h-5 w-5 text-violet-700" />
                       Notes
                     </CardTitle>
                     <CardDescription>How this integrates today</CardDescription>
@@ -277,7 +313,7 @@ export default function PathwayClient() {
                       Explore currently supports search + filters + recommendations/mindmap. The multiverse visualization, compatibility
                       engine, and bookmarking controls will be layered into Explore in a future iteration.
                     </p>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+                    <div className="rounded-lg border border-violet-200 bg-white/70 p-3 text-xs">
                       Persona loaded: <span className="font-mono">{personaId ? personaId : 'none'}</span>
                     </div>
                   </CardContent>
