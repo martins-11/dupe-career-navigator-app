@@ -2,8 +2,9 @@
 
 import { useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, CheckCircle2, Linkedin, Upload, X } from 'lucide-react';
+import { Check, CheckCircle2, Linkedin, Loader2, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { apiFetch, extractNormalizeForBuild, generateDraftForBuild, uploadDocuments } from '@/lib/apiClient';
 
 type UploadCategory = 'resume' | 'job_description' | 'performance_review';
 
@@ -85,14 +86,18 @@ function acceptString(): string {
 type UploadCardProps = {
   category: UploadCategory;
   onFilesSelected: (category: UploadCategory, files: File[]) => void;
+  disabled?: boolean;
 };
 
-function UploadCard({ category, onFilesSelected }: UploadCardProps) {
+function UploadCard({ category, onFilesSelected, disabled }: UploadCardProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const onBrowse = () => inputRef.current?.click();
+  const onBrowse = () => {
+    if (disabled) return;
+    inputRef.current?.click();
+  };
 
   const onSelectNative: React.ChangeEventHandler<HTMLInputElement> = (e) => {
     const list = e.target.files;
@@ -108,6 +113,8 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
     e.stopPropagation();
     setIsDragOver(false);
 
+    if (disabled) return;
+
     const list = e.dataTransfer.files;
     if (!list || list.length === 0) return;
     onFilesSelected(category, Array.from(list));
@@ -116,6 +123,7 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
   const onDragOver: React.DragEventHandler<HTMLDivElement> = (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (disabled) return;
     if (!isDragOver) setIsDragOver(true);
   };
 
@@ -130,21 +138,25 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
   return (
     <motion.div
       initial={false}
-      whileHover={{ y: -2 }}
+      whileHover={disabled ? undefined : { y: -2 }}
       transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
       className="group relative w-full rounded-[12px] border bg-white p-4"
       style={{
         borderColor: isDragOver ? accent : BORDER_SUBTLE,
         boxShadow: isDragOver ? '0 12px 32px rgba(17,24,39,0.10)' : '0 8px 24px rgba(0,0,0,0.06)',
+        opacity: disabled ? 0.65 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
       }}
       onDrop={onDrop}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       role="button"
-      tabIndex={0}
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled || undefined}
       aria-label={`${categoryTitle(category)} (click to browse or drag and drop)`}
       onClick={onBrowse}
       onKeyDown={(e) => {
+        if (disabled) return;
         if (e.key === 'Enter' || e.key === ' ') onBrowse();
       }}
     >
@@ -177,8 +189,12 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
             style={{
               background: GRADIENT_ACCENT,
               boxShadow: '0 10px 22px rgba(139,92,246,0.20)',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              opacity: disabled ? 0.7 : 1,
             }}
+            disabled={disabled}
             onMouseEnter={(e) => {
+              if (disabled) return;
               (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
             }}
             onMouseLeave={(e) => {
@@ -200,6 +216,7 @@ function UploadCard({ category, onFilesSelected }: UploadCardProps) {
           style={{ display: 'none' }}
           aria-hidden="true"
           tabIndex={-1}
+          disabled={disabled}
         />
       </div>
     </motion.div>
@@ -258,16 +275,24 @@ function LinkedInConnect() {
   );
 }
 
+type UiStep = 'idle' | 'starting-build' | 'uploading' | 'extract-normalize' | 'generate-draft' | 'done';
+
 // PUBLIC_INTERFACE
 export default function IngestionClient() {
   /**
-   * Restored “old” ingestion UI chrome (step/progress header + hero/actions),
-   * but keeping only the NEW three upload containers in place of the old single uploader.
-   *
-   * Note: this ingestion route is UI-only; it maintains local state for previews.
+   * Ingestion UI:
+   * - Lets the user upload 3 categories of docs
+   * - On "Generate Draft Persona":
+   *    1) Create a build (POST /api/builds)
+   *    2) Upload docs (POST /api/uploads/documents)
+   *    3) Call orchestration step 1: POST /api/orchestration/builds/:id/extract-normalize
+   *    4) Call orchestration step 2: POST /api/orchestration/builds/:id/generate-draft
+   * - Navigate to /persona only after draft generation succeeds.
    */
   const router = useRouter();
   const [uploaded, setUploaded] = useState<UploadedPreview[]>([]);
+  const [uiStep, setUiStep] = useState<UiStep>('idle');
+  const [error, setError] = useState<string | null>(null);
 
   const cards = useMemo<UploadCategory[]>(() => ['resume', 'job_description', 'performance_review'], []);
 
@@ -290,6 +315,72 @@ export default function IngestionClient() {
   };
 
   const hasUploads = uploaded.length > 0;
+  const isBusy = uiStep !== 'idle' && uiStep !== 'done';
+  const disableInputs = isBusy;
+
+  const stepLabel = (() => {
+    switch (uiStep) {
+      case 'idle':
+        return null;
+      case 'starting-build':
+        return 'Starting build…';
+      case 'uploading':
+        return 'Uploading documents…';
+      case 'extract-normalize':
+        return 'Extracting & normalizing…';
+      case 'generate-draft':
+        return 'Generating draft persona…';
+      case 'done':
+        return 'Draft ready.';
+    }
+  })();
+
+  const onGenerateDraft = async () => {
+    if (!hasUploads || isBusy) return;
+
+    setError(null);
+
+    try {
+      setUiStep('starting-build');
+
+      // 1) Create build/workflow
+      const build = await apiFetch<{ id: string } & Record<string, any>>('/api/builds', {
+        method: 'POST',
+        body: JSON.stringify({ mode: 'persona_build' }),
+      });
+      const buildId = build?.id;
+      if (!buildId || typeof buildId !== 'string') {
+        throw new Error('Failed to create build (missing buildId).');
+      }
+
+      // 2) Upload docs (single request) with per-file category tagging
+      setUiStep('uploading');
+      const files = uploaded.map((u) => u.file);
+      const categories = uploaded.map((u) => u.category);
+
+      await uploadDocuments({
+        files,
+        categories,
+        requireCategories: true,
+      });
+
+      // 3) Orchestration step 1: extract-normalize (buildId reused)
+      setUiStep('extract-normalize');
+      await extractNormalizeForBuild({ buildId });
+
+      // 4) Orchestration step 2: generate-draft
+      setUiStep('generate-draft');
+      await generateDraftForBuild({ buildId });
+
+      // Success: navigate to persona page
+      setUiStep('done');
+      router.push('/persona');
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' ? e.message : 'Failed to generate draft persona.';
+      setError(msg);
+      setUiStep('idle');
+    }
+  };
 
   return (
     <div className="min-h-svh w-full" style={{ background: CANVAS_BG }}>
@@ -350,7 +441,7 @@ export default function IngestionClient() {
         </div>
       </div>
 
-      {/* Newer lavender strip can remain (still part of ingestion UI spec); it doesn't break old layout */}
+      {/* Newer lavender strip */}
       <div className="w-full" style={{ background: LAVENDER_STRIP }}>
         <div className="mx-auto w-full max-w-[1160px] px-6 py-3">
           <div className="text-left text-[14px] font-semibold" style={{ color: TEXT_PRIMARY }}>
@@ -359,7 +450,6 @@ export default function IngestionClient() {
         </div>
       </div>
 
-      {/* Old page: centered hero + action buttons + upload area */}
       <main className="mx-auto w-full max-w-[1160px] px-6 pb-16 pt-10">
         <section className="mx-auto w-full max-w-[980px] text-center">
           <h1 className="text-[36px] font-bold leading-tight" style={{ color: TEXT_PRIMARY }}>
@@ -370,11 +460,10 @@ export default function IngestionClient() {
             Upload your professional documents to generate your AI-powered career profile.
           </p>
 
-          {/* Legacy CTA: "Generate Draft Persona" button with the same navigation behavior as the older ingestion version. */}
           <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <button
               type="button"
-              className="rounded-lg transition-all duration-200"
+              className="rounded-lg transition-all duration-200 inline-flex items-center justify-center gap-2"
               style={{
                 backgroundColor: 'var(--primary)',
                 color: 'white',
@@ -382,51 +471,76 @@ export default function IngestionClient() {
                 fontSize: '14px',
                 fontWeight: 500,
                 border: 'none',
-                cursor: hasUploads ? 'pointer' : 'not-allowed',
-                opacity: hasUploads ? 1 : 0.55,
+                cursor: hasUploads && !isBusy ? 'pointer' : 'not-allowed',
+                opacity: hasUploads && !isBusy ? 1 : 0.55,
               }}
-              disabled={!hasUploads}
+              disabled={!hasUploads || isBusy}
               onMouseEnter={(e) => {
-                if (hasUploads) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary-hover)';
+                if (hasUploads && !isBusy) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary-hover)';
               }}
               onMouseLeave={(e) => {
-                if (hasUploads) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary)';
+                if (hasUploads && !isBusy) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary)';
               }}
-              onClick={() => {
-                if (!hasUploads) return;
-
-                /**
-                 * Legacy navigation/route behavior (copied from older ingestion flow):
-                 * - Clicking "Generate Draft Persona" routes the user to the draft persona page at `/persona`.
-                 * - This is intentionally UI-only navigation (no orchestration call here), matching the legacy behavior.
-                 */
-                router.push('/persona');
-              }}
+              onClick={onGenerateDraft}
             >
-              Generate Draft Persona
+              {isBusy ? <Loader2 className="h-[16px] w-[16px] animate-spin" aria-hidden="true" /> : null}
+              {isBusy ? 'Working…' : 'Generate Draft Persona'}
             </button>
           </div>
+
+          <AnimatePresence initial={false}>
+            {stepLabel ? (
+              <motion.div
+                key="progress"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-[12px]"
+                style={{ borderColor: BORDER_SUBTLE, color: TEXT_SECONDARY }}
+                aria-live="polite"
+              >
+                <span className="inline-block h-2 w-2 rounded-full" style={{ background: ACCENT_TEAL }} aria-hidden="true" />
+                {stepLabel}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence initial={false}>
+            {error ? (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                className="mx-auto mt-4 max-w-[720px] rounded-[12px] border bg-white px-4 py-3 text-left text-[12.5px]"
+                style={{ borderColor: 'rgba(239,68,68,0.28)', color: '#991B1B' }}
+                role="alert"
+              >
+                {error}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
         </section>
 
-        {/* Replace ONLY the old single upload container with the three new upload containers */}
         <section className="mt-10 flex flex-col items-center">
           <div className="grid w-full max-w-[980px] grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
             {cards.map((category) => (
-              <UploadCard key={category} category={category} onFilesSelected={onFilesSelected} />
+              <UploadCard key={category} category={category} onFilesSelected={onFilesSelected} disabled={disableInputs} />
             ))}
           </div>
 
           <LinkedInConnect />
         </section>
 
-        {/* Keep smooth animated uploaded preview list */}
         <section className="mx-auto mt-10 w-full max-w-[980px]">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[13.5px] font-semibold" style={{ color: TEXT_PRIMARY }}>
               Uploaded files
             </div>
             <div className="text-[11.5px]" style={{ color: TEXT_MUTED }}>
-              UI preview only
+              {isBusy ? 'Locked while generating' : 'Ready to upload'}
             </div>
           </div>
 
@@ -493,17 +607,19 @@ export default function IngestionClient() {
                             className="rounded-full px-3 py-1 text-[11.5px] font-semibold"
                             style={{ background: 'rgba(20,184,166,0.12)', color: ACCENT_TEAL }}
                           >
-                            Uploaded
+                            Ready
                           </span>
 
                           <button
                             type="button"
                             onClick={() => removePreview(item.id)}
+                            disabled={disableInputs}
                             className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(20,184,166,0.30)] focus-visible:ring-offset-2"
-                            style={{ color: TEXT_SECONDARY }}
+                            style={{ color: TEXT_SECONDARY, cursor: disableInputs ? 'not-allowed' : 'pointer', opacity: disableInputs ? 0.6 : 1 }}
                             aria-label={`Remove ${item.file.name}`}
                             title="Remove"
                             onMouseEnter={(e) => {
+                              if (disableInputs) return;
                               (e.currentTarget as HTMLButtonElement).style.background = 'rgba(17,24,39,0.06)';
                             }}
                             onMouseLeave={(e) => {

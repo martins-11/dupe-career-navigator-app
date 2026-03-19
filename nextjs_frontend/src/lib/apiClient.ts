@@ -214,6 +214,30 @@ export async function getBuildStatus(buildId: UUID): Promise<BuildStatus> {
 }
 
 // PUBLIC_INTERFACE
+export async function extractNormalizeForBuild(params: {
+  buildId: UUID;
+  documentIds?: UUID[];
+  normalize?: {
+    removeExtraWhitespace?: boolean | null;
+    normalizeLineBreaks?: boolean | null;
+    maxLength?: number | null;
+  };
+  persistToDocuments?: boolean | null;
+}): Promise<
+  { buildId: UUID; documentIds?: UUID[]; normalizedText?: string; stats?: { originalLength: number; normalizedLength: number } } & Record<
+    string,
+    any
+  >
+> {
+  /** Derives combined normalized text for an existing build via POST /api/orchestration/builds/{id}/extract-normalize. */
+  const { buildId, ...body } = params;
+  return apiFetch(`/api/orchestration/builds/${encodeURIComponent(buildId)}/extract-normalize`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+// PUBLIC_INTERFACE
 export async function generateDraftForBuild(params: {
   buildId: UUID;
   personaId?: UUID;
@@ -224,7 +248,7 @@ export async function generateDraftForBuild(params: {
   const { buildId, ...body } = params;
   return apiFetch(`/api/orchestration/builds/${encodeURIComponent(buildId)}/generate-draft`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify(body ?? {}),
   });
 }
 
