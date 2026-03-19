@@ -1,314 +1,235 @@
 /*
-  Global theme variables aligned to the cn_login.png palette (purple-on-dark).
+  Global theme variables.
 
-  Goal:
-  - Apply the cn_login.png purple-dominant, glass-on-dark look across the app
-    via CSS variables so existing components inherit the new colors automatically.
-  - Do NOT change layouts/components. Colors only.
-  - /login remains visually unchanged because it uses local hard-coded colors
-    (inline styles + SVG gradients) intentionally isolated from these tokens.
-
-  Key reference tones (from cn_login.png):
-  - Deep background:   #1F1C2A
-  - Card surface:      #2F2C3A
-  - Input surface:     #3A3748
-  - Deep surface:      #24212F
-  - Border:            #4A465C
-  - Accent purple:     #6B5BDA (hover #7868E6)
-  - Muted canvas tone: #6D687B (used sparingly as a “soft lavender” neutral)
+  Task:
+  - Replace the previous "secondary" palette values (#2F2C3A, #6D687B, #24212F) with a
+    #f1eaff-based lavender palette across the app, so the UI/background uses
+    consistent purple/lavender shades.
+  - Keep existing Tailwind token mapping intact (tailwind.config.js maps colors to these vars).
 */
 
 :root {
   --font-size: 16px;
 
   /* -----------------------------------------------------------------------
-   * Palette primitives (keep these stable; derive everything else from them)
+   * Lavender palette primitives
    * --------------------------------------------------------------------- */
-  --cn-ink: #1F1C2A;
-  --cn-ink-rgb: 31 28 42;
+  --cn-lavender-50: #fbf9ff;
+  --cn-lavender-100: #f7f3ff;
+  --cn-lavender-150: #f4eeff;
+  --cn-lavender-200: #f1eaff; /* requested base */
+  --cn-lavender-300: #e9dfff;
+  --cn-lavender-400: #d8c8ff;
 
+  /* Brand purple (kept from existing theme for continuity) */
   --cn-primary: #6B5BDA;
   --cn-primary-rgb: 107 91 218;
 
-  /* Primary surface (cards) */
-  --cn-slate: #2F2C3A;
-  --cn-slate-rgb: 47 44 58;
+  --cn-ink: #1F1C2A;
+  --cn-ink-rgb: 31 28 42;
 
   --cn-white: #FFFFFF;
   --cn-white-rgb: 255 255 255;
 
-  /* Lavender-neutral used as a “soft” muted tone (not text by default) */
-  --cn-muted: #6D687B;
-  --cn-muted-rgb: 109 104 123;
-
   /* -----------------------------------------------------------------------
    * App-level semantic tokens (Tailwind maps to these in tailwind.config.js)
    * --------------------------------------------------------------------- */
-  --background: var(--cn-ink);
-  --foreground: rgba(var(--cn-white-rgb), 0.92);
-
-  --card: var(--cn-slate);
-  --card-foreground: rgba(var(--cn-white-rgb), 0.92);
-
-  --popover: var(--cn-slate);
-  --popover-foreground: rgba(var(--cn-white-rgb), 0.92);
-
-  --primary: var(--cn-primary);
-  --primary-foreground: var(--cn-white);
-  --primary-hover: #7868E6;
-
-  /* Secondary surfaces (chips, subtle panels, “ghost” controls) */
-  --secondary: #24212F;
-  --secondary-foreground: rgba(var(--cn-white-rgb), 0.85);
-
-  --muted: rgba(var(--cn-white-rgb), 0.08);
-  --muted-foreground: rgba(var(--cn-white-rgb), 0.70);
-
-  --accent: rgba(var(--cn-primary-rgb), 0.18);
-  --accent-foreground: rgba(var(--cn-white-rgb), 0.92);
-
-  /*
-    Keep "destructive" palette-safe; this UI avoids bright reds.
-    (If red is needed later, introduce it intentionally, not implicitly.)
-  */
-  --destructive: var(--cn-primary);
-  --destructive-foreground: var(--cn-white);
-
-  /* Borders/inputs match cn_login.png */
-  --border: #4A465C;
-  --input: #4A465C;
-  --input-background: #3A3748;
-
-  --switch-background: rgba(var(--cn-white-rgb), 0.18);
-
-  --ring: rgba(var(--cn-primary-rgb), 0.55);
-
-  --radius: 0.625rem;
-
-  /* -----------------------------------------------------------------------
-   * Sidebar tokens (aligned with global surfaces)
-   * --------------------------------------------------------------------- */
-  --sidebar: var(--cn-ink);
-  --sidebar-foreground: rgba(var(--cn-white-rgb), 0.92);
-  --sidebar-primary: var(--cn-primary);
-  --sidebar-primary-foreground: var(--cn-white);
-  --sidebar-accent: rgba(var(--cn-primary-rgb), 0.18);
-  --sidebar-accent-foreground: rgba(var(--cn-white-rgb), 0.92);
-  --sidebar-border: rgba(var(--cn-white-rgb), 0.14);
-  --sidebar-ring: rgba(var(--cn-primary-rgb), 0.55);
-
-  /* -----------------------------------------------------------------------
-   * ZIP tokens (Explore styling helpers)
-   * --------------------------------------------------------------------- */
-  --zip-accent: var(--cn-primary);
-  --zip-accent-hover: var(--primary-hover);
-
-  --bg-canvas: var(--background);
-  --bg-surface: var(--card);
-
-  --text-strong: rgba(var(--cn-white-rgb), 0.94);
-  --text-body: rgba(var(--cn-white-rgb), 0.85);
-  --text-muted: rgba(var(--cn-white-rgb), 0.70);
-
-  --border-subtle: rgba(var(--cn-white-rgb), 0.14);
-  --border-chip: rgba(var(--cn-white-rgb), 0.16);
-  --chip-bg: rgba(var(--cn-white-rgb), 0.06);
-
-  --radius-card: 8px;
-
-  --shadow-card-hover: 0 10px 24px rgba(var(--cn-primary-rgb), 0.22);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --ring-accent: 0 0 0 3px rgba(var(--cn-primary-rgb), 0.35);
-
-  /* -----------------------------------------------------------------------
-   * Mindmap tokens (kept readable on dark, using the same palette)
-   * --------------------------------------------------------------------- */
-  --mindmap-bg-canvas: var(--background);
-
-  --mindmap-text-title: rgba(var(--cn-white-rgb), 0.94);
-  --mindmap-text-muted: rgba(var(--cn-white-rgb), 0.75);
-  --mindmap-text-meta: rgba(var(--cn-white-rgb), 0.65);
-
-  --mindmap-node-pill-surface: #24212F; /* node pills */
-  --mindmap-accent-700: var(--cn-primary); /* circles + badges */
-  --mindmap-accent-600: rgba(var(--cn-primary-rgb), 0.70); /* connector strokes */
-  --mindmap-path-stroke: rgba(var(--cn-white-rgb), 0.35);
-
-  --mindmap-cta-primary: var(--cn-primary);
-  --mindmap-cta-primary-hover: var(--primary-hover);
-
-  --mindmap-charcoal: rgba(var(--cn-slate-rgb), 0.92);
-
-  --mindmap-step-yellow: rgba(var(--cn-primary-rgb), 0.14);
-  --mindmap-step-yellow-border: rgba(var(--cn-primary-rgb), 0.55);
-
-  --mindmap-accent-pill: var(--cn-primary);
-
-  --mindmap-detail-grey: rgba(var(--cn-white-rgb), 0.70);
-
-  --mindmap-control-icon: rgba(var(--cn-white-rgb), 0.55);
-
-  --mindmap-r-pill: 999px;
-  --mindmap-r-card: 10px;
-  --mindmap-r-bubble: 14px;
-  --mindmap-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.35);
-
-  /* -----------------------------------------------------------------------
-   * Explore mindmap tokens (defaults; Explore page overrides via .cn-explore-theme)
-   * --------------------------------------------------------------------- */
-  --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.35);
-
-  /* Selected-edge halo/accent (behind the black stroke) */
-  --explore-mindmap-selected-edge-halo: rgba(139, 92, 246, 0.85);
-
-  --explore-mindmap-node-rec-fill: var(--cn-slate);
-  --explore-mindmap-node-rec-stroke: rgba(0, 0, 0, 0);
-  --explore-mindmap-node-rec-text: rgba(var(--cn-white-rgb), 0.92);
-}
-
-/*
-  Class-based dark mode remains supported.
-
-  Since the global default is already dark (per cn_login.png), `.dark` mirrors
-  :root. This avoids surprises if any view toggles `class="dark"` on `<html>`
-  or a subtree.
-*/
-.dark {
-  --background: var(--cn-ink);
-  --foreground: rgba(var(--cn-white-rgb), 0.92);
-
-  --card: var(--cn-slate);
-  --card-foreground: rgba(var(--cn-white-rgb), 0.92);
-
-  --popover: var(--cn-slate);
-  --popover-foreground: rgba(var(--cn-white-rgb), 0.92);
-
-  --primary: var(--cn-primary);
-  --primary-foreground: var(--cn-white);
-  --primary-hover: #7868E6;
-
-  --secondary: #24212F;
-  --secondary-foreground: rgba(var(--cn-white-rgb), 0.85);
-
-  --muted: rgba(var(--cn-white-rgb), 0.08);
-  --muted-foreground: rgba(var(--cn-white-rgb), 0.70);
-
-  --accent: rgba(var(--cn-primary-rgb), 0.18);
-  --accent-foreground: rgba(var(--cn-white-rgb), 0.92);
-
-  --destructive: var(--cn-primary);
-  --destructive-foreground: var(--cn-white);
-
-  --border: #4A465C;
-  --input: #4A465C;
-  --input-background: #3A3748;
-
-  --ring: rgba(var(--cn-primary-rgb), 0.55);
-
-  --sidebar: var(--cn-ink);
-  --sidebar-foreground: rgba(var(--cn-white-rgb), 0.92);
-  --sidebar-primary: var(--cn-primary);
-  --sidebar-primary-foreground: var(--cn-white);
-  --sidebar-accent: rgba(var(--cn-primary-rgb), 0.18);
-  --sidebar-accent-foreground: rgba(var(--cn-white-rgb), 0.92);
-  --sidebar-border: rgba(var(--cn-white-rgb), 0.14);
-  --sidebar-ring: rgba(var(--cn-primary-rgb), 0.55);
-
-  --mindmap-bg-canvas: var(--background);
-  --mindmap-text-title: rgba(var(--cn-white-rgb), 0.94);
-  --mindmap-text-muted: rgba(var(--cn-white-rgb), 0.75);
-  --mindmap-text-meta: rgba(var(--cn-white-rgb), 0.65);
-
-  --mindmap-charcoal: rgba(var(--cn-slate-rgb), 0.92);
-  --mindmap-control-icon: rgba(var(--cn-white-rgb), 0.55);
-  --mindmap-path-stroke: rgba(var(--cn-white-rgb), 0.35);
-}
-
-/*
-  Explore page theme overrides (scoped via class on Explore route only)
-
-  Goal:
-  - Containers (search bar, filters, role cards, mindmap panels) use a light violet/lavender surface.
-  - Text becomes bold + black for readability on the global lavender/white background.
-  - Explore mindmap edges/nodes are adjusted for visibility under the lighter surface.
-*/
-.cn-explore-theme {
-  /* Surface primitives for Explore */
-  --cn-explore-surface: #f1eaff;   /* light violet */
-  --cn-explore-surface-2: #e9dfff; /* slightly deeper violet */
-  --cn-explore-border: rgba(107, 91, 218, 0.25);
-
-  /* Semantic tokens (used by Tailwind classes like bg-card/bg-background/text-foreground) */
-  --background: var(--cn-explore-surface);
+  --background: var(--cn-lavender-100);
   --foreground: #0b0b0f;
 
-  --card: var(--cn-explore-surface);
+  --card: rgba(255, 255, 255, 0.78);
   --card-foreground: #0b0b0f;
 
-  /* Popovers (autocomplete, dropdowns) stay “clean” and readable */
-  --popover: rgba(var(--cn-white-rgb), 0.92);
+  --popover: rgba(255, 255, 255, 0.92);
   --popover-foreground: #0b0b0f;
 
-  --secondary: #efe7ff;
+  --primary: var(--cn-primary);
+  --primary-foreground: #ffffff;
+  --primary-hover: #7868E6;
+
+  /*
+    Secondary is now based on #f1eaff (lavender), instead of the old dark surfaces.
+    This is the key change requested.
+  */
+  --secondary: var(--cn-lavender-200);
   --secondary-foreground: #0b0b0f;
 
-  --muted: rgba(0, 0, 0, 0.04);
+  --muted: rgba(11, 11, 15, 0.04);
   --muted-foreground: rgba(11, 11, 15, 0.62);
 
   --accent: rgba(var(--cn-primary-rgb), 0.12);
   --accent-foreground: #0b0b0f;
 
-  --border: var(--cn-explore-border);
-  --input: var(--cn-explore-border);
-  --input-background: rgba(var(--cn-white-rgb), 0.78);
+  /* Keep destructive consistent with the existing “non-red” system */
+  --destructive: var(--cn-primary);
+  --destructive-foreground: #ffffff;
+
+  /* Borders/inputs: soft purple-tinted neutrals */
+  --border: rgba(var(--cn-primary-rgb), 0.18);
+  --input: rgba(var(--cn-primary-rgb), 0.22);
+  --input-background: rgba(255, 255, 255, 0.72);
+
+  --switch-background: rgba(11, 11, 15, 0.14);
 
   --ring: rgba(var(--cn-primary-rgb), 0.28);
 
-  /* Explore helper tokens used by Filters (inline styles) */
+  --radius: 0.625rem;
+
+  /* -----------------------------------------------------------------------
+   * Sidebar tokens (lavender surfaces; readable text)
+   * --------------------------------------------------------------------- */
+  --sidebar: rgba(255, 255, 255, 0.60);
+  --sidebar-foreground: #0b0b0f;
+  --sidebar-primary: var(--cn-primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(var(--cn-primary-rgb), 0.10);
+  --sidebar-accent-foreground: #0b0b0f;
+  --sidebar-border: rgba(var(--cn-primary-rgb), 0.16);
+  --sidebar-ring: rgba(var(--cn-primary-rgb), 0.28);
+
+  /* -----------------------------------------------------------------------
+   * Explore/UI helper tokens used by some inline-styled components
+   * --------------------------------------------------------------------- */
   --bg-canvas: #ffffff;
-  --bg-surface: var(--cn-explore-surface);
+  --bg-surface: var(--secondary);
+
   --text-strong: #0b0b0f;
   --text-body: rgba(11, 11, 15, 0.84);
   --text-muted: rgba(11, 11, 15, 0.62);
-  --border-subtle: var(--cn-explore-border);
 
-  /* Bold black feel without rewriting each component */
-  color: var(--foreground);
-  font-weight: 700;
+  --border-subtle: rgba(var(--cn-primary-rgb), 0.16);
+  --border-chip: rgba(var(--cn-primary-rgb), 0.16);
+  --chip-bg: rgba(var(--cn-primary-rgb), 0.06);
 
-  /* Explore mindmap-specific tokens */
-  --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.55);
+  --radius-card: 8px;
+
+  --shadow-card-hover: 0 10px 24px rgba(var(--cn-primary-rgb), 0.16);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --ring-accent: 0 0 0 3px rgba(var(--cn-primary-rgb), 0.22);
+
+  /* -----------------------------------------------------------------------
+   * Mindmap tokens (tuned for light lavender background)
+   * --------------------------------------------------------------------- */
+  --mindmap-bg-canvas: var(--background);
+
+  --mindmap-text-title: rgba(11, 11, 15, 0.92);
+  --mindmap-text-muted: rgba(11, 11, 15, 0.68);
+  --mindmap-text-meta: rgba(11, 11, 15, 0.58);
+
+  --mindmap-node-pill-surface: rgba(255, 255, 255, 0.92);
+  --mindmap-accent-700: var(--cn-primary);
+  --mindmap-accent-600: rgba(var(--cn-primary-rgb), 0.70);
+  --mindmap-path-stroke: rgba(11, 11, 15, 0.30);
+
+  --mindmap-cta-primary: var(--cn-primary);
+  --mindmap-cta-primary-hover: var(--primary-hover);
+
+  --mindmap-charcoal: rgba(255, 255, 255, 0.92);
+
+  --mindmap-step-yellow: rgba(var(--cn-primary-rgb), 0.10);
+  --mindmap-step-yellow-border: rgba(var(--cn-primary-rgb), 0.35);
+
+  --mindmap-accent-pill: var(--cn-primary);
+
+  --mindmap-detail-grey: rgba(11, 11, 15, 0.62);
+
+  --mindmap-control-icon: rgba(11, 11, 15, 0.55);
+
+  --mindmap-r-pill: 999px;
+  --mindmap-r-card: 10px;
+  --mindmap-r-bubble: 14px;
+  --mindmap-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.10);
+
+  /* Explore mindmap tokens (default) */
+  --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.45);
+
+  /* Selected-edge halo/accent (behind the black stroke) */
+  --explore-mindmap-selected-edge-halo: rgba(139, 92, 246, 0.70);
+
   --explore-mindmap-node-rec-fill: rgba(255, 255, 255, 0.92);
   --explore-mindmap-node-rec-stroke: rgba(var(--cn-primary-rgb), 0.42);
   --explore-mindmap-node-rec-text: #0b0b0f;
 }
 
 /*
+  Class-based dark mode remains supported.
+
+  We keep a coherent lavender/purple dark variant for any route/subtree that
+  toggles `class="dark"`.
+*/
+.dark {
+  --background: var(--cn-ink);
+  --foreground: rgba(var(--cn-white-rgb), 0.92);
+
+  --card: rgba(var(--cn-white-rgb), 0.08);
+  --card-foreground: rgba(var(--cn-white-rgb), 0.92);
+
+  --popover: rgba(var(--cn-white-rgb), 0.10);
+  --popover-foreground: rgba(var(--cn-white-rgb), 0.92);
+
+  --primary: var(--cn-primary);
+  --primary-foreground: var(--cn-white);
+  --primary-hover: #7868E6;
+
+  /* In dark mode, secondary becomes a deep purple surface derived from the same system */
+  --secondary: rgba(var(--cn-primary-rgb), 0.18);
+  --secondary-foreground: rgba(var(--cn-white-rgb), 0.92);
+
+  --muted: rgba(var(--cn-white-rgb), 0.10);
+  --muted-foreground: rgba(var(--cn-white-rgb), 0.70);
+
+  --accent: rgba(var(--cn-primary-rgb), 0.22);
+  --accent-foreground: rgba(var(--cn-white-rgb), 0.92);
+
+  --destructive: var(--cn-primary);
+  --destructive-foreground: var(--cn-white);
+
+  --border: rgba(var(--cn-white-rgb), 0.14);
+  --input: rgba(var(--cn-white-rgb), 0.16);
+  --input-background: rgba(var(--cn-white-rgb), 0.08);
+
+  --ring: rgba(var(--cn-primary-rgb), 0.55);
+
+  --sidebar: rgba(var(--cn-white-rgb), 0.06);
+  --sidebar-foreground: rgba(var(--cn-white-rgb), 0.92);
+  --sidebar-primary: var(--cn-primary);
+  --sidebar-primary-foreground: var(--cn-white);
+  --sidebar-accent: rgba(var(--cn-primary-rgb), 0.18);
+  --sidebar-accent-foreground: rgba(var(--cn-white-rgb), 0.92);
+  --sidebar-border: rgba(var(--cn-white-rgb), 0.14);
+  --sidebar-ring: rgba(var(--cn-primary-rgb), 0.55);
+
+  --mindmap-bg-canvas: var(--background);
+  --mindmap-text-title: rgba(var(--cn-white-rgb), 0.94);
+  --mindmap-text-muted: rgba(var(--cn-white-rgb), 0.75);
+  --mindmap-text-meta: rgba(var(--cn-white-rgb), 0.65);
+
+  --mindmap-charcoal: rgba(var(--cn-white-rgb), 0.08);
+  --mindmap-control-icon: rgba(var(--cn-white-rgb), 0.55);
+  --mindmap-path-stroke: rgba(var(--cn-white-rgb), 0.35);
+}
+
+/*
   Explore page theme overrides (scoped via class on Explore route only)
 
-  Goal:
-  - Containers (search bar, filters, role cards, mindmap panels) use a light violet/lavender surface.
-  - Text becomes bold + black for readability on the global lavender/white background.
-  - Mindmap edges/nodes are adjusted for visibility under the lighter surface.
+  Keep Explore slightly more “white card on lavender” than the rest of the app,
+  while still grounded in #f1eaff.
 */
 .cn-explore-theme {
-  /* Surface primitives for Explore */
-  --cn-explore-surface: #f1eaff;     /* light violet */
-  --cn-explore-surface-2: #e9dfff;   /* slightly deeper violet */
-  --cn-explore-border: rgba(107, 91, 218, 0.25);
+  --cn-explore-surface: var(--cn-lavender-200);
+  --cn-explore-surface-2: var(--cn-lavender-300);
+  --cn-explore-border: rgba(var(--cn-primary-rgb), 0.22);
 
-  /* Semantic tokens (used by Tailwind classes like bg-card/bg-background/text-foreground) */
   --background: var(--cn-explore-surface);
   --foreground: #0b0b0f;
 
-  --card: var(--cn-explore-surface);
+  --card: rgba(255, 255, 255, 0.88);
   --card-foreground: #0b0b0f;
 
-  /* Popovers (autocomplete, dropdowns) stay “clean” and readable */
-  --popover: rgba(var(--cn-white-rgb), 0.92);
+  --popover: rgba(255, 255, 255, 0.96);
   --popover-foreground: #0b0b0f;
 
-  --secondary: color-mix(in srgb, var(--cn-explore-surface-2) 78%, #ffffff 22%);
+  --secondary: var(--cn-explore-surface-2);
   --secondary-foreground: #0b0b0f;
 
   --muted: rgba(0, 0, 0, 0.04);
@@ -319,25 +240,22 @@
 
   --border: var(--cn-explore-border);
   --input: var(--cn-explore-border);
-  --input-background: rgba(var(--cn-white-rgb), 0.78);
+  --input-background: rgba(255, 255, 255, 0.82);
 
-  --ring: rgba(var(--cn-primary-rgb), 0.28);
+  --ring: rgba(var(--cn-primary-rgb), 0.30);
 
-  /* Explore helper tokens used by Filters (inline styles) */
   --bg-canvas: #ffffff;
   --bg-surface: var(--cn-explore-surface);
+
   --text-strong: #0b0b0f;
   --text-body: rgba(11, 11, 15, 0.84);
   --text-muted: rgba(11, 11, 15, 0.62);
-  --border-subtle: var(--cn-explore-border);
 
-  /* Make Explore typography read as “bold black” without rewriting every component */
   color: var(--foreground);
   font-weight: 600;
 
-  /* Explore mindmap-specific tokens */
   --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.55);
-  --explore-mindmap-node-rec-fill: rgba(255, 255, 255, 0.92);
+  --explore-mindmap-node-rec-fill: rgba(255, 255, 255, 0.94);
   --explore-mindmap-node-rec-stroke: rgba(var(--cn-primary-rgb), 0.42);
   --explore-mindmap-node-rec-text: #0b0b0f;
 }

@@ -97,9 +97,9 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
     () => [
       { kind: 'link', href: '/ingestion', label: 'Ingestion', icon: Upload },
       { kind: 'link', href: '/skill-validation', label: 'Skill Validation', icon: BadgeCheck },
-      { kind: 'link', href: '/explore', label: 'Explore', icon: Compass },
       { kind: 'link', href: '/persona/finalized', label: 'Finalized Persona', icon: FileUser },
       { kind: 'link', href: '/pathway', label: 'Pathway', icon: GitBranch },
+      { kind: 'link', href: '/explore', label: 'Explore', icon: Compass },
       { kind: 'link', href: '/market-place', label: 'Market Place', icon: Store },
       { kind: 'dummy', label: 'Settings', icon: Settings, disabledReason: 'Coming soon' },
     ],
