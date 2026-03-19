@@ -21,9 +21,16 @@
   --cn-lavender-300: #e9dfff;
   --cn-lavender-400: #d8c8ff;
 
-  /* Brand purple (kept from existing theme for continuity) */
-  --cn-primary: #6B5BDA;
-  --cn-primary-rgb: 107 91 218;
+  /* -----------------------------------------------------------------------
+   * Option B palette (user-selected)
+   * Background #F6F0FF
+   * Primary    #241433
+   * Secondary  #EDE4FF
+   * Accent     #7C3AED
+   * --------------------------------------------------------------------- */
+  --cn-primary: #241433;
+  /* rgb(36, 20, 51) */
+  --cn-primary-rgb: 36 20 51;
 
   --cn-ink: #1F1C2A;
   --cn-ink-rgb: 31 28 42;
@@ -34,7 +41,8 @@
   /* -----------------------------------------------------------------------
    * App-level semantic tokens (Tailwind maps to these in tailwind.config.js)
    * --------------------------------------------------------------------- */
-  --background: var(--cn-lavender-100);
+  /* Option B: global app background */
+  --background: #F6F0FF;
   --foreground: #0b0b0f;
 
   --card: rgba(255, 255, 255, 0.78);
@@ -48,16 +56,20 @@
   --primary-hover: #7868E6;
 
   /*
-    Secondary is now based on #f1eaff (lavender), instead of the old dark surfaces.
-    This is the key change requested.
+    Option B secondary surface.
   */
-  --secondary: var(--cn-lavender-200);
+  --secondary: #EDE4FF;
   --secondary-foreground: #0b0b0f;
 
   --muted: rgba(11, 11, 15, 0.04);
   --muted-foreground: rgba(11, 11, 15, 0.62);
 
-  --accent: rgba(var(--cn-primary-rgb), 0.12);
+  /* Option B accent (used for focus rings/highlights/etc.) */
+  --cn-accent: #7C3AED;
+  /* rgb(124, 58, 237) */
+  --cn-accent-rgb: 124 58 237;
+
+  --accent: rgba(var(--cn-accent-rgb), 0.14);
   --accent-foreground: #0b0b0f;
 
   /* Keep destructive consistent with the existing “non-red” system */
@@ -144,7 +156,7 @@
   --explore-mindmap-edge-stroke: rgba(var(--cn-primary-rgb), 0.45);
 
   /* Selected-edge halo/accent (behind the black stroke) */
-  --explore-mindmap-selected-edge-halo: rgba(139, 92, 246, 0.70);
+  --explore-mindmap-selected-edge-halo: rgba(var(--cn-accent-rgb), 0.70);
 
   --explore-mindmap-node-rec-fill: rgba(255, 255, 255, 0.92);
   --explore-mindmap-node-rec-stroke: rgba(var(--cn-primary-rgb), 0.42);
@@ -216,8 +228,9 @@
   while still grounded in #f1eaff.
 */
 .cn-explore-theme {
-  --cn-explore-surface: var(--cn-lavender-200);
-  --cn-explore-surface-2: var(--cn-lavender-300);
+  /* Option B surfaces */
+  --cn-explore-surface: #F6F0FF;
+  --cn-explore-surface-2: #EDE4FF;
   --cn-explore-border: rgba(var(--cn-primary-rgb), 0.22);
 
   --background: var(--cn-explore-surface);

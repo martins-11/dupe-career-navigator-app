@@ -60,15 +60,15 @@
     */
 
     /* Fallback solid color (e.g., if gradients are disabled). */
-    background-color: #f1eaff;
+    background-color: #F6F0FF;
 
     background-image:
-      /* Ambient highlights (very subtle) */
-      radial-gradient(900px 560px at 18% 8%, rgba(167, 139, 250, 0.18) 0%, rgba(167, 139, 250, 0) 62%),
-      radial-gradient(760px 520px at 86% 22%, rgba(196, 181, 253, 0.14) 0%, rgba(196, 181, 253, 0) 58%),
+      /* Ambient highlights (very subtle) - derived from Option B Accent */
+      radial-gradient(900px 560px at 18% 8%, rgba(124, 58, 237, 0.14) 0%, rgba(124, 58, 237, 0) 62%),
+      radial-gradient(760px 520px at 86% 22%, rgba(124, 58, 237, 0.10) 0%, rgba(124, 58, 237, 0) 58%),
 
-      /* Main field gradient (lavender -> white) */
-      linear-gradient(180deg, #f7f3ff 0%, #ffffff 70%, #ffffff 100%);
+      /* Main field gradient (Option B background -> white) */
+      linear-gradient(180deg, #F6F0FF 0%, #ffffff 70%, #ffffff 100%);
 
     background-repeat: no-repeat;
     background-size: cover;
