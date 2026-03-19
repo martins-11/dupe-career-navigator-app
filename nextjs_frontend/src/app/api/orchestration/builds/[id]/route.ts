@@ -9,8 +9,8 @@ import { proxyToBackend } from '@/app/api/_utils/backendProxy';
  * against the Next.js server (port 3000).
  *
  * The Express backend implements:
- *   GET /orchestration/builds/:id
- * (note: backend path is NOT under /api).
+ *   GET /api/orchestration/builds/:id
+ * (also mounted at /orchestration/builds/:id for compatibility).
  *
  * This route handler proxies the request to the backend to prevent a Next.js-side 404
  * when fetching orchestration artifacts for a given build.
@@ -22,11 +22,11 @@ export const runtime = 'nodejs';
 // PUBLIC_INTERFACE
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  return proxyToBackend(req, `/orchestration/builds/${encodeURIComponent(id)}`);
+  return proxyToBackend(req, `/api/orchestration/builds/${encodeURIComponent(id)}`);
 }
 
 // PUBLIC_INTERFACE
 export async function OPTIONS(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
-  return proxyToBackend(req, `/orchestration/builds/${encodeURIComponent(id)}`);
+  return proxyToBackend(req, `/api/orchestration/builds/${encodeURIComponent(id)}`);
 }
