@@ -3,6 +3,7 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, CheckCircle2, FileText, Linkedin, Upload, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 type UploadCategory = 'resume' | 'job_description' | 'cover_letter';
 
@@ -269,6 +270,7 @@ export default function IngestionClient() {
    *
    * NOTE: This does not call backend APIs; it only maintains local UI state.
    */
+  const router = useRouter();
   const [uploaded, setUploaded] = useState<UploadedPreview[]>([]);
 
   const cards = useMemo<UploadCategory[]>(() => ['resume', 'cover_letter', 'job_description'], []);
@@ -292,6 +294,8 @@ export default function IngestionClient() {
     setUploaded((prev) => prev.filter((p) => p.id !== id));
   };
 
+  const hasUploads = uploaded.length > 0;
+
   return (
     <div className="min-h-svh w-full" style={{ background: CANVAS_BG }}>
       {/* Top lavender strip (reference): centered page title. */}
@@ -314,13 +318,20 @@ export default function IngestionClient() {
 
             <button
               type="button"
-              className="inline-flex h-[32px] items-center justify-center rounded-full border bg-white px-4 text-[12px] font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(20,184,166,0.30)] focus-visible:ring-offset-2"
+              disabled={!hasUploads}
+              className="inline-flex h-[32px] items-center justify-center rounded-full border bg-white px-4 text-[12px] font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(20,184,166,0.30)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ borderColor: BORDER_SUBTLE, color: TEXT_PRIMARY }}
               aria-label="View draft persona"
+              onClick={() => {
+                if (!hasUploads) return;
+                router.push('/persona');
+              }}
               onMouseEnter={(e) => {
+                if (!hasUploads) return;
                 (e.currentTarget as HTMLButtonElement).style.background = 'rgba(17,24,39,0.04)';
               }}
               onMouseLeave={(e) => {
+                if (!hasUploads) return;
                 (e.currentTarget as HTMLButtonElement).style.background = 'white';
               }}
             >
