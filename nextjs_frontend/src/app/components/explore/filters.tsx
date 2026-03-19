@@ -392,7 +392,7 @@ export function Filters(props: FiltersProps) {
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Salary Range</span>
-            <span className="text-xs font-medium text-foreground">{`₹${salaryRange[0]}L – ₹${salaryRange[1]}L`}</span>
+            <span className="text-xs font-medium text-foreground">{`$${salaryRange[0]}k – $${salaryRange[1]}k`}</span>
           </div>
           <Slider
             min={0}
@@ -450,7 +450,7 @@ export function ActiveFilterTags({
   if (salaryRange[0] !== 0 || salaryRange[1] !== 60) {
     tags.push({
       key: `salary:${salaryRange[0]}-${salaryRange[1]}`,
-      label: `₹${salaryRange[0]}L–₹${salaryRange[1]}L`,
+      label: `$${salaryRange[0]}k–$${salaryRange[1]}k`,
       onRemove: () => onSalaryChange([0, 60]),
     });
   }

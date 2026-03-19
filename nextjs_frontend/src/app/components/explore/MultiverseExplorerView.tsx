@@ -145,9 +145,16 @@ function PathCard(props: {
   const { path, selected, onSelect, onToggleBookmark, isBookmarked, pathType } = props;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       className={[
         'w-full text-left rounded-2xl border transition-colors',
         selected ? 'border-violet-400 bg-violet-50' : 'border-border bg-card hover:bg-secondary/40',
@@ -196,7 +203,7 @@ function PathCard(props: {
           </Button>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 

@@ -159,9 +159,11 @@ export async function fetchMultiversePathDetails(params: {
   const pt = safeString((params as any)?.pathType);
   if (pt) qs.set('pathType', pt);
 
+  // Backend route is singular: `/api/multiverse/path/:id` (not `/paths/:id`).
+  // Keep the browser call same-origin; Next.js App Router proxy will forward to the backend.
   const path = qs.toString()
-    ? `/api/multiverse/paths/${encodeURIComponent(pathId)}?${qs.toString()}`
-    : `/api/multiverse/paths/${encodeURIComponent(pathId)}`;
+    ? `/api/multiverse/path/${encodeURIComponent(pathId)}?${qs.toString()}`
+    : `/api/multiverse/path/${encodeURIComponent(pathId)}`;
 
   return apiFetch<MultiversePathDetailsResponse>(path, { method: 'GET', cache: 'no-store' });
 }
