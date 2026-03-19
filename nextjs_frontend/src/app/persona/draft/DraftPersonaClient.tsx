@@ -4,7 +4,14 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import StepProgressHeader from '@/app/components/StepProgressHeader';
-import { apiFetch, finalizePersonaForBuild, generateDraftForBuild, savePersonaDraftLatest, updatePersona, type UUID } from '@/lib/apiClient';
+import {
+  apiFetch,
+  finalizePersonaForBuild,
+  generateDraftForBuild,
+  savePersonaDraftLatest,
+  updatePersona,
+  type UUID,
+} from '@/lib/apiClient';
 import { persistPersonaId } from '@/lib/personaStorage';
 
 const LEGACY_DRAFT_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
@@ -221,6 +228,9 @@ export default function DraftPersonaClient() {
    *
    * Finalize gating:
    * - If there are unsaved changes, Finalize is disabled until Save Changes completes.
+   *
+   * UI update:
+   * - "Back to Ingestion" button should be in the left rail above Role/Designation.
    */
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -432,7 +442,8 @@ export default function DraftPersonaClient() {
         // ignore metadata failures; the draft itself is already persisted.
       }
 
-      const savedJson = (saved as any)?.draftJson && typeof (saved as any).draftJson === 'object' ? (saved as any).draftJson : updatedDraft;
+      const savedJson =
+        (saved as any)?.draftJson && typeof (saved as any).draftJson === 'object' ? (saved as any).draftJson : updatedDraft;
       setDraftJson(savedJson);
       setDirty(false);
       setSaveSuccess(true);
@@ -579,13 +590,6 @@ export default function DraftPersonaClient() {
               >
                 {finalizing ? 'Finalizing…' : 'Finalize'}
               </button>
-
-              <Link
-                href="/ingestion"
-                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Back to ingestion
-              </Link>
             </div>
           </div>
 
@@ -605,7 +609,9 @@ export default function DraftPersonaClient() {
         {loading ? (
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
             <div className="text-sm font-semibold text-slate-900">Loading draft persona…</div>
-            <div className="mt-1 text-sm text-slate-600">Fetching the latest saved draft from the backend (when available).</div>
+            <div className="mt-1 text-sm text-slate-600">
+              Fetching the latest saved draft from the backend (when available).
+            </div>
           </div>
         ) : !draftJson ? (
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
@@ -631,6 +637,15 @@ export default function DraftPersonaClient() {
                   placeholder="Your name"
                 />
               </section>
+
+              <div className="mt-6">
+                <Link
+                  href="/ingestion"
+                  className="inline-flex items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Back to Ingestion
+                </Link>
+              </div>
 
               <section className="mt-6 rounded-xl border border-violet-100 bg-white p-5">
                 <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Role / designation</div>
