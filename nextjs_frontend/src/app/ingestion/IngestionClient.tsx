@@ -4,7 +4,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, CheckCircle2, Linkedin, Loader2, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { apiFetch, extractNormalizeForBuild, generateDraftForBuild, uploadDocuments } from '@/lib/apiClient';
+import { apiFetch, uploadDocuments } from '@/lib/apiClient';
 
 type UploadCategory = 'resume' | 'job_description' | 'performance_review';
 
@@ -275,7 +275,7 @@ function LinkedInConnect() {
   );
 }
 
-type UiStep = 'idle' | 'starting-build' | 'uploading' | 'extract-normalize' | 'generate-draft' | 'done';
+type UiStep = 'idle' | 'starting-build' | 'uploading' | 'running-orchestration' | 'done';
 
 // PUBLIC_INTERFACE
 export default function IngestionClient() {
@@ -283,11 +283,11 @@ export default function IngestionClient() {
    * Ingestion UI:
    * - Lets the user upload 3 categories of docs
    * - On "Generate Draft Persona":
-   *    1) Create a build (POST /api/builds)
-   *    2) Upload docs (POST /api/uploads/documents)
-   *    3) Call orchestration step 1: POST /api/orchestration/builds/:id/extract-normalize
-   *    4) Call orchestration step 2: POST /api/orchestration/builds/:id/generate-draft
-   * - Navigate to /persona only after draft generation succeeds.
+   *    1) Create a build (POST /api/builds) to get a buildId for progress tracking
+   *    2) Upload docs (POST /api/uploads/documents) which persists docs + extracted text (best-effort)
+   *    3) Run orchestration end-to-end in one call:
+   *         POST /api/orchestration/run-all  -> proxies to backend POST /orchestration/run-all
+   * - Navigate to /persona only after orchestration succeeds.
    */
   const router = useRouter();
   const [uploaded, setUploaded] = useState<UploadedPreview[]>([]);
@@ -326,9 +326,7 @@ export default function IngestionClient() {
         return 'Starting build…';
       case 'uploading':
         return 'Uploading documents…';
-      case 'extract-normalize':
-        return 'Extracting & normalizing…';
-      case 'generate-draft':
+      case 'running-orchestration':
         return 'Generating draft persona…';
       case 'done':
         return 'Draft ready.';
@@ -343,7 +341,7 @@ export default function IngestionClient() {
     try {
       setUiStep('starting-build');
 
-      // 1) Create build/workflow
+      // 1) Create build/workflow (frontend keeps build id for tracking / potential polling)
       const build = await apiFetch<{ id: string } & Record<string, any>>('/api/builds', {
         method: 'POST',
         body: JSON.stringify({ mode: 'persona_build' }),
@@ -353,7 +351,8 @@ export default function IngestionClient() {
         throw new Error('Failed to create build (missing buildId).');
       }
 
-      // 2) Upload docs (single request) with per-file category tagging
+      // 2) Upload docs (single request) with per-file category tagging.
+      // The backend upload endpoint triggers extraction+normalization side effects (best-effort).
       setUiStep('uploading');
       const files = uploaded.map((u) => u.file);
       const categories = uploaded.map((u) => u.category);
@@ -364,13 +363,20 @@ export default function IngestionClient() {
         requireCategories: true,
       });
 
-      // 3) Orchestration step 1: extract-normalize (buildId reused)
-      setUiStep('extract-normalize');
-      await extractNormalizeForBuild({ buildId });
+      // 3) Single-call orchestration: link → extract/normalize → generate draft (→ optional finalize)
+      // Note: we pass personaId=buildId so the backend can reuse/resolve build orchestration context consistently.
+      // The backend contract allows personaId to be nullable; this is a safe scaffold value in the current architecture.
+      setUiStep('running-orchestration');
 
-      // 4) Orchestration step 2: generate-draft
-      setUiStep('generate-draft');
-      await generateDraftForBuild({ buildId });
+      await apiFetch('/api/orchestration/run-all', {
+        method: 'POST',
+        body: JSON.stringify({
+          mode: 'persona_build',
+          personaId: buildId,
+          autoCreatePersona: true,
+          useLatestCategoryDocs: true,
+        }),
+      });
 
       // Success: navigate to persona page
       setUiStep('done');
