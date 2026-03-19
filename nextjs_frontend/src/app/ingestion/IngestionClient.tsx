@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Check, CheckCircle2, Linkedin, Loader2, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { apiFetch, uploadDocuments } from '@/lib/apiClient';
+import { mapToPersonaDraft } from '@/lib/draftPersonaMapping';
 
 const LATEST_DRAFT_PERSONA_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
 
@@ -403,16 +404,21 @@ export default function IngestionClient() {
       }
 
       // Persist the latest draft so the user can view it immediately on /persona/draft.
-      // Backend Run-All response returns the draft persona under orchestration.personaDraft.
+      // The backend may return:
+      //  - a PersonaDraft (schemaVersion/title/summary/profile/strengths/skills/experienceHighlights)
+      //  - OR an upstream/alternate draft shape (e.g., the attached draft persona JSON payload)
+      // We always map to the UI draft format before persisting.
       try {
-        const personaDraft =
+        const candidate =
           orchestrationRes?.orchestration?.personaDraft ??
           orchestrationRes?.orchestration?.persona ??
           orchestrationRes?.persona ??
+          orchestrationRes?.results?.generate?.persona ??
           null;
 
-        if (personaDraft && typeof personaDraft === 'object') {
-          window.localStorage.setItem(LATEST_DRAFT_PERSONA_STORAGE_KEY, JSON.stringify(personaDraft));
+        const mapped = mapToPersonaDraft(candidate);
+        if (mapped) {
+          window.localStorage.setItem(LATEST_DRAFT_PERSONA_STORAGE_KEY, JSON.stringify(mapped));
         }
       } catch {
         // Non-fatal: draft viewing page will show an empty state if storage fails.

@@ -3,25 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-type PersonaDraft = {
-  schemaVersion?: string;
-  title?: string;
-  summary?: string;
-  profile?: {
-    headline?: string;
-    seniority?: string | null;
-    industry?: string | null;
-    location?: string | null;
-  };
-  strengths?: string[];
-  skills?: string[];
-  experienceHighlights?: string[];
-  provenance?: {
-    source?: string;
-    sourceTextLength?: number;
-  };
-};
+import { mapToPersonaDraft, type PersonaDraft } from '@/lib/draftPersonaMapping';
 
 const STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
 
@@ -60,7 +42,15 @@ export default function DraftPersonaClient() {
         return;
       }
 
-      setDraft(parsed as PersonaDraft);
+      const mapped = mapToPersonaDraft(parsed);
+      if (!mapped) {
+        setDraft(null);
+        setRaw(stored);
+        setError('Draft persona found in storage, but it does not match a supported draft schema.');
+        return;
+      }
+
+      setDraft(mapped);
       setRaw(stored);
     } catch {
       setDraft(null);
