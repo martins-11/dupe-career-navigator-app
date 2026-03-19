@@ -401,3 +401,88 @@ export async function uploadDocuments(params: {
     body: form,
   });
 }
+
+// PUBLIC_INTERFACE
+export async function uploadDocumentsWithProgress(params: {
+  files: File[];
+  userId?: UUID;
+  category?: string;
+  categories?: string[];
+  requireCategories?: boolean;
+  /**
+   * Called with upload progress for the whole multipart request.
+   * Note: browsers expose progress for the request bytes, not per-file.
+   * The caller may map request progress proportionally to per-file sizes.
+   */
+  onProgress?: (evt: { loaded: number; total: number }) => void;
+}): Promise<any> {
+  /**
+   * Upload documents via XHR to support upload progress callbacks.
+   *
+   * This targets the Next.js same-origin route `/api/uploads/documents`, which then proxies to the backend.
+   * Using XHR is intentional: Fetch does not currently provide portable upload progress events.
+   */
+  if (typeof window === 'undefined') {
+    throw new Error('uploadDocumentsWithProgress must be called in the browser.');
+  }
+
+  const form = new FormData();
+  for (const f of params.files) {
+    form.append('files', f, f.name);
+  }
+  if (params.userId) form.append('userId', params.userId);
+
+  if (params.category) {
+    form.append('category', params.category);
+  } else if (Array.isArray(params.categories) && params.categories.length > 0) {
+    form.append('categoriesJson', JSON.stringify(params.categories));
+  }
+
+  if (params.requireCategories === true) {
+    form.append('requireCategories', 'true');
+  }
+
+  const tryParseJson = (text: string): unknown => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/uploads/documents', true);
+
+    xhr.upload.onprogress = (e) => {
+      if (!params.onProgress) return;
+      if (!e.lengthComputable) return;
+      params.onProgress({ loaded: e.loaded, total: e.total });
+    };
+
+    xhr.onload = () => {
+      const status = xhr.status;
+      const rawText = typeof xhr.responseText === 'string' ? xhr.responseText : '';
+      const ct = xhr.getResponseHeader('content-type') || '';
+      const payload = ct.includes('application/json') ? tryParseJson(rawText) : rawText;
+
+      if (status >= 200 && status < 300) {
+        resolve(payload);
+        return;
+      }
+
+      const message =
+        payload && typeof payload === 'object' && 'message' in (payload as any) && typeof (payload as any).message === 'string'
+          ? (payload as any).message
+          : `Request failed: ${status}`;
+
+      reject(new ApiError(message, { status, payload }));
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error while uploading documents.'));
+    };
+
+    xhr.send(form);
+  });
+}
