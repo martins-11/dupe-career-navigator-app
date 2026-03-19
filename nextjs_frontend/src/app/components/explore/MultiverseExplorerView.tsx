@@ -10,17 +10,25 @@ import { Separator } from '@/app/components/ui/separator';
 import { Skeleton } from '@/app/components/ui/skeleton';
 import { ScrollArea } from '@/app/components/ui/scroll-area';
 
-import { apiFetch } from '@/lib/apiClient';
+import { ApiError } from '@/lib/apiClient';
 import {
-  addMultiverseBookmark,
+  addMultiverseBookmark as addLocalMultiverseBookmark,
   getLastMultiversePathType,
-  isMultiverseBookmarked,
-  listMultiverseBookmarks,
+  isMultiverseBookmarked as isLocalMultiverseBookmarked,
+  listMultiverseBookmarks as listLocalMultiverseBookmarks,
   persistLastMultiversePathType,
-  removeMultiverseBookmark,
+  removeMultiverseBookmark as removeLocalMultiverseBookmark,
   type MultiversePathBookmark,
   type MultiversePathType,
 } from '@/lib/multiverseBookmarksStorage';
+import {
+  deleteMultiverseBookmark,
+  fetchMultiverseGraph,
+  fetchMultiversePathDetails,
+  listMultiverseBookmarks,
+  upsertMultiverseBookmark,
+  type MultiverseBookmarkRecord,
+} from '@/lib/multiverseApi';
 
 function normString(v: unknown): string {
   return String(v ?? '').trim();
@@ -81,15 +89,13 @@ function pathMatchesFilters(params: {
     if (!hay.includes(q)) return false;
   }
 
-  // Backend placeholder paths do not include industry metadata yet.
-  // Best-effort: treat selectedIndustry as a keyword match across title/steps.
+  // Best-effort keyword match until backend emits structured metadata for paths.
   const ind = selectedIndustry.trim().toLowerCase();
   if (ind) {
     const hay = `${path.title} ${path.steps.join(' ')}`.toLowerCase();
     if (!hay.includes(ind)) return false;
   }
 
-  // Best-effort: treat selectedSkills as keywords too (until backend emits skill tags per path).
   const wanted = selectedSkills.map((s) => s.trim().toLowerCase()).filter(Boolean);
   if (wanted.length > 0) {
     const hay = `${path.title} ${path.steps.join(' ')}`.toLowerCase();
@@ -140,9 +146,7 @@ function PathCard(props: {
                   {s}
                 </span>
               ))}
-              {path.steps.length > 8 ? (
-                <span className="text-[11px] text-muted-foreground">+{path.steps.length - 8} more</span>
-              ) : null}
+              {path.steps.length > 8 ? <span className="text-[11px] text-muted-foreground">+{path.steps.length - 8} more</span> : null}
             </div>
           </div>
 
@@ -171,10 +175,12 @@ function PathDetailPanel(props: {
   pathType: MultiversePathType | null;
   selectedPath: CareerPath | null;
   bookmarks: MultiversePathBookmark[];
+  loadingDetails: boolean;
+  detailsError: string | null;
   onToggleBookmark: (path: CareerPath) => void;
   onClose: () => void;
 }) {
-  const { selectedPath, bookmarks, onToggleBookmark, onClose, pathType } = props;
+  const { selectedPath, bookmarks, onToggleBookmark, onClose, pathType, loadingDetails, detailsError } = props;
 
   const isBookmarked = selectedPath ? bookmarks.some((b) => b.id === selectedPath.id) : false;
 
@@ -182,12 +188,8 @@ function PathDetailPanel(props: {
     <aside className="h-full rounded-2xl border border-border bg-card text-card-foreground overflow-hidden flex flex-col">
       <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">
-            Multiverse path details
-          </div>
-          <div className="mt-1 text-base font-bold text-foreground truncate">
-            {selectedPath ? selectedPath.title : 'Select a path'}
-          </div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Multiverse path details</div>
+          <div className="mt-1 text-base font-bold text-foreground truncate">{selectedPath ? selectedPath.title : 'Select a path'}</div>
         </div>
         <Button variant="ghost" size="sm" onClick={onClose} disabled={!selectedPath} className="text-muted-foreground">
           Close
@@ -196,9 +198,7 @@ function PathDetailPanel(props: {
 
       <div className="flex-1 overflow-auto px-5 py-4">
         {!selectedPath ? (
-          <div className="text-sm leading-relaxed text-muted-foreground">
-            Pick a path on the left to see step-by-step details and bookmark it.
-          </div>
+          <div className="text-sm leading-relaxed text-muted-foreground">Pick a path on the left to see step-by-step details and bookmark it.</div>
         ) : (
           <div className="space-y-5">
             <div className="flex items-center justify-between gap-3">
@@ -215,36 +215,45 @@ function PathDetailPanel(props: {
                 ) : null}
               </div>
 
-              <Button
-                type="button"
-                variant={isBookmarked ? 'secondary' : 'default'}
-                onClick={() => onToggleBookmark(selectedPath)}
-                className="gap-2"
-              >
+              <Button type="button" variant={isBookmarked ? 'secondary' : 'default'} onClick={() => onToggleBookmark(selectedPath)} className="gap-2">
                 {isBookmarked ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
                 {isBookmarked ? 'Bookmarked' : 'Bookmark'}
               </Button>
             </div>
 
+            {detailsError ? (
+              <div className="rounded-xl border border-border bg-amber-50 p-4">
+                <div className="text-sm font-semibold text-foreground">Couldn’t load path details</div>
+                <div className="mt-1 text-xs text-muted-foreground">{detailsError}</div>
+              </div>
+            ) : null}
+
             {pathType ? (
               <div className="rounded-xl border border-border bg-secondary/30 p-4">
-                <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
-                  Path type: {labelForPathType(pathType)}
-                </div>
+                <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">Path type: {labelForPathType(pathType)}</div>
                 <div className="mt-1 text-sm text-foreground">{describePathType(pathType)}</div>
               </div>
             ) : null}
 
             <div>
               <div className="text-[11px] uppercase tracking-[0.10em] text-muted-foreground font-bold">Steps</div>
-              <div className="mt-2 space-y-2">
-                {selectedPath.steps.map((s, idx) => (
-                  <div key={`${selectedPath.id}-step-${idx}`} className="rounded-xl border border-border bg-background p-3">
-                    <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Step {idx + 1}</div>
-                    <div className="mt-1 text-sm font-bold text-foreground">{s}</div>
-                  </div>
-                ))}
-              </div>
+
+              {loadingDetails ? (
+                <div className="mt-3 space-y-2">
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {selectedPath.steps.map((s, idx) => (
+                    <div key={`${selectedPath.id}-step-${idx}`} className="rounded-xl border border-border bg-background p-3">
+                      <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Step {idx + 1}</div>
+                      <div className="mt-1 text-sm font-bold text-foreground">{s}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <Separator />
@@ -262,6 +271,32 @@ function PathDetailPanel(props: {
   );
 }
 
+function normalizeBackendBookmarksToLocal(records: MultiverseBookmarkRecord[]): MultiversePathBookmark[] {
+  const out: MultiversePathBookmark[] = [];
+  for (const r of records) {
+    if (!r || r.bookmarkType !== 'path') continue;
+
+    const id = normString(r.bookmarkKey);
+    if (!id) continue;
+
+    const payload: any = (r as any).payloadJson ?? (r as any).payload ?? null;
+    const title = normString(payload?.title) || normString(payload?.label) || `Path ${id}`;
+    const steps = safeStringArray(payload?.steps);
+
+    out.push({
+      id,
+      title,
+      steps,
+      pathType: payload?.pathType,
+      createdAt: normString(r.createdAt) || new Date().toISOString(),
+    });
+  }
+
+  // Sort newest first when we have timestamps
+  out.sort((a, b) => (a.createdAt > b.createdAt ? -1 : a.createdAt < b.createdAt ? 1 : 0));
+  return out;
+}
+
 // PUBLIC_INTERFACE
 export function MultiverseExplorerView(props: {
   personaId: string | null;
@@ -272,12 +307,13 @@ export function MultiverseExplorerView(props: {
   titleQuery: string;
 }) {
   /**
-   * Multiverse Explorer:
-   * - Loads multiverse paths from backend placeholder endpoint.
-   * - Applies lightweight client-side filtering until backend supports richer path metadata.
-   * - Supports drill-down and bookmarking.
+   * Multiverse Explorer (wired):
+   * - Loads graph from /api/multiverse/graph (Next.js proxy to Express).
+   * - Loads path details from /api/multiverse/paths/:id.
+   * - Loads bookmarks from /api/multiverse/bookmarks (fallback to localStorage).
+   * - Bookmark toggles are persisted via /api/multiverse/bookmarks (fallback to localStorage).
    */
-  const { personaId, pathType, selectedIndustry, selectedSkills, titleQuery } = props;
+  const { personaId, pathType, selectedIndustry, selectedSkills, titleQuery, salaryRange } = props;
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -285,11 +321,44 @@ export function MultiverseExplorerView(props: {
   const [paths, setPaths] = React.useState<CareerPath[]>([]);
   const [selectedPathId, setSelectedPathId] = React.useState<string | null>(null);
 
-  const [bookmarks, setBookmarks] = React.useState<MultiversePathBookmark[]>(() => listMultiverseBookmarks(personaId));
+  const [bookmarks, setBookmarks] = React.useState<MultiversePathBookmark[]>(() => listLocalMultiverseBookmarks(personaId));
+
+  const [loadingDetails, setLoadingDetails] = React.useState(false);
+  const [detailsError, setDetailsError] = React.useState<string | null>(null);
+
+  const userIdForBookmarks = personaId; // In this app, personaId is the closest stable per-user key available in the UI state.
 
   React.useEffect(() => {
-    setBookmarks(listMultiverseBookmarks(personaId));
-  }, [personaId]);
+    // Whenever persona changes, refresh bookmarks best-effort.
+    let cancelled = false;
+
+    async function run() {
+      setBookmarks(listLocalMultiverseBookmarks(personaId));
+
+      if (!userIdForBookmarks) return;
+
+      try {
+        const res = await listMultiverseBookmarks({ userId: userIdForBookmarks, bookmarkType: 'path', limit: 200, offset: 0 });
+        if (cancelled) return;
+
+        const normalized = normalizeBackendBookmarksToLocal(res?.bookmarks ?? []);
+        setBookmarks(normalized);
+
+        // Also persist into localStorage as a fallback cache for the persona.
+        // We do this by re-adding each bookmark (upsert semantics).
+        for (const b of normalized) {
+          addLocalMultiverseBookmark({ personaId, bookmark: b });
+        }
+      } catch {
+        // Keep local bookmarks; no hard failure.
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [personaId, userIdForBookmarks]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -298,28 +367,66 @@ export function MultiverseExplorerView(props: {
       setLoading(true);
       setError(null);
       try {
-        const res: any = await apiFetch('/api/paths/multiverse', { method: 'GET', cache: 'no-store' });
-        const arr = Array.isArray(res?.paths) ? res.paths : Array.isArray(res) ? res : [];
-        const normalized: CareerPath[] = arr
-          .map((p: any, idx: number) => {
-            const id = normString(p?.id) || `path-${idx}`;
-            const title = normString(p?.title) || `Path ${idx + 1}`;
-            const steps = safeStringArray(p?.steps);
+        const filters = {
+          minSalaryLpa: salaryRange?.[0],
+          maxSalaryLpa: salaryRange?.[1],
+        };
+
+        const graph: any = await fetchMultiverseGraph({
+          personaId,
+          currentRoleTitle: null,
+          filters,
+          limit: 60,
+        });
+
+        const edges = Array.isArray(graph?.edges) ? graph.edges : [];
+        const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+
+        // Derive paths:
+        // - prefer explicit "path" nodes if the backend emits them
+        // - otherwise, infer from edges linking a "path" node to step nodes, etc.
+        // Keep it robust by accepting multiple shapes.
+        const pathNodes = nodes.filter((n: any) => String(n?.type) === 'path');
+
+        let derived: CareerPath[] = [];
+        if (pathNodes.length > 0) {
+          derived = pathNodes.map((n: any) => {
+            const id = normString(n?.id);
+            const title = normString(n?.label) || `Path ${id}`;
+            const steps = safeStringArray(n?.data?.steps || n?.meta?.steps || []);
             return { id, title, steps };
-          })
-          .filter((p: CareerPath) => p.steps.length > 0);
+          });
+        } else {
+          // Fallback: no explicit path nodes — show roles as paths of length 1.
+          const roleNodes = nodes.filter((n: any) => String(n?.type) === 'role');
+          derived = roleNodes.slice(0, 30).map((n: any, idx: number) => {
+            const id = normString(n?.id) || `role-${idx}`;
+            const title = normString(n?.label) || `Role ${idx + 1}`;
+            return { id, title, steps: [title] };
+          });
+        }
+
+        // Best-effort filter out empties.
+        derived = derived.filter((p) => p.id && p.steps.length > 0);
 
         if (cancelled) return;
-        setPaths(normalized);
+        setPaths(derived);
 
-        // Keep selection stable if possible.
-        if (selectedPathId && normalized.some((p) => p.id === selectedPathId)) return;
-        setSelectedPathId(normalized[0]?.id ?? null);
+        if (selectedPathId && derived.some((p) => p.id === selectedPathId)) return;
+        setSelectedPathId(derived[0]?.id ?? null);
+
+        // Avoid unused var lint in some configs
+        void edges;
       } catch (e) {
         if (cancelled) return;
         setPaths([]);
         setSelectedPathId(null);
-        setError('Multiverse paths are unavailable right now. Please try again.');
+
+        const msg =
+          e instanceof ApiError
+            ? e.message
+            : 'Multiverse paths are unavailable right now. Please try again.';
+        setError(msg);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -329,8 +436,8 @@ export function MultiverseExplorerView(props: {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // re-fetch on persona / salary range changes (since backend graph supports filters)
+  }, [personaId, salaryRange, selectedPathId]);
 
   const filtered = React.useMemo(() => {
     return paths.filter((p) => pathMatchesFilters({ path: p, titleQuery, selectedIndustry, selectedSkills }));
@@ -348,15 +455,98 @@ export function MultiverseExplorerView(props: {
     return filtered.find((p) => p.id === selectedPathId) ?? null;
   }, [filtered, selectedPathId]);
 
-  function toggleBookmark(path: CareerPath) {
-    const already = isMultiverseBookmarked({ personaId, bookmarkId: path.id });
-    if (already) {
-      const next = removeMultiverseBookmark({ personaId, bookmarkId: path.id });
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      setDetailsError(null);
+      if (!selectedPathId) return;
+
+      setLoadingDetails(true);
+      try {
+        const details: any = await fetchMultiversePathDetails({
+          pathId: selectedPathId,
+          personaId,
+          currentRoleTitle: null,
+          filters: { minSalaryLpa: salaryRange?.[0], maxSalaryLpa: salaryRange?.[1] },
+        });
+
+        // If backend returns more authoritative steps/title, merge them into local list.
+        const steps = safeStringArray(details?.steps);
+        const title = normString(details?.title);
+
+        if (!cancelled && (steps.length > 0 || title)) {
+          setPaths((prev) =>
+            prev.map((p) => {
+              if (p.id !== selectedPathId) return p;
+              return {
+                ...p,
+                title: title || p.title,
+                steps: steps.length > 0 ? steps : p.steps,
+              };
+            })
+          );
+        }
+      } catch (e) {
+        if (cancelled) return;
+        setDetailsError(e instanceof ApiError ? e.message : 'Please try again.');
+      } finally {
+        if (!cancelled) setLoadingDetails(false);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPathId, personaId, salaryRange]);
+
+  async function toggleBookmark(path: CareerPath) {
+    const isBookmarked = bookmarks.some((b) => b.id === path.id);
+    const payload = { id: path.id, title: path.title, steps: path.steps, pathType: pathType ?? undefined };
+
+    // Preferred: backend persistence (requires userId).
+    if (userIdForBookmarks) {
+      try {
+        if (isBookmarked) {
+          await deleteMultiverseBookmark({
+            userId: userIdForBookmarks,
+            bookmarkType: 'path',
+            bookmarkKey: path.id,
+          });
+        } else {
+          await upsertMultiverseBookmark({
+            userId: userIdForBookmarks,
+            bookmarkType: 'path',
+            bookmarkKey: path.id,
+            payload,
+          });
+        }
+
+        // Refresh from backend (best-effort).
+        const res = await listMultiverseBookmarks({ userId: userIdForBookmarks, bookmarkType: 'path', limit: 200, offset: 0 });
+        const normalized = normalizeBackendBookmarksToLocal(res?.bookmarks ?? []);
+        setBookmarks(normalized);
+
+        // Update local cache too.
+        for (const b of normalized) {
+          addLocalMultiverseBookmark({ personaId, bookmark: b });
+        }
+        return;
+      } catch {
+        // Fall back to local behavior below.
+      }
+    }
+
+    // Fallback: localStorage.
+    const alreadyLocal = isLocalMultiverseBookmarked({ personaId, bookmarkId: path.id });
+    if (alreadyLocal) {
+      const next = removeLocalMultiverseBookmark({ personaId, bookmarkId: path.id });
       setBookmarks(next);
       return;
     }
 
-    const next = addMultiverseBookmark({
+    const next = addLocalMultiverseBookmark({
       personaId,
       bookmark: { id: path.id, title: path.title, steps: path.steps, pathType: pathType ?? undefined },
     });
@@ -379,7 +569,9 @@ export function MultiverseExplorerView(props: {
             Filters active
           </Badge>
           {pathType ? <Badge variant="secondary">{labelForPathType(pathType)} path</Badge> : <Badge variant="secondary">All path types</Badge>}
-          <Badge variant="secondary">{filtered.length} path{filtered.length === 1 ? '' : 's'}</Badge>
+          <Badge variant="secondary">
+            {filtered.length} path{filtered.length === 1 ? '' : 's'}
+          </Badge>
           {bookmarks.length > 0 ? (
             <Badge variant="secondary" className="gap-1">
               <BookmarkCheck className="h-3.5 w-3.5" />
@@ -426,7 +618,7 @@ export function MultiverseExplorerView(props: {
                       pathType={pathType}
                       isBookmarked={bookmarks.some((b) => b.id === p.id)}
                       onSelect={() => setSelectedPathId(p.id)}
-                      onToggleBookmark={() => toggleBookmark(p)}
+                      onToggleBookmark={() => void toggleBookmark(p)}
                     />
                   ))}
                 </div>
@@ -441,7 +633,9 @@ export function MultiverseExplorerView(props: {
             pathType={pathType}
             selectedPath={selectedPath}
             bookmarks={bookmarks}
-            onToggleBookmark={toggleBookmark}
+            loadingDetails={loadingDetails}
+            detailsError={detailsError}
+            onToggleBookmark={(p) => void toggleBookmark(p)}
             onClose={() => setSelectedPathId(null)}
           />
         </div>
