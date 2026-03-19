@@ -12,7 +12,15 @@ import { NextRequest, NextResponse } from 'next/server';
  * We support both NEXT_PUBLIC_* and REACT_APP_* env naming conventions used in Kavia preview environments.
  */
 export function getBackendBaseUrl(): string | null {
-  return process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || null;
+  // Prefer internal cluster URL when available (Kavia/preview), then public backend URL, then common legacy vars.
+  // NOTE: This repo's .env includes NEXT_PUBLIC_API_BASE in some environments.
+  return (
+    process.env.BACKEND_INTERNAL_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_API_BASE ||
+    process.env.REACT_APP_BACKEND_URL ||
+    null
+  );
 }
 
 /**
