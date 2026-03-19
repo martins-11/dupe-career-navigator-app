@@ -315,6 +315,7 @@ export default function IngestionClient() {
   };
 
   const hasUploads = uploaded.length > 0;
+  const hasResumeUpload = uploaded.some((u) => u.category === 'resume');
   const isBusy = uiStep !== 'idle' && uiStep !== 'done';
   const disableInputs = isBusy;
 
@@ -334,7 +335,8 @@ export default function IngestionClient() {
   })();
 
   const onGenerateDraft = async () => {
-    if (!hasUploads || isBusy) return;
+    // Resume is the only required input to proceed.
+    if (!hasResumeUpload || isBusy) return;
 
     setError(null);
 
@@ -352,7 +354,8 @@ export default function IngestionClient() {
       }
 
       // 2) Upload docs (single request) with per-file category tagging.
-      // The backend upload endpoint triggers extraction+normalization side effects (best-effort).
+      // Job Description + Performance Review are OPTIONAL.
+      // NOTE: do NOT set requireCategories=true; that would force all 3 categories server-side.
       setUiStep('uploading');
       const files = uploaded.map((u) => u.file);
       const categories = uploaded.map((u) => u.category);
@@ -360,12 +363,11 @@ export default function IngestionClient() {
       await uploadDocuments({
         files,
         categories,
-        requireCategories: true,
+        requireCategories: false,
       });
 
       // 3) Single-call orchestration: link → extract/normalize → generate draft (→ optional finalize)
-      // Note: we pass personaId=buildId so the backend can reuse/resolve build orchestration context consistently.
-      // The backend contract allows personaId to be nullable; this is a safe scaffold value in the current architecture.
+      // We keep useLatestCategoryDocs=true so the backend can auto-select whatever categories exist.
       setUiStep('running-orchestration');
 
       await apiFetch('/api/orchestration/run-all', {
@@ -477,15 +479,16 @@ export default function IngestionClient() {
                 fontSize: '14px',
                 fontWeight: 500,
                 border: 'none',
-                cursor: hasUploads && !isBusy ? 'pointer' : 'not-allowed',
-                opacity: hasUploads && !isBusy ? 1 : 0.55,
+                cursor: hasResumeUpload && !isBusy ? 'pointer' : 'not-allowed',
+                opacity: hasResumeUpload && !isBusy ? 1 : 0.55,
               }}
-              disabled={!hasUploads || isBusy}
+              disabled={!hasResumeUpload || isBusy}
               onMouseEnter={(e) => {
-                if (hasUploads && !isBusy) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary-hover)';
+                if (hasResumeUpload && !isBusy)
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary-hover)';
               }}
               onMouseLeave={(e) => {
-                if (hasUploads && !isBusy) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary)';
+                if (hasResumeUpload && !isBusy) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary)';
               }}
               onClick={onGenerateDraft}
             >

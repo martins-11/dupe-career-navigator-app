@@ -359,7 +359,7 @@ export async function uploadDocuments(params: {
     form.append('categoriesJson', JSON.stringify(params.categories));
   }
 
-  if (params.requireCategories) {
+  if (params.requireCategories === true) {
     form.append('requireCategories', 'true');
   }
 
