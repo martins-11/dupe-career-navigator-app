@@ -15,19 +15,15 @@ import { Badge } from "@/app/components/ui/badge";
 import { getPersonaDerivedCurrentRoleTitle } from "@/lib/personaRoleDerivation";
 import { apiFetch } from "@/lib/apiClient";
 import { getTargetRoleSelection, persistTargetRoleSelection, type TimeHorizon } from "@/lib/targetRoleStorage";
-import { getExploreRecommendationsPool } from "@/lib/recommendationsPoolClient";
-
 /**
- * Direct Trajectory (updated, recommendation-driven)
+ * Direct Trajectory (recommendation-driven)
  * - NO manual target-role typing/picking via catalog dropdown
  * - show recommendation-only "direct roles" derived from the FINALIZED persona
- * - user selects one recommended target role and saves it
+ * - user selects one recommended role and saves it
  * - after save: show gap analysis + requirements + roadmap
  *
- * Implementation note (current codebase):
- * - Backend already provides persona-driven recommendations via /api/recommendations/*
- * - We reuse the existing recommendations pool client as the source of "direct-role recommendations"
- *   until a dedicated "direct roles" endpoint exists.
+ * Implementation note:
+ * - This now calls a dedicated backend endpoint that invokes Bedrock/Claude.
  */
 
 function normString(v: unknown): string {
@@ -178,20 +174,47 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
         setRecsLoading(true);
 
         /**
-         * For now, reuse the Explore recommendations pool. In the product design, these are
-         * "direct roles based on the finalized persona/current role". This provides the
-         * recommendation-driven UX immediately, without manual selection UI.
+         * Call dedicated backend Claude recommendations (Bedrock) for Direct Trajectory.
+         * This replaces the placeholder behavior that reused the generic Explore pool.
          */
-        const pool = await getExploreRecommendationsPool({ personaId, allowPadding: true });
+        const savedSelection = getTargetRoleSelection();
+        const savedTargetRoleTitle = (savedSelection?.roleTitle ?? "").trim() || null;
+
+        const data: any = await apiFetch("/api/recommendations/direct-trajectory", {
+          method: "POST",
+          body: JSON.stringify({
+            personaId,
+            savedTargetRoleTitle,
+          }),
+        });
+
         if (cancelled) return;
 
-        const roles = Array.isArray(pool?.roles) ? pool.roles : [];
-        // Stabilize ids (RoleCard expects a stable id).
+        const roles = Array.isArray(data?.recommendedDirectRoles) ? data.recommendedDirectRoles : [];
+
+        // Map into a shape RoleCard + downstream gap analysis can understand.
+        // We keep the Claude-specific fields, but also provide the skill keys used elsewhere in Explore.
         const normalized = roles
           .map((r: any, idx: number) => {
-            const id = roleIdFromRole(r) || `rec-${idx}`;
-            const title = roleTitleFromRole(r) || `Role ${idx + 1}`;
-            return { ...r, id, title };
+            const id = normString(r?.id) || `direct-${idx}`;
+            const title = normString(r?.title) || `Role ${idx + 1}`;
+            const requiredSkills = safeStringArray(r?.requiredSkills);
+            const keyResponsibilities = safeStringArray(r?.keyResponsibilities);
+
+            return {
+              ...r,
+              id,
+              title,
+              role_id: id, // for backend persistence compatibility
+              role_title: title,
+              required_skills: requiredSkills,
+              skills_required: requiredSkills,
+              key_responsibilities: keyResponsibilities,
+              match_metadata: {
+                ...(typeof data?.meta === "object" && data?.meta ? data.meta : {}),
+                source: "bedrock_direct_trajectory",
+              },
+            };
           })
           .filter(Boolean);
 
@@ -201,8 +224,6 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
         if (!selectedRecRoleId && normalized.length > 0) {
           setSelectedRecRoleId(normalized[0].id);
         }
-
-        // If a saved target role exists but isn't in recommendations, keep it saved; user can re-save a recommended one.
       } catch (e: any) {
         if (cancelled) return;
         setLoadError("Unable to load direct-role recommendations right now. Please try again.");
