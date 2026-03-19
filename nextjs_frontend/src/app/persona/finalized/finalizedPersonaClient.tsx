@@ -120,7 +120,30 @@ export default function FinalizedPersonaClient() {
         setBuildId(bid || null);
       }
 
-      // 1) Backend-first: orchestration build record should include final persona artifacts.
+      // 1) Canonical retrieval: latest finalized persona artifact.
+      // Backend shape: { personaId, finalId?, finalJson, updatedAt }
+      if (pid) {
+        try {
+          const res = await apiFetch<any>(`/api/personas/${encodeURIComponent(pid)}/final/latest`, {
+            method: 'GET',
+            cache: 'no-store',
+            noThrow: true,
+          });
+
+          if (res && typeof res === 'object' && !(res as any).error) {
+            const finalJsonCandidate = (res as any)?.finalJson ?? null;
+            if (!cancelled && finalJsonCandidate && typeof finalJsonCandidate === 'object') {
+              setFinalJson(finalJsonCandidate);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {
+          // fall through
+        }
+      }
+
+      // 2) Backend fallback: orchestration build record should include final persona artifacts.
       if (bid) {
         try {
           const orch = await apiFetch<any>(`/api/orchestration/builds/${encodeURIComponent(bid)}`, {
@@ -139,7 +162,7 @@ export default function FinalizedPersonaClient() {
         }
       }
 
-      // 2) Fallback: localStorage persona blob.
+      // 3) Local fallback: localStorage persona blob.
       if (pid) {
         try {
           const stored = loadPersona(pid as UUID);

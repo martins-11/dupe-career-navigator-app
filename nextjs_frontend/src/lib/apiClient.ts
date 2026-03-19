@@ -55,12 +55,12 @@ function resolveBaseUrl(): string {
    *   NEXT_PUBLIC_FRONTEND_URL to an absolute origin.
    */
   const fromApiBase = (process.env.NEXT_PUBLIC_API_BASE ?? '').trim();
-  if (fromApiBase) return fromApiBase.replace(/\/*$/, '').replace(/\/+$/, '');
+  if (fromApiBase) return fromApiBase.replace(/\/*$/, '').replace(/\+$/, '');
 
   // Server-side only: allow absolute base to be provided for SSR fetches.
   if (typeof window === 'undefined') {
     const fromFrontend = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? '').trim();
-    if (fromFrontend) return fromFrontend.replace(/\/*$/, '').replace(/\/+$/, '');
+    if (fromFrontend) return fromFrontend.replace(/\/*$/, '').replace(/\+$/, '');
   }
 
   // Browser default: same-origin.
@@ -288,6 +288,39 @@ export async function updatePersona(params: {
   return apiFetch(`/api/personas/${encodeURIComponent(personaId)}`, {
     method: 'PUT',
     body: JSON.stringify(body),
+  });
+}
+
+export interface PersonaDraftArtifact {
+  personaId: UUID;
+  draftId?: UUID | null;
+  draftJson: Record<string, any>;
+  updatedAt: string;
+}
+
+export interface PersonaFinalArtifact {
+  personaId: UUID;
+  finalId?: UUID | null;
+  finalJson: Record<string, any>;
+  updatedAt: string;
+}
+
+// PUBLIC_INTERFACE
+export async function savePersonaDraftLatest(params: { personaId: UUID; draftJson: Record<string, any> }): Promise<PersonaDraftArtifact> {
+  /** Saves edited draft JSON via PUT /api/personas/{id}/draft/latest. */
+  const { personaId, draftJson } = params;
+  return apiFetch<PersonaDraftArtifact>(`/api/personas/${encodeURIComponent(personaId)}/draft/latest`, {
+    method: 'PUT',
+    body: JSON.stringify({ draftJson }),
+  });
+}
+
+// PUBLIC_INTERFACE
+export async function getLatestPersonaFinalArtifact(personaId: UUID): Promise<PersonaFinalArtifact> {
+  /** Loads the latest finalized persona artifact via GET /api/personas/{id}/final/latest. */
+  return apiFetch<PersonaFinalArtifact>(`/api/personas/${encodeURIComponent(personaId)}/final/latest`, {
+    method: 'GET',
+    cache: 'no-store',
   });
 }
 

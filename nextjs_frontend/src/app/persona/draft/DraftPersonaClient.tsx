@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import StepProgressHeader from '@/app/components/StepProgressHeader';
-import { apiFetch, finalizePersonaForBuild, generateDraftForBuild, updatePersona, type UUID } from '@/lib/apiClient';
+import { apiFetch, finalizePersonaForBuild, generateDraftForBuild, savePersonaDraftLatest, updatePersona, type UUID } from '@/lib/apiClient';
 import { persistPersonaId } from '@/lib/personaStorage';
 
 const LEGACY_DRAFT_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
@@ -412,18 +412,28 @@ export default function DraftPersonaClient() {
     try {
       const updatedDraft = applyEditsToDraft(draftJson ?? {}, edits);
 
-      // Persist local override so refresh always shows the edited draft (even if backend draft endpoint is read-only).
+      // Keep local override for resilience/offline refresh behavior.
       saveLocalOverride(personaId, updatedDraft);
 
-      // Best-effort: also persist in backend persona store (metadata + personaJson).
-      // (Draft persistence is separate in the backend; this ensures edits are not lost when DB is configured.)
-      await updatePersona({
+      // Canonical draft persistence: PUT /personas/:id/draft/latest (via Next.js /api proxy).
+      // Response shape: { personaId, draftId?, draftJson, updatedAt }
+      const saved = await savePersonaDraftLatest({
         personaId: personaId as UUID,
-        title: `${edits.name || 'Persona'} — ${edits.role || 'Draft'}`.trim(),
-        personaJson: updatedDraft,
+        draftJson: updatedDraft,
       });
 
-      setDraftJson(updatedDraft);
+      // Best-effort: update persona metadata title (avoid creating a new version by not sending personaJson).
+      try {
+        await updatePersona({
+          personaId: personaId as UUID,
+          title: `${edits.name || 'Persona'} — ${edits.role || 'Draft'}`.trim(),
+        });
+      } catch {
+        // ignore metadata failures; the draft itself is already persisted.
+      }
+
+      const savedJson = (saved as any)?.draftJson && typeof (saved as any).draftJson === 'object' ? (saved as any).draftJson : updatedDraft;
+      setDraftJson(savedJson);
       setDirty(false);
       setSaveSuccess(true);
       window.setTimeout(() => setSaveSuccess(false), 2500);
