@@ -370,7 +370,7 @@ export default function IngestionClient() {
             Upload your professional documents to generate your AI-powered career profile.
           </p>
 
-          {/* Old page: primary header action */}
+          {/* Legacy CTA: "Generate Draft Persona" button with the same navigation behavior as the older ingestion version. */}
           <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <button
               type="button"
@@ -394,11 +394,16 @@ export default function IngestionClient() {
               }}
               onClick={() => {
                 if (!hasUploads) return;
-                // Preserving old "View draft persona" behavior: it navigated to the dedicated persona route.
+
+                /**
+                 * Legacy navigation/route behavior (copied from older ingestion flow):
+                 * - Clicking "Generate Draft Persona" routes the user to the draft persona page at `/persona`.
+                 * - This is intentionally UI-only navigation (no orchestration call here), matching the legacy behavior.
+                 */
                 router.push('/persona');
               }}
             >
-              View draft persona
+              Generate Draft Persona
             </button>
           </div>
         </section>
