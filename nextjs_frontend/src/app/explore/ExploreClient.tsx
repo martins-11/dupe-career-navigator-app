@@ -11,6 +11,7 @@ import { Filters, ActiveFilterTags } from "../components/explore/filters";
 import { SearchBar } from "../components/explore/search-bar";
 import RoleCard from "../components/explore/role-card";
 import { EmptyState } from "../components/explore/empty-state";
+import DirectTrajectoryPanel from "../components/explore/DirectTrajectoryPanel";
 
 import { loadPersonaId, persistPersonaId } from "@/lib/personaStorage";
 import { apiFetch } from "@/lib/apiClient";
@@ -116,6 +117,10 @@ export default function ExploreClient() {
   const searchParams = useSearchParams();
   const personaIdQuery = searchParams?.get("personaId") ?? null;
   const effectivePersonaId = personaIdQuery || loadPersonaId();
+
+  const exploreMode = searchParams?.get("exploreMode") ?? "";
+  const flow = searchParams?.get("flow") ?? "";
+  const isDirectTrajectory = exploreMode === "direct_trajectory" || flow === "direct";
 
   useEffect(() => {
     async function fetchOptions() {
@@ -223,6 +228,12 @@ export default function ExploreClient() {
         </header>
 
         <main className="space-y-10">
+          {isDirectTrajectory && effectivePersonaId ? (
+            <section className="space-y-6">
+              <DirectTrajectoryPanel personaId={effectivePersonaId} />
+            </section>
+          ) : null}
+
           <section className="flex justify-center">
             <SearchBar
               query={selectedTitle}

@@ -1,0 +1,4 @@
+{
+  "note": "Download of live openapi.json failed with 502 during this session. Use existing interfaces/backend_openapi_live.json or re-download from the running backend when available.",
+  "expected_url": "https://vscode-internal-10288-beta.beta01.cloud.kavia.ai:3001/openapi.json"
+}
