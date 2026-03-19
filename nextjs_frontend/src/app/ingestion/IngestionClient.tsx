@@ -324,8 +324,10 @@ export default function IngestionClient() {
               aria-label="View draft persona"
               onClick={() => {
                 if (!hasUploads) return;
-                // The draft persona page lives at `/persona` (App Router). Note `/personas` is an alias redirect.
-                router.push('/persona');
+                // Legacy behavior (before the dedicated /persona route existed):
+                // the primary ingestion flow lived in App.tsx (DocumentIngestion wrapper), i.e. the root route `/`.
+                // Restoring that route ensures this button lands on the same view as the previous ingestion page.
+                router.push('/');
               }}
               onMouseEnter={(e) => {
                 if (!hasUploads) return;
