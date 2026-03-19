@@ -6,6 +6,8 @@ import { Check, CheckCircle2, Linkedin, Loader2, Upload, X } from 'lucide-react'
 import { useRouter } from 'next/navigation';
 import { apiFetch, uploadDocuments } from '@/lib/apiClient';
 
+const LATEST_DRAFT_PERSONA_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
+
 type UploadCategory = 'resume' | 'job_description' | 'performance_review';
 
 type UploadedPreview = {
@@ -370,7 +372,7 @@ export default function IngestionClient() {
       // We keep useLatestCategoryDocs=true so the backend can auto-select whatever categories exist.
       setUiStep('running-orchestration');
 
-      await apiFetch('/api/orchestration/run-all', {
+      const orchestrationRes = await apiFetch<any>('/api/orchestration/run-all', {
         method: 'POST',
         body: JSON.stringify({
           mode: 'persona_build',
@@ -380,10 +382,20 @@ export default function IngestionClient() {
         }),
       });
 
-      // Success: persona page removed/disabled; remain on ingestion (or route elsewhere if desired)
+      // Persist the latest draft so the user can view it immediately on /persona/draft.
+      // This keeps the feature working even when backend persistence is not configured.
+      try {
+        const personaDraft = orchestrationRes?.orchestration?.persona ?? orchestrationRes?.results?.generate?.persona ?? null;
+        if (personaDraft && typeof personaDraft === 'object') {
+          window.localStorage.setItem(LATEST_DRAFT_PERSONA_STORAGE_KEY, JSON.stringify(personaDraft));
+        }
+      } catch {
+        // Non-fatal: draft viewing page will show an empty state if storage fails.
+      }
+
+      // Success: enable a clear next step (view draft)
       setUiStep('done');
-      // router.push('/persona');
-      router.refresh();
+      router.push('/persona/draft');
     } catch (e: any) {
       const msg = typeof e?.message === 'string' ? e.message : 'Failed to generate draft persona.';
       setError(msg);
