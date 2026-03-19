@@ -155,6 +155,10 @@ export async function fetchMultiversePathDetails(params: {
   if (f.minSkillSimilarity != null) qs.set('minSkillSimilarity', String(f.minSkillSimilarity));
   if (f.timeHorizon) qs.set('timeHorizon', f.timeHorizon);
 
+  // Allow backend to enforce Claude recommendations by pathType (lateral|vertical|pivot|non_linear).
+  const pt = safeString((params as any)?.pathType);
+  if (pt) qs.set('pathType', pt);
+
   const path = qs.toString()
     ? `/api/multiverse/paths/${encodeURIComponent(pathId)}?${qs.toString()}`
     : `/api/multiverse/paths/${encodeURIComponent(pathId)}`;

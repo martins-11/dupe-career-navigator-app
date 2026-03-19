@@ -40,7 +40,22 @@ export async function proxyToBackend(req: NextRequest, backendPath: string): Pro
   }
 
   const incomingUrl = new URL(req.url);
-  const targetUrl = `${backendUrl}${backendPath}${incomingUrl.search}`;
+
+  /**
+   * IMPORTANT:
+   * Some route handlers pass `backendPath` that already includes a querystring
+   * (e.g. "/api/multiverse/graph?personaId=..."). If we naïvely append
+   * `incomingUrl.search` we can end up with malformed URLs like:
+   *   /api/multiverse/graph?x=1?x=1
+   * which the Express backend will treat as a different path and return 404.
+   *
+   * So: strip any query from backendPath and append exactly one querystring:
+   * - Prefer the query embedded in backendPath (explicit proxy intent)
+   * - Otherwise use the incomingUrl.search (original request query)
+   */
+  const [backendPathNoQuery, backendQuery = ''] = backendPath.split('?', 2);
+  const qs = backendQuery ? `?${backendQuery}` : incomingUrl.search || '';
+  const targetUrl = `${backendUrl}${backendPathNoQuery}${qs}`;
 
   // Forward common headers; avoid forwarding "host" which can confuse upstream.
   const headers: Record<string, string> = {};
