@@ -177,8 +177,9 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
          * Call dedicated backend Claude recommendations (Bedrock) for Direct Trajectory.
          * This replaces the placeholder behavior that reused the generic Explore pool.
          */
-        const savedSelection = getTargetRoleSelection();
-        const savedTargetRoleTitle = (savedSelection?.roleTitle ?? "").trim() || null;
+        // TargetRoleSelection only persists roleId + timeHorizon (no role title).
+        // Backend can operate without a saved target role title; it will derive recs from persona.
+        const savedTargetRoleTitle = null;
 
         const data: any = await apiFetch("/api/recommendations/direct-trajectory", {
           method: "POST",
