@@ -2,10 +2,10 @@
 
 import { useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Check, CheckCircle2, FileText, Linkedin, Upload, X } from 'lucide-react';
+import { Check, CheckCircle2, Linkedin, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-type UploadCategory = 'resume' | 'job_description' | 'cover_letter';
+type UploadCategory = 'resume' | 'job_description' | 'performance_review';
 
 type UploadedPreview = {
   id: string;
@@ -15,7 +15,6 @@ type UploadedPreview = {
 };
 
 const CANVAS_BG = '#F6F7F8';
-const PANEL_BG = '#FFFFFF';
 const BORDER_SUBTLE = '#E5E7EB';
 const TEXT_PRIMARY = '#111827';
 const TEXT_SECONDARY = '#6B7280';
@@ -52,8 +51,8 @@ function categoryLabel(category: UploadCategory): string {
       return 'Resume';
     case 'job_description':
       return 'Job Description';
-    case 'cover_letter':
-      return 'Cover Letter';
+    case 'performance_review':
+      return 'Performance Review';
   }
 }
 
@@ -61,10 +60,10 @@ function categoryTitle(category: UploadCategory): string {
   switch (category) {
     case 'resume':
       return 'Upload Your Resume';
-    case 'cover_letter':
-      return 'Upload Your Cover Letter';
     case 'job_description':
       return 'Upload Your Job Description';
+    case 'performance_review':
+      return 'Upload Your Performance Review';
   }
 }
 
@@ -72,10 +71,10 @@ function categoryAccent(category: UploadCategory): string {
   switch (category) {
     case 'resume':
       return ACCENT_PURPLE;
-    case 'cover_letter':
-      return ACCENT_TEAL;
     case 'job_description':
       return ACCENT_GREEN;
+    case 'performance_review':
+      return ACCENT_TEAL;
   }
 }
 
@@ -262,23 +261,19 @@ function LinkedInConnect() {
 // PUBLIC_INTERFACE
 export default function IngestionClient() {
   /**
-   * UI-only Document Ingestion page (per reference image):
-   * - Top lavender strip header
-   * - 3 upload containers (resume / cover letter / job description)
-   * - LinkedIn connect toggle (dummy interaction)
-   * - Animated uploaded files preview list
+   * Restored “old” ingestion UI chrome (step/progress header + hero/actions),
+   * but keeping only the NEW three upload containers in place of the old single uploader.
    *
-   * NOTE: This does not call backend APIs; it only maintains local UI state.
+   * Note: this ingestion route is UI-only; it maintains local state for previews.
    */
   const router = useRouter();
   const [uploaded, setUploaded] = useState<UploadedPreview[]>([]);
 
-  const cards = useMemo<UploadCategory[]>(() => ['resume', 'cover_letter', 'job_description'], []);
+  const cards = useMemo<UploadCategory[]>(() => ['resume', 'job_description', 'performance_review'], []);
 
   const onFilesSelected = (category: UploadCategory, files: File[]) => {
     if (!files.length) return;
 
-    // UI-only: just add previews with smooth animation.
     const now = Date.now();
     const next: UploadedPreview[] = files.map((file) => ({
       id: makeId(),
@@ -298,44 +293,109 @@ export default function IngestionClient() {
 
   return (
     <div className="min-h-svh w-full" style={{ background: CANVAS_BG }}>
-      {/* Top lavender strip (reference): centered page title. */}
-      <div className="w-full" style={{ background: LAVENDER_STRIP }}>
-        <div className="mx-auto flex w-full max-w-[1160px] flex-col items-center justify-center px-6 py-4">
-          <h1 className="text-center text-[20px] font-semibold leading-tight" style={{ color: TEXT_PRIMARY }}>
-            Build your persona
-          </h1>
+      {/* Old page chrome: Step progress header bar */}
+      <div className="bg-white" style={{ padding: '24px 32px', borderBottom: '1px solid #D1D5DB' }}>
+        <div className="flex items-center justify-center gap-4 max-w-3xl mx-auto">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
+              style={{
+                backgroundColor: 'var(--primary)',
+                border: 'none',
+                color: 'white',
+                fontSize: '16px',
+                fontWeight: 600,
+              }}
+            >
+              1
+            </div>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: '#1F2937' }}>Ingestion Hub</span>
+          </div>
+
+          <div className="h-0.5 w-12 transition-colors duration-300" style={{ backgroundColor: '#D1D5DB' }} />
+
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
+              style={{
+                backgroundColor: 'transparent',
+                border: '2px solid #D1D5DB',
+                color: '#D1D5DB',
+                fontSize: '16px',
+                fontWeight: 600,
+              }}
+            >
+              2
+            </div>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>Persona Validation</span>
+          </div>
+
+          <div className="h-0.5 w-12 transition-colors duration-300" style={{ backgroundColor: '#D1D5DB' }} />
+
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
+              style={{
+                backgroundColor: 'transparent',
+                border: '2px solid #D1D5DB',
+                color: '#D1D5DB',
+                fontSize: '16px',
+                fontWeight: 600,
+              }}
+            >
+              3
+            </div>
+            <span style={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>Finalized Persona</span>
+          </div>
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-[1160px] px-6 pb-16 pt-6">
-        {/* Restored step header + View draft persona action (above cards). */}
-        <section className="mx-auto mb-6 w-full max-w-[980px]">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-[13px] font-medium" style={{ color: TEXT_SECONDARY }}>
-              Ingestion Hub <span aria-hidden="true">-&gt;</span> Upload documents <span aria-hidden="true">-&gt;</span>{' '}
-              Generate persona
-            </div>
+      {/* Newer lavender strip can remain (still part of ingestion UI spec); it doesn't break old layout */}
+      <div className="w-full" style={{ background: LAVENDER_STRIP }}>
+        <div className="mx-auto w-full max-w-[1160px] px-6 py-3">
+          <div className="text-left text-[14px] font-semibold" style={{ color: TEXT_PRIMARY }}>
+            Build your persona
+          </div>
+        </div>
+      </div>
 
+      {/* Old page: centered hero + action buttons + upload area */}
+      <main className="mx-auto w-full max-w-[1160px] px-6 pb-16 pt-10">
+        <section className="mx-auto w-full max-w-[980px] text-center">
+          <h1 className="text-[36px] font-bold leading-tight" style={{ color: TEXT_PRIMARY }}>
+            Build your <span style={{ color: ACCENT_TEAL }}>persona</span>
+          </h1>
+
+          <p className="mx-auto mt-3 max-w-[680px] text-[14px]" style={{ color: TEXT_SECONDARY }}>
+            Upload your professional documents to generate your AI-powered career profile.
+          </p>
+
+          {/* Old page: primary header action */}
+          <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <button
               type="button"
-              disabled={!hasUploads}
-              className="inline-flex h-[32px] items-center justify-center rounded-full border bg-white px-4 text-[12px] font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(20,184,166,0.30)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ borderColor: BORDER_SUBTLE, color: TEXT_PRIMARY }}
-              aria-label="View draft persona"
-              onClick={() => {
-                if (!hasUploads) return;
-                // Legacy behavior (before the dedicated /persona route existed):
-                // the primary ingestion flow lived in App.tsx (DocumentIngestion wrapper), i.e. the root route `/`.
-                // Restoring that route ensures this button lands on the same view as the previous ingestion page.
-                router.push('/');
+              className="rounded-lg transition-all duration-200"
+              style={{
+                backgroundColor: 'var(--primary)',
+                color: 'white',
+                padding: '12px 20px',
+                fontSize: '14px',
+                fontWeight: 500,
+                border: 'none',
+                cursor: hasUploads ? 'pointer' : 'not-allowed',
+                opacity: hasUploads ? 1 : 0.55,
               }}
+              disabled={!hasUploads}
               onMouseEnter={(e) => {
-                if (!hasUploads) return;
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(17,24,39,0.04)';
+                if (hasUploads) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary-hover)';
               }}
               onMouseLeave={(e) => {
+                if (hasUploads) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'var(--primary)';
+              }}
+              onClick={() => {
                 if (!hasUploads) return;
-                (e.currentTarget as HTMLButtonElement).style.background = 'white';
+                // Preserving old "View draft persona" behavior: it navigated to the dedicated persona route.
+                router.push('/persona');
               }}
             >
               View draft persona
@@ -343,19 +403,18 @@ export default function IngestionClient() {
           </div>
         </section>
 
-        {/* Cards row (unchanged) */}
-        <section className="flex flex-col items-center">
+        {/* Replace ONLY the old single upload container with the three new upload containers */}
+        <section className="mt-10 flex flex-col items-center">
           <div className="grid w-full max-w-[980px] grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
             {cards.map((category) => (
               <UploadCard key={category} category={category} onFilesSelected={onFilesSelected} />
             ))}
           </div>
 
-          {/* LinkedIn (dummy interaction) */}
           <LinkedInConnect />
         </section>
 
-        {/* Uploaded list (animated) */}
+        {/* Keep smooth animated uploaded preview list */}
         <section className="mx-auto mt-10 w-full max-w-[980px]">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[13.5px] font-semibold" style={{ color: TEXT_PRIMARY }}>
@@ -400,7 +459,7 @@ export default function IngestionClient() {
                             style={{ borderColor: 'rgba(139,92,246,0.20)' }}
                             aria-hidden="true"
                           >
-                            <FileText className="h-[16px] w-[16px]" style={{ color: ACCENT_PURPLE }} />
+                            <Upload className="h-[16px] w-[16px]" style={{ color: ACCENT_PURPLE }} />
                           </div>
 
                           <div className="min-w-0">
