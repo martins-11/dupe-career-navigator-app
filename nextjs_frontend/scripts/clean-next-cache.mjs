@@ -28,14 +28,39 @@ function log(msg) {
   process.stdout.write(`${msg}\n`);
 }
 
+function sleepSync(ms) {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    // busy wait (tiny delays only; avoids async top-level complexity in a build script)
+  }
+}
+
 function rmDirIfExists(dirPath, label) {
   if (!fs.existsSync(dirPath)) {
     log(`[clean-next-cache] No ${label} directory found at: ${dirPath}`);
     return;
   }
 
-  // Force + recursive is the Node equivalent of `rm -rf`.
-  fs.rmSync(dirPath, { recursive: true, force: true });
+  /**
+   * Force + recursive is the Node equivalent of `rm -rf`.
+   * In some CI/overlay filesystem environments, we can still see transient ENOTEMPTY
+   * while the directory is being torn down. We'll retry a few times to avoid failing builds.
+   */
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      fs.rmSync(dirPath, { recursive: true, force: true });
+      break;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (attempt === maxAttempts) {
+        throw err;
+      }
+      log(`[clean-next-cache] Retry ${attempt}/${maxAttempts} removing ${label} due to: ${msg}`);
+      sleepSync(75 * attempt);
+    }
+  }
+
   log(`[clean-next-cache] Removed ${label}: ${dirPath}`);
 }
 
