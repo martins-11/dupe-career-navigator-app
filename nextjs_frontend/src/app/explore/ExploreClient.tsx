@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { RecommendationGrid } from "../components/recommendations/recommendation-grid";
@@ -12,6 +12,11 @@ import { SearchBar } from "../components/explore/search-bar";
 import RoleCard from "../components/explore/role-card";
 import { EmptyState } from "../components/explore/empty-state";
 import DirectTrajectoryPanel from "../components/explore/DirectTrajectoryPanel";
+import {
+  MultiverseExplorerView,
+  resolveInitialMultiversePathType,
+  persistMultiversePathType,
+} from "../components/explore/MultiverseExplorerView";
 
 import { loadPersonaId, persistPersonaId } from "@/lib/personaStorage";
 import { apiFetch } from "@/lib/apiClient";
@@ -121,6 +126,20 @@ export default function ExploreClient() {
   const exploreMode = searchParams?.get("exploreMode") ?? "";
   const flow = searchParams?.get("flow") ?? "";
   const isDirectTrajectory = exploreMode === "direct_trajectory" || flow === "direct";
+
+  const isMultiverseExplorer = exploreMode === "multiverse" || flow === "multiverse";
+  const pathTypeFromQuery = searchParams?.get("pathType") ?? null;
+
+  const multiversePathType = useMemo(() => {
+    if (!isMultiverseExplorer) return null;
+    return resolveInitialMultiversePathType({ personaId: effectivePersonaId, fromQuery: pathTypeFromQuery });
+  }, [isMultiverseExplorer, effectivePersonaId, pathTypeFromQuery]);
+
+  useEffect(() => {
+    if (!isMultiverseExplorer) return;
+    // Persist selection for continuity when user revisits Explore later.
+    persistMultiversePathType({ personaId: effectivePersonaId, pathType: multiversePathType });
+  }, [isMultiverseExplorer, effectivePersonaId, multiversePathType]);
 
   useEffect(() => {
     async function fetchOptions() {
@@ -367,6 +386,20 @@ export default function ExploreClient() {
                 </div>
               );
             })()
+          ) : isMultiverseExplorer ? (
+            <div className="space-y-6">
+              <MultiverseExplorerView
+                personaId={effectivePersonaId}
+                pathType={multiversePathType}
+                selectedIndustry={selectedIndustry}
+                selectedSkills={selectedSkills}
+                salaryRange={salaryRange}
+                titleQuery={selectedTitle}
+              />
+              <div className="text-xs text-muted-foreground">
+                Tip: Use search + filters to narrow paths. Click a path to drill down and bookmark it for later.
+              </div>
+            </div>
           ) : (
             <div className="space-y-6">
               <div className="flex items-center justify-between gap-4">
