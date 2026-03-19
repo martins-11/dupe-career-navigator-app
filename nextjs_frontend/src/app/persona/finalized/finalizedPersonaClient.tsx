@@ -254,7 +254,7 @@ export default function FinalizedPersonaClient() {
               <button
                 type="button"
                 className="rounded-md bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800"
-                onClick={() => router.push('/explore')}
+                onClick={() => router.push('/pathway')}
               >
                 Continue
               </button>
