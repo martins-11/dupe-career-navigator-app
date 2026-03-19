@@ -36,6 +36,12 @@ type AttachedDraftPersonaInput = {
 
 /**
  * Maps various potential persona draft shapes into the UI-friendly PersonaDraft format.
+ *
+ * IMPORTANT:
+ * - The ingestion flow should persist the backend orchestration `personaDraft` verbatim (Bedrock/Claude output).
+ * - This mapper is retained for legacy/compat helpers, but should NOT be used to replace Bedrock output with
+ *   a UI placeholder shape.
+ *
  * Supports:
  *  - Backend PersonaDraft schema (already in correct shape)
  *  - The attached draft persona JSON (authoritative user input in this task)
