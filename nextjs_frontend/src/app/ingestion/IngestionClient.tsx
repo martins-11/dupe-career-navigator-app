@@ -294,17 +294,42 @@ export default function IngestionClient() {
 
   return (
     <div className="min-h-svh w-full" style={{ background: CANVAS_BG }}>
-      {/* Top lavender strip (new). Keep the existing header elsewhere unchanged. */}
+      {/* Top lavender strip (reference): centered page title. */}
       <div className="w-full" style={{ background: LAVENDER_STRIP }}>
-        <div className="mx-auto flex h-[40px] w-full max-w-[1160px] items-center px-6">
-          <div className="text-[15px] font-semibold" style={{ color: TEXT_PRIMARY }}>
+        <div className="mx-auto flex w-full max-w-[1160px] flex-col items-center justify-center px-6 py-4">
+          <h1 className="text-center text-[20px] font-semibold leading-tight" style={{ color: TEXT_PRIMARY }}>
             Build your persona
-          </div>
+          </h1>
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-[1160px] px-6 pb-16 pt-10">
-        {/* Cards row */}
+      <main className="mx-auto w-full max-w-[1160px] px-6 pb-16 pt-6">
+        {/* Restored step header + View draft persona action (above cards). */}
+        <section className="mx-auto mb-6 w-full max-w-[980px]">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-[13px] font-medium" style={{ color: TEXT_SECONDARY }}>
+              Ingestion Hub <span aria-hidden="true">-&gt;</span> Upload documents <span aria-hidden="true">-&gt;</span>{' '}
+              Generate persona
+            </div>
+
+            <button
+              type="button"
+              className="inline-flex h-[32px] items-center justify-center rounded-full border bg-white px-4 text-[12px] font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(20,184,166,0.30)] focus-visible:ring-offset-2"
+              style={{ borderColor: BORDER_SUBTLE, color: TEXT_PRIMARY }}
+              aria-label="View draft persona"
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(17,24,39,0.04)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.background = 'white';
+              }}
+            >
+              View draft persona
+            </button>
+          </div>
+        </section>
+
+        {/* Cards row (unchanged) */}
         <section className="flex flex-col items-center">
           <div className="grid w-full max-w-[980px] grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
             {cards.map((category) => (
