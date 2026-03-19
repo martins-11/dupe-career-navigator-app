@@ -3,10 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiFetch } from '@/lib/apiClient';
+import StepProgressHeader from '@/app/components/StepProgressHeader';
+import { apiFetch, finalizePersonaForBuild, generateDraftForBuild, updatePersona, type UUID } from '@/lib/apiClient';
+import { persistPersonaId } from '@/lib/personaStorage';
 
-const STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
+const LEGACY_DRAFT_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
 const PERSONA_ID_STORAGE_KEY = 'career_navigator_persona_id';
+const BUILD_ID_STORAGE_KEY = 'career_navigator_build_id';
+const LOCAL_DRAFT_OVERRIDE_PREFIX = 'career_navigator_draft_override_v1_';
 
 type CareerHighlightItem = {
   highlight: string;
@@ -23,9 +27,33 @@ type LegacyDraftPersona = {
   career_highlights?: Array<{ text?: string; source?: string }>;
 };
 
-function safeJsonParse(input: string): unknown | null {
+type PersonaDraftSchema = {
+  schemaVersion?: string;
+  title?: string;
+  summary?: string;
+  profile?: {
+    headline?: string;
+    seniority?: string | null;
+    industry?: string | null;
+    location?: string | null;
+  };
+  strengths?: string[];
+  skills?: string[];
+  experienceHighlights?: string[];
+  provenance?: unknown;
+};
+
+type EditableDraftModel = {
+  name: string;
+  role: string;
+  summary: string;
+  competencies: string[];
+  careerHighlights: CareerHighlightItem[];
+};
+
+function safeJsonParse<T = any>(input: string): T | null {
   try {
-    return JSON.parse(input);
+    return JSON.parse(input) as T;
   } catch {
     return null;
   }
@@ -62,6 +90,97 @@ function coerceCareerHighlights(input: unknown): CareerHighlightItem[] {
     .filter(Boolean) as CareerHighlightItem[];
 }
 
+function looksLikePersonaDraftSchema(obj: any): obj is PersonaDraftSchema {
+  return Boolean(
+    obj &&
+      typeof obj === 'object' &&
+      (typeof obj.summary === 'string' ||
+        (obj.profile && typeof obj.profile === 'object') ||
+        Array.isArray(obj.strengths) ||
+        Array.isArray(obj.experienceHighlights))
+  );
+}
+
+function looksLikeLegacyDraft(obj: any): obj is LegacyDraftPersona {
+  return Boolean(
+    obj &&
+      typeof obj === 'object' &&
+      (typeof obj.full_name === 'string' ||
+        typeof obj.professional_summary === 'string' ||
+        Array.isArray(obj.core_competencies) ||
+        Array.isArray(obj.career_highlights))
+  );
+}
+
+function toEditableModel(draftJson: any): EditableDraftModel {
+  // Backend PersonaDraft schema
+  if (looksLikePersonaDraftSchema(draftJson)) {
+    const name = String(draftJson?.title ?? '').trim();
+    const role = String(draftJson?.profile?.headline ?? '').trim();
+    const summary = String(draftJson?.summary ?? '').trim();
+    const competencies = asStringArray(draftJson?.strengths);
+    const careerHighlights = (asStringArray(draftJson?.experienceHighlights) ?? []).map((h) => ({ highlight: h }));
+
+    return {
+      name,
+      role,
+      summary,
+      competencies,
+      careerHighlights,
+    };
+  }
+
+  // Legacy shape
+  if (looksLikeLegacyDraft(draftJson)) {
+    const name = String(draftJson?.full_name ?? '').trim();
+    const role = String(draftJson?.professional_title ?? draftJson?.current_role ?? '').trim();
+    const summary = String(draftJson?.professional_summary ?? '').trim();
+    const competencies = asStringArray(draftJson?.core_competencies);
+    const careerHighlights = coerceCareerHighlights(draftJson?.career_highlights);
+
+    return { name, role, summary, competencies, careerHighlights };
+  }
+
+  // Unknown shape -> empty model
+  return {
+    name: '',
+    role: '',
+    summary: '',
+    competencies: [],
+    careerHighlights: [],
+  };
+}
+
+function applyEditsToDraft(originalDraft: any, edits: EditableDraftModel): any {
+  // If it originally looked like PersonaDraft schema, preserve that structure.
+  if (looksLikePersonaDraftSchema(originalDraft)) {
+    const next: PersonaDraftSchema = {
+      ...originalDraft,
+      title: edits.name || originalDraft?.title || 'Draft persona',
+      summary: edits.summary ?? originalDraft?.summary ?? '',
+      profile: {
+        ...(originalDraft?.profile ?? {}),
+        headline: edits.role ?? originalDraft?.profile?.headline ?? '',
+      },
+      strengths: edits.competencies,
+      experienceHighlights: edits.careerHighlights.map((h) => h.highlight).filter(Boolean),
+    };
+    return next;
+  }
+
+  // Otherwise, use legacy shape (best-effort)
+  const nextLegacy: LegacyDraftPersona = {
+    ...(looksLikeLegacyDraft(originalDraft) ? originalDraft : {}),
+    title: String((originalDraft as any)?.title ?? '').trim() || undefined,
+    full_name: edits.name,
+    professional_title: edits.role,
+    professional_summary: edits.summary,
+    core_competencies: edits.competencies,
+    career_highlights: edits.careerHighlights.map((h) => ({ text: h.highlight, source: h.sourceExperience })),
+  };
+  return nextLegacy;
+}
+
 async function fetchLatestPersistedDraft(personaId: string): Promise<any | null> {
   /**
    * Fetch latest draft from backend persistence (DB when configured, memory otherwise).
@@ -94,33 +213,37 @@ async function fetchLatestPersistedDraft(personaId: string): Promise<any | null>
 // PUBLIC_INTERFACE
 export default function DraftPersonaClient() {
   /**
-   * Draft persona UI (purple/violet styling).
+   * Draft persona UI + workflow:
+   * - Loads latest saved draft (prefers local override, then backend draft latest, then legacy localStorage).
+   * - Allows in-page edits, "Save Changes" (persist local override + best-effort PUT /api/personas/:id),
+   *   "Regenerate Draft" (POST /api/orchestration/builds/:id/generate-draft),
+   *   and "Finalize Persona" (POST /api/orchestration/builds/:id/finalize + navigate to finalized page).
    *
-   * Correct end-to-end behavior:
-   * - Prefer backend-persisted draft (by personaId) so the view reflects what is saved in DB.
-   * - personaId source of truth:
-   *    1) URL query: /persona/draft?personaId=<uuid>
-   *    2) localStorage['career_navigator_persona_id']
-   * - Fallback: localStorage['career_navigator_latest_draft_persona_v1'] (legacy behavior)
+   * Finalize gating:
+   * - If there are unsaved changes, Finalize is disabled until Save Changes completes.
    */
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const [personaId, setPersonaId] = React.useState<string | null>(null);
+  const [buildId, setBuildId] = React.useState<string | null>(null);
 
-  const [rawText, setRawText] = React.useState<string | null>(null);
-  const [parsed, setParsed] = React.useState<any | null>(null);
+  const [draftJson, setDraftJson] = React.useState<any | null>(null);
+  const [edits, setEdits] = React.useState<EditableDraftModel>(() => toEditableModel(null));
 
   const [loading, setLoading] = React.useState<boolean>(true);
-  const [source, setSource] = React.useState<'backend' | 'localStorage' | 'none'>('none');
+  const [dirty, setDirty] = React.useState<boolean>(false);
+  const [saving, setSaving] = React.useState<boolean>(false);
+  const [regenerating, setRegenerating] = React.useState<boolean>(false);
+  const [finalizing, setFinalizing] = React.useState<boolean>(false);
+
   const [error, setError] = React.useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = React.useState<boolean>(false);
 
   const resolvePersonaId = React.useCallback((): string | null => {
-    // 1) URL query param
     const fromQuery = String(searchParams?.get('personaId') ?? '').trim();
     if (fromQuery) return fromQuery;
 
-    // 2) localStorage
     try {
       const fromStorage = String(window.localStorage.getItem(PERSONA_ID_STORAGE_KEY) ?? '').trim();
       if (fromStorage) return fromStorage;
@@ -131,139 +254,336 @@ export default function DraftPersonaClient() {
     return null;
   }, [searchParams]);
 
-  const loadFromLocalStorage = React.useCallback((): { rawText: string | null; parsed: any | null } => {
+  const resolveBuildId = React.useCallback((): string | null => {
+    const fromQuery = String(searchParams?.get('buildId') ?? '').trim();
+    if (fromQuery) return fromQuery;
+
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (!stored) return { rawText: null, parsed: null };
-      return { rawText: stored, parsed: safeJsonParse(stored) };
+      const fromStorage = String(window.localStorage.getItem(BUILD_ID_STORAGE_KEY) ?? '').trim();
+      if (fromStorage) return fromStorage;
     } catch {
-      return { rawText: null, parsed: null };
+      // ignore storage failures
+    }
+
+    return null;
+  }, [searchParams]);
+
+  const loadLocalOverride = React.useCallback((pid: string): any | null => {
+    const key = `${LOCAL_DRAFT_OVERRIDE_PREFIX}${pid}`;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed = safeJsonParse<any>(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const saveLocalOverride = React.useCallback((pid: string, json: any) => {
+    const key = `${LOCAL_DRAFT_OVERRIDE_PREFIX}${pid}`;
+    try {
+      window.localStorage.setItem(key, JSON.stringify(json));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const clearLocalOverride = React.useCallback((pid: string) => {
+    const key = `${LOCAL_DRAFT_OVERRIDE_PREFIX}${pid}`;
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const loadLegacyLocalStorageDraft = React.useCallback((): any | null => {
+    try {
+      const stored = window.localStorage.getItem(LEGACY_DRAFT_STORAGE_KEY);
+      if (!stored) return null;
+      return safeJsonParse<any>(stored);
+    } catch {
+      return null;
     }
   }, []);
 
   const load = React.useCallback(async () => {
     setError(null);
+    setSaveSuccess(false);
     setLoading(true);
 
     const pid = resolvePersonaId();
-    setPersonaId(pid);
+    const bid = resolveBuildId();
 
-    // Prefer backend persisted draft when personaId is available.
+    setPersonaId(pid);
+    setBuildId(bid);
+
+    // 1) Local override (if user saved edits previously)
     if (pid) {
-      const draft = await fetchLatestPersistedDraft(pid);
-      if (draft) {
-        setRawText(JSON.stringify(draft));
-        setParsed(draft);
-        setSource('backend');
+      const override = loadLocalOverride(pid);
+      if (override) {
+        setDraftJson(override);
+        setEdits(toEditableModel(override));
+        setDirty(false);
         setLoading(false);
         return;
       }
     }
 
-    // Fallback: legacy localStorage draft
-    const local = loadFromLocalStorage();
-    setRawText(local.rawText);
-    setParsed(local.parsed);
-    setSource(local.rawText ? 'localStorage' : 'none');
-
-    if (local.rawText && (!local.parsed || typeof local.parsed !== 'object')) {
-      setError('Draft persona found in storage, but it is not valid JSON.');
+    // 2) Backend persisted draft
+    if (pid) {
+      const latest = await fetchLatestPersistedDraft(pid);
+      if (latest) {
+        setDraftJson(latest);
+        setEdits(toEditableModel(latest));
+        setDirty(false);
+        setLoading(false);
+        return;
+      }
     }
 
-    // If we couldn't read storage at all and also couldn't fetch backend, show a clear error.
-    if (!pid && local.rawText === null) {
-      // Not necessarily fatal; this can happen on first visit. Keep as empty state.
+    // 3) Legacy localStorage fallback
+    const legacy = loadLegacyLocalStorageDraft();
+    if (legacy) {
+      setDraftJson(legacy);
+      setEdits(toEditableModel(legacy));
+      setDirty(false);
+      setLoading(false);
+      return;
     }
 
+    setDraftJson(null);
+    setEdits(toEditableModel(null));
+    setDirty(false);
     setLoading(false);
-  }, [loadFromLocalStorage, resolvePersonaId]);
+  }, [loadLegacyLocalStorageDraft, loadLocalOverride, resolveBuildId, resolvePersonaId]);
 
   React.useEffect(() => {
     void load();
   }, [load]);
 
-  const legacy = (parsed ?? null) as LegacyDraftPersona | null;
+  const onEditField = <K extends keyof EditableDraftModel>(key: K, value: EditableDraftModel[K]) => {
+    setEdits((prev) => ({ ...prev, [key]: value }));
+    setDirty(true);
+    setSaveSuccess(false);
+  };
 
-  const title =
-    (legacy && typeof legacy?.title === 'string' ? legacy.title : '').trim() ||
-    (legacy && (typeof legacy?.professional_title === 'string' || typeof legacy?.current_role === 'string')
-      ? `${String(legacy.professional_title ?? legacy.current_role ?? '').trim()}`
-      : '') ||
-    'Draft persona';
+  const onEditCareerHighlight = (idx: number, patch: Partial<CareerHighlightItem>) => {
+    setEdits((prev) => {
+      const next = prev.careerHighlights.slice();
+      const existing = next[idx] ?? { highlight: '' };
+      next[idx] = { ...existing, ...patch };
+      return { ...prev, careerHighlights: next };
+    });
+    setDirty(true);
+    setSaveSuccess(false);
+  };
 
-  const role =
-    (typeof legacy?.professional_title === 'string' ? legacy.professional_title.trim() : '') ||
-    (typeof legacy?.current_role === 'string' ? legacy.current_role.trim() : '') ||
-    '';
+  const onAddCompetency = () => {
+    onEditField('competencies', [...(edits.competencies ?? []), '']);
+  };
 
-  const name = typeof legacy?.full_name === 'string' ? legacy.full_name.trim() : '';
-  const summary = typeof legacy?.professional_summary === 'string' ? legacy.professional_summary.trim() : '';
+  const onRemoveCompetency = (idx: number) => {
+    const next = (edits.competencies ?? []).filter((_, i) => i !== idx);
+    onEditField('competencies', next);
+  };
 
-  const strengths = asStringArray(legacy?.core_competencies);
-  const careerHighlights = coerceCareerHighlights(legacy?.career_highlights);
+  const onAddHighlight = () => {
+    onEditField('careerHighlights', [...(edits.careerHighlights ?? []), { highlight: '', sourceExperience: '' }]);
+  };
+
+  const onRemoveHighlight = (idx: number) => {
+    const next = (edits.careerHighlights ?? []).filter((_, i) => i !== idx);
+    onEditField('careerHighlights', next);
+  };
+
+  const handleSaveChanges = async () => {
+    if (!personaId) {
+      setError('Missing personaId. Please return to ingestion and generate a draft again.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    setSaveSuccess(false);
+
+    try {
+      const updatedDraft = applyEditsToDraft(draftJson ?? {}, edits);
+
+      // Persist local override so refresh always shows the edited draft (even if backend draft endpoint is read-only).
+      saveLocalOverride(personaId, updatedDraft);
+
+      // Best-effort: also persist in backend persona store (metadata + personaJson).
+      // (Draft persistence is separate in the backend; this ensures edits are not lost when DB is configured.)
+      await updatePersona({
+        personaId: personaId as UUID,
+        title: `${edits.name || 'Persona'} — ${edits.role || 'Draft'}`.trim(),
+        personaJson: updatedDraft,
+      });
+
+      setDraftJson(updatedDraft);
+      setDirty(false);
+      setSaveSuccess(true);
+      window.setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to save changes.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRegenerateDraft = async () => {
+    const bid = String(buildId ?? '').trim();
+    if (!bid) {
+      setError('Missing buildId. Please return to ingestion and generate a draft again.');
+      return;
+    }
+
+    setRegenerating(true);
+    setError(null);
+
+    try {
+      // Regenerate draft in the backend.
+      await generateDraftForBuild({
+        buildId: bid as UUID,
+        personaId: personaId ? (personaId as UUID) : undefined,
+        saveDraft: true,
+        createVersion: true,
+      });
+
+      // Clear local overrides so the UI reflects the newly generated backend draft.
+      if (personaId) clearLocalOverride(personaId);
+
+      await load();
+      router.refresh();
+    } catch (e: any) {
+      setError(e?.message || 'Failed to regenerate draft.');
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (dirty) {
+      setError('Please Save Changes before finalizing.');
+      return;
+    }
+
+    const bid = String(buildId ?? '').trim();
+    if (!bid) {
+      setError('Missing buildId. Please return to ingestion and generate a draft again.');
+      return;
+    }
+
+    setFinalizing(true);
+    setError(null);
+
+    try {
+      const updatedDraft = applyEditsToDraft(draftJson ?? {}, edits);
+
+      const resp = await finalizePersonaForBuild({
+        buildId: bid as UUID,
+        personaId: personaId ? (personaId as UUID) : undefined,
+        finalOverride: updatedDraft,
+        saveFinal: true,
+        createVersion: true,
+      });
+
+      // Ensure personaId is persisted (some environments return it only on finalize).
+      const respPersonaId = String(resp?.personaId ?? personaId ?? '').trim();
+      if (respPersonaId) {
+        persistPersonaId(respPersonaId as any);
+        try {
+          window.localStorage.setItem(PERSONA_ID_STORAGE_KEY, respPersonaId);
+        } catch {
+          // ignore
+        }
+      }
+
+      // Navigation: finalized persona page.
+      const qs = new URLSearchParams();
+      if (respPersonaId) qs.set('personaId', respPersonaId);
+      qs.set('buildId', bid);
+
+      router.push(`/persona/finalized?${qs.toString()}`);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to finalize persona.');
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const headingRole = edits.role.trim();
+  const headingName = edits.name.trim();
 
   return (
     <div className="min-h-svh w-full bg-white">
+      <StepProgressHeader currentStep={2} />
+
       <div className="mx-auto w-full max-w-5xl px-6 py-10">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-widest text-violet-600">Draft persona</div>
-
-              <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900">
-                <span className="text-violet-700">{title}</span>
-              </h1>
-
-              {(role || name) && (
-                <div className="mt-2 text-sm text-slate-600">
-                  {role ? <span className="font-semibold text-violet-700">{role}</span> : null}
-                  {role && name ? <span className="mx-2 text-slate-300">|</span> : null}
-                  {name ? <span>{name}</span> : null}
-                </div>
-              )}
-
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
-                  Source:{' '}
-                  <span className="font-semibold text-slate-700">
-                    {loading ? 'Loading…' : source === 'backend' ? 'Database' : source === 'localStorage' ? 'LocalStorage' : 'None'}
-                  </span>
-                </span>
-
-                <span className="rounded-full border border-violet-200 bg-white px-2 py-1">
-                  personaId:{' '}
-                  <span className="font-mono font-semibold text-violet-700">
-                    {personaId ? personaId : '—'}
-                  </span>
-                </span>
+              {/* Role/name heading swap: role is the small label, name is the main heading */}
+              <div className="text-xs font-semibold uppercase tracking-widest text-violet-600">
+                {headingRole ? headingRole : 'Draft persona'}
               </div>
 
+              <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900">
+                <span className="text-violet-700">{headingName ? headingName : 'Persona draft'}</span>
+              </h1>
+
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Highlights below show <span className="font-semibold text-violet-700">careerHighlights</span> with the{' '}
-                <span className="font-semibold text-violet-700">experience/source</span> they were derived from.
+                Review and edit your draft persona. Save changes before finalizing.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                className="rounded-md border border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
-                onClick={() => {
-                  void load();
-                  router.refresh();
-                }}
+                className="rounded-md border border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60"
+                onClick={handleRegenerateDraft}
+                disabled={loading || regenerating || saving || finalizing}
               >
-                Refresh
+                {regenerating ? 'Regenerating…' : 'Regenerate draft'}
+              </button>
+
+              <button
+                type="button"
+                className="rounded-md bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800 disabled:opacity-60"
+                onClick={handleSaveChanges}
+                disabled={!dirty || loading || saving || regenerating || finalizing}
+                aria-disabled={!dirty || loading || saving || regenerating || finalizing}
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+
+              <button
+                type="button"
+                className="rounded-md border border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 disabled:opacity-60"
+                onClick={handleFinalize}
+                disabled={dirty || loading || saving || regenerating || finalizing}
+                title={dirty ? 'Save Changes before finalizing.' : undefined}
+              >
+                {finalizing ? 'Finalizing…' : 'Finalize'}
               </button>
 
               <Link
                 href="/ingestion"
-                className="rounded-md bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800"
+                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Back to ingestion
               </Link>
             </div>
           </div>
+
+          {saveSuccess ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              Changes saved.
+            </div>
+          ) : null}
         </header>
 
         {error ? (
@@ -277,7 +597,7 @@ export default function DraftPersonaClient() {
             <div className="text-sm font-semibold text-slate-900">Loading draft persona…</div>
             <div className="mt-1 text-sm text-slate-600">Fetching the latest saved draft from the backend (when available).</div>
           </div>
-        ) : !rawText ? (
+        ) : !draftJson ? (
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
             <div className="text-sm font-semibold text-slate-900">No draft persona found yet.</div>
             <div className="mt-1 text-sm text-slate-600">
@@ -287,30 +607,80 @@ export default function DraftPersonaClient() {
               </Link>
               . Once it completes, you will be redirected here.
             </div>
-            <div className="mt-2 text-xs text-slate-500">
-              Tip: if you have a saved personaId, you can open{' '}
-              <span className="font-mono">/persona/draft?personaId=&lt;uuid&gt;</span>.
-            </div>
           </div>
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
             {/* Left rail */}
             <aside className="lg:col-span-2">
               <section className="rounded-xl border border-violet-100 bg-white p-5">
-                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Summary</div>
-                <p className="mt-3 text-sm leading-6 text-slate-700">{summary || '—'}</p>
+                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Name</div>
+                <input
+                  className="mt-3 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  value={edits.name}
+                  onChange={(e) => onEditField('name', e.target.value)}
+                  placeholder="Your name"
+                />
               </section>
 
               <section className="mt-6 rounded-xl border border-violet-100 bg-white p-5">
-                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Core competencies</div>
-                {strengths.length ? (
-                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">
-                    {strengths.map((s) => (
-                      <li key={s}>
-                        <span className="text-violet-700">{s}</span>
-                      </li>
+                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Role / designation</div>
+                <input
+                  className="mt-3 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  value={edits.role}
+                  onChange={(e) => onEditField('role', e.target.value)}
+                  placeholder="e.g., Data Science Graduate"
+                />
+              </section>
+
+              <section className="mt-6 rounded-xl border border-violet-100 bg-white p-5">
+                <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Summary</div>
+                <textarea
+                  className="mt-3 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-6 text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  rows={6}
+                  value={edits.summary}
+                  onChange={(e) => onEditField('summary', e.target.value)}
+                  placeholder="Short professional summary"
+                />
+              </section>
+
+              <section className="mt-6 rounded-xl border border-violet-100 bg-white p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Core competencies</div>
+                  <button
+                    type="button"
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={onAddCompetency}
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {(edits.competencies ?? []).length ? (
+                  <div className="mt-3 space-y-2">
+                    {edits.competencies.map((c, idx) => (
+                      <div key={`${idx}`} className="flex items-center gap-2">
+                        <input
+                          className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                          value={c}
+                          onChange={(e) => {
+                            const next = edits.competencies.slice();
+                            next[idx] = e.target.value;
+                            onEditField('competencies', next);
+                          }}
+                          placeholder="Competency"
+                        />
+                        <button
+                          type="button"
+                          className="rounded-md border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                          onClick={() => onRemoveCompetency(idx)}
+                          aria-label="Remove competency"
+                          title="Remove"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 ) : (
                   <div className="mt-3 text-sm text-slate-500">—</div>
                 )}
@@ -322,24 +692,44 @@ export default function DraftPersonaClient() {
               <section className="rounded-xl border border-violet-100 bg-white p-5">
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Career highlights</div>
-                  <div className="text-xs font-semibold text-violet-700">
-                    {careerHighlights.length ? `${careerHighlights.length} items` : '—'}
-                  </div>
+                  <button
+                    type="button"
+                    className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={onAddHighlight}
+                  >
+                    Add
+                  </button>
                 </div>
 
-                {careerHighlights.length ? (
+                {(edits.careerHighlights ?? []).length ? (
                   <div className="mt-4 space-y-3">
-                    {careerHighlights.map((h, idx) => (
-                      <div
-                        key={`${idx}-${h.highlight}`}
-                        className="rounded-lg border border-violet-100 bg-violet-50/30 p-4"
-                      >
-                        <div className="text-sm font-semibold text-violet-800">{h.highlight}</div>
+                    {edits.careerHighlights.map((h, idx) => (
+                      <div key={`${idx}`} className="rounded-lg border border-violet-100 bg-violet-50/30 p-4">
+                        <div className="space-y-2">
+                          <input
+                            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                            value={h.highlight}
+                            onChange={(e) => onEditCareerHighlight(idx, { highlight: e.target.value })}
+                            placeholder="Highlight"
+                          />
 
-                        <div className="mt-2">
-                          <div className="inline-flex items-start gap-2 rounded-md border border-violet-200 bg-white px-3 py-2">
-                            <div className="text-xs font-bold uppercase tracking-widest text-violet-600">Source</div>
-                            <div className="text-xs text-slate-700">{h.sourceExperience ? h.sourceExperience : '—'}</div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                              value={h.sourceExperience ?? ''}
+                              onChange={(e) => onEditCareerHighlight(idx, { sourceExperience: e.target.value })}
+                              placeholder="Source (optional)"
+                            />
+
+                            <button
+                              type="button"
+                              className="rounded-md border border-slate-200 bg-white px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                              onClick={() => onRemoveHighlight(idx)}
+                              aria-label="Remove highlight"
+                              title="Remove"
+                            >
+                              ✕
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -349,14 +739,6 @@ export default function DraftPersonaClient() {
                   <div className="mt-4 text-sm text-slate-600">No career highlights found in the draft yet.</div>
                 )}
               </section>
-
-              {/* Keep raw JSON available (collapsed), but not the primary UI */}
-              <details className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
-                <summary className="cursor-pointer text-sm font-semibold text-slate-900">Raw draft JSON</summary>
-                <pre className="mt-4 max-h-[420px] overflow-auto rounded-md bg-slate-950 p-4 text-xs text-slate-100">
-                  {JSON.stringify(parsed ?? safeJsonParse(rawText) ?? rawText, null, 2)}
-                </pre>
-              </details>
             </main>
           </div>
         )}

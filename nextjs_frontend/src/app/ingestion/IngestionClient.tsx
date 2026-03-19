@@ -5,8 +5,10 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, CheckCircle2, Linkedin, Loader2, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import StepProgressHeader from '@/app/components/StepProgressHeader';
 import { apiFetch, listDocuments, uploadDocuments } from '@/lib/apiClient';
 const LATEST_DRAFT_PERSONA_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
+const BUILD_ID_STORAGE_KEY = 'career_navigator_build_id';
 
 type UploadCategory = 'resume' | 'job_description' | 'performance_review';
 
@@ -395,8 +397,13 @@ export default function IngestionClient() {
         }),
       });
 
-      // Persist personaId (if backend created one) so other routes can pick it up.
+      // Persist buildId + personaId so downstream pages can regenerate/finalize deterministically.
       try {
+        const buildId = String(orchestrationRes?.build?.id ?? '').trim();
+        if (buildId) {
+          window.localStorage.setItem(BUILD_ID_STORAGE_KEY, buildId);
+        }
+
         const personaIdCandidate =
           orchestrationRes?.results?.generate?.personaId ??
           orchestrationRes?.results?.finalize?.personaId ??
@@ -442,7 +449,13 @@ export default function IngestionClient() {
       let nextUrl = '/persona/draft';
       try {
         const pid = String(window.localStorage.getItem('career_navigator_persona_id') ?? '').trim();
-        if (pid) nextUrl = `/persona/draft?personaId=${encodeURIComponent(pid)}`;
+        const bid = String(window.localStorage.getItem(BUILD_ID_STORAGE_KEY) ?? '').trim();
+
+        const qs = new URLSearchParams();
+        if (pid) qs.set('personaId', pid);
+        if (bid) qs.set('buildId', bid);
+
+        if (qs.toString()) nextUrl = `/persona/draft?${qs.toString()}`;
       } catch {
         // ignore
       }
@@ -457,62 +470,8 @@ export default function IngestionClient() {
 
   return (
     <div className="min-h-svh w-full" style={{ background: CANVAS_BG }}>
-      {/* Old page chrome: Step progress header bar */}
-      <div className="bg-white" style={{ padding: '24px 32px', borderBottom: '1px solid #D1D5DB' }}>
-        <div className="flex items-center justify-center gap-4 max-w-3xl mx-auto">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
-              style={{
-                backgroundColor: 'var(--primary)',
-                border: 'none',
-                color: 'white',
-                fontSize: '16px',
-                fontWeight: 600,
-              }}
-            >
-              1
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: '#1F2937' }}>Ingestion Hub</span>
-          </div>
-
-          <div className="h-0.5 w-12 transition-colors duration-300" style={{ backgroundColor: '#D1D5DB' }} />
-
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
-              style={{
-                backgroundColor: 'transparent',
-                border: '2px solid #D1D5DB',
-                color: '#D1D5DB',
-                fontSize: '16px',
-                fontWeight: 600,
-              }}
-            >
-              2
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>Persona Validation</span>
-          </div>
-
-          <div className="h-0.5 w-12 transition-colors duration-300" style={{ backgroundColor: '#D1D5DB' }} />
-
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
-              style={{
-                backgroundColor: 'transparent',
-                border: '2px solid #D1D5DB',
-                color: '#D1D5DB',
-                fontSize: '16px',
-                fontWeight: 600,
-              }}
-            >
-              3
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>Finalized Persona</span>
-          </div>
-        </div>
-      </div>
+      {/* Step progress header (shared across ingestion/draft/finalized) */}
+      <StepProgressHeader currentStep={1} />
 
       {/* Newer lavender strip */}
       <div className="w-full" style={{ background: LAVENDER_STRIP }}>
