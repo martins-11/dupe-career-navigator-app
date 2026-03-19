@@ -135,6 +135,10 @@ const nextConfig = {
       // Mindmap: interactive graph + node details + view-state persistence.
       { source: '/api/mindmap/:path*', destination: `${backend}/api/mindmap/:path*` },
 
+      // Multiverse Explorer: graph + node/path details + bookmarks.
+      // Needed in preview/proxy environments to avoid falling through to Next's 404.
+      { source: '/api/multiverse/:path*', destination: `${backend}/api/multiverse/:path*` },
+
       // Profile: role context, scoring, etc.
       { source: '/api/profile/:path*', destination: `${backend}/api/profile/:path*` },
 
