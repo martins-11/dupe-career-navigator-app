@@ -178,7 +178,9 @@ export default function FinalizedPersonaClient() {
 
       if (!cancelled) {
         setFinalJson(null);
-        setError('No finalized persona found yet. Please finalize your draft persona first.');
+        setError(
+          'We could not load your finalized persona. Please start again from Document Ingestion (upload your documents) and regenerate the persona.'
+        );
         setLoading(false);
       }
     }
