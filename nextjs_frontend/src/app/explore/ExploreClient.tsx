@@ -218,18 +218,7 @@ export default function ExploreClient() {
         <header className="flex justify-between items-end mb-10 border-b border-border pb-8">
           <div>
             <h1 className="text-4xl font-extrabold text-primary tracking-tight">Career Navigator</h1>
-            <p className="text-muted-foreground mt-2 text-lg">
-              Precision-matched roles based on your professional persona.
-            </p>
-          </div>
-
-          <div className="hidden md:block">
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold block mb-1 text-right">
-              AI Engine
-            </span>
-            <div className="text-xs text-foreground font-bold bg-secondary px-4 py-1.5 rounded-full border border-border">
-              Amazon Bedrock • Claude 3.5
-            </div>
+            <p className="text-muted-foreground mt-2 text-lg">Precision-matched roles based on your professional persona.</p>
           </div>
         </header>
 
@@ -363,9 +352,7 @@ export default function ExploreClient() {
                     })}
                   </div>
 
-                  <div className="text-xs text-muted-foreground">
-                    Tip: Clear the search input to return to AI persona recommendations.
-                  </div>
+                  <div className="text-xs text-muted-foreground">Tip: Clear the search input to return to AI persona recommendations.</div>
                 </div>
               );
             })()

@@ -5,14 +5,25 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import {
   BadgeCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Compass,
   Settings,
   Store,
   Upload,
   type LucideIcon,
 } from 'lucide-react';
+
+import { Avatar, AvatarFallback } from '@/app/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/dropdown-menu';
 
 type NavItem =
   | {
@@ -31,6 +42,11 @@ type NavItem =
 
 const SIDEBAR_EXPANDED_STORAGE_KEY = 'cn.sidebar.expanded';
 
+const DUMMY_PROFILE = {
+  name: 'Rossini B',
+  initials: 'RB',
+} as const;
+
 // PUBLIC_INTERFACE
 export default function GlobalSidebarLayout({ children }: { children: React.ReactNode }) {
   /**
@@ -38,9 +54,9 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
    * - Fixed, transparent/violet gradient sidebar (brand + icon navigation).
    * - Adds an expand/collapse toggle that reveals nav text labels next to icons.
    *
-   * UI update (per request):
-   * - Replace the previous persona/user identity section with a simple "Career Navigator"
-   *   brand mark (bold violet text + icon).
+   * UI updates (per request):
+   * - Sidebar brand text should use a dark purple.
+   * - Add a dummy profile initials dropdown at the bottom of the sidebar.
    */
   const pathname = usePathname();
   const safePathname = pathname ?? '';
@@ -50,6 +66,7 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
 
   // Sidebar label visibility (persisted).
   const [isSidebarExpanded, setIsSidebarExpanded] = useState<boolean>(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState<boolean>(false);
 
   useEffect(() => {
     if (!shouldShowSidebar) return;
@@ -96,13 +113,9 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
   }
 
   // Keep existing sizes intact when collapsed; expand just enough to fit labels.
-  const sidebarWidthClass = isSidebarExpanded
-    ? 'w-[240px] md:w-[280px]'
-    : 'w-[72px] md:w-[92px]';
+  const sidebarWidthClass = isSidebarExpanded ? 'w-[240px] md:w-[280px]' : 'w-[72px] md:w-[92px]';
 
-  const mainOffsetClass = isSidebarExpanded
-    ? 'pl-[240px] md:pl-[280px]'
-    : 'pl-[72px] md:pl-[92px]';
+  const mainOffsetClass = isSidebarExpanded ? 'pl-[240px] md:pl-[280px]' : 'pl-[72px] md:pl-[92px]';
 
   const navListAlign = isSidebarExpanded ? 'items-stretch' : 'items-center';
 
@@ -129,16 +142,17 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
             isSidebarExpanded ? 'items-stretch' : 'items-center',
           ].join(' ')}
         >
-          {/* Brand section (replaces prior persona/user identity) */}
+          {/* Brand section */}
           <div className="w-full px-2">
             <Link
               href="/ingestion"
               className={[
                 'group flex items-center',
                 isSidebarExpanded ? 'justify-start gap-4 px-3' : 'justify-center px-0',
-                // More prominent brand block
                 'rounded-3xl py-4',
-                'bg-white/0 hover:bg-white/8',
+                // Light surface so dark-purple brand text is readable (requested).
+                'bg-white/90 hover:bg-white/95',
+                'border border-white/30',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/55',
                 'transition-colors',
               ].join(' ')}
@@ -147,24 +161,23 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
             >
               <div
                 className={[
-                  // Bigger icon container (brand anchor)
                   'h-12 w-12 md:h-[52px] md:w-[52px]',
                   'rounded-3xl',
                   'flex items-center justify-center',
-                  'border border-white/10',
+                  'border border-violet-900/10',
                   'bg-violet-500/18',
                   'shadow-[0_16px_34px_rgba(139,92,246,0.24)]',
                 ].join(' ')}
               >
-                <Compass strokeWidth={2.6} className="h-[22px] w-[22px] text-white" />
+                <Compass strokeWidth={2.6} className="h-[22px] w-[22px] text-violet-950" />
               </div>
 
               {isSidebarExpanded && (
                 <div className="min-w-0">
-                  <div className="text-[18px] md:text-[20px] font-extrabold text-white tracking-tight truncate">
+                  <div className="text-[18px] md:text-[20px] font-extrabold text-[#2B1B5A] tracking-tight truncate">
                     Career Navigator
                   </div>
-                  <div className="text-[11.5px] font-medium text-white/70 truncate">Persona Studio</div>
+                  <div className="text-[11.5px] font-medium text-slate-600 truncate">Persona Studio</div>
                 </div>
               )}
             </Link>
@@ -267,16 +280,9 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
                 return (
                   <li
                     key={item.href}
-                    className={['w-full flex', isSidebarExpanded ? 'justify-stretch' : 'justify-center'].join(
-                      ' '
-                    )}
+                    className={['w-full flex', isSidebarExpanded ? 'justify-stretch' : 'justify-center'].join(' ')}
                   >
-                    <Link
-                      href={item.href}
-                      className={`${commonClasses} ${surfaceClasses}`}
-                      aria-label={item.label}
-                      title={item.label}
-                    >
+                    <Link href={item.href} className={`${commonClasses} ${surfaceClasses}`} aria-label={item.label} title={item.label}>
                       <Icon className={`h-[18px] w-[18px] ${iconClasses}`} />
 
                       {isSidebarExpanded && (
@@ -298,18 +304,68 @@ export default function GlobalSidebarLayout({ children }: { children: React.Reac
             </ul>
           </nav>
 
-          {/* Footer small brand mark */}
+          {/* Footer: Dummy profile initials dropdown */}
           <div className="mt-3 w-full px-2 pb-2">
             <div className="h-px w-full bg-white/10" />
-            <div className="mt-3 text-[10px] text-white/55 font-medium text-center select-none">CN</div>
+
+            <div className="mt-3">
+              <DropdownMenu open={profileMenuOpen} onOpenChange={setProfileMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className={[
+                      'group w-full rounded-2xl',
+                      'flex items-center',
+                      isSidebarExpanded ? 'justify-between gap-3 px-3 py-2' : 'justify-center h-11 w-11 md:h-12 md:w-12 p-0 mx-auto',
+                      'bg-white/0 hover:bg-white/6',
+                      'transition-colors',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50',
+                    ].join(' ')}
+                    aria-label="Profile menu"
+                    title={DUMMY_PROFILE.name}
+                  >
+                    <span className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-9 w-9 border border-white/15 bg-white/5">
+                        <AvatarFallback className="bg-white/10 text-white font-bold text-sm">
+                          {DUMMY_PROFILE.initials}
+                        </AvatarFallback>
+                      </Avatar>
+
+                      {isSidebarExpanded && (
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-semibold text-white/90 truncate">
+                            {DUMMY_PROFILE.name}
+                          </span>
+                          <span className="block text-[11px] font-medium text-white/60 truncate">
+                            Profile
+                          </span>
+                        </span>
+                      )}
+                    </span>
+
+                    {isSidebarExpanded && (
+                      <span className="text-white/70 group-hover:text-white/90">
+                        {profileMenuOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                      </span>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent side="top" align="start" className="w-64">
+                  <DropdownMenuLabel className="text-sm font-semibold">{DUMMY_PROFILE.name}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
+                    Dummy profile menu (placeholder)
+                  </DropdownMenuLabel>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </aside>
 
       {/* Main content offset so existing UIs are not overlapped */}
-      <div className={`min-h-svh ${mainOffsetClass} transition-[padding] duration-200 ease-out`}>
-        {children}
-      </div>
+      <div className={`min-h-svh ${mainOffsetClass} transition-[padding] duration-200 ease-out`}>{children}</div>
     </div>
   );
 }

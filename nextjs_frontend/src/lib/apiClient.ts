@@ -55,12 +55,12 @@ function resolveBaseUrl(): string {
    *   NEXT_PUBLIC_FRONTEND_URL to an absolute origin.
    */
   const fromApiBase = (process.env.NEXT_PUBLIC_API_BASE ?? '').trim();
-  if (fromApiBase) return fromApiBase.replace(/\/*$/, '').replace(/\/+$/, '');
+  if (fromApiBase) return fromApiBase.replace(/\/*$/, '').replace(/\+$/, '');
 
   // Server-side only: allow absolute base to be provided for SSR fetches.
   if (typeof window === 'undefined') {
     const fromFrontend = (process.env.NEXT_PUBLIC_FRONTEND_URL ?? '').trim();
-    if (fromFrontend) return fromFrontend.replace(/\/*$/, '').replace(/\/+$/, '');
+    if (fromFrontend) return fromFrontend.replace(/\/*$/, '').replace(/\+$/, '');
   }
 
   // Browser default: same-origin.
@@ -214,6 +214,30 @@ export async function getBuildStatus(buildId: UUID): Promise<BuildStatus> {
 }
 
 // PUBLIC_INTERFACE
+export async function extractNormalizeForBuild(params: {
+  buildId: UUID;
+  documentIds?: UUID[];
+  normalize?: {
+    removeExtraWhitespace?: boolean | null;
+    normalizeLineBreaks?: boolean | null;
+    maxLength?: number | null;
+  };
+  persistToDocuments?: boolean | null;
+}): Promise<
+  { buildId: UUID; documentIds?: UUID[]; normalizedText?: string; stats?: { originalLength: number; normalizedLength: number } } & Record<
+    string,
+    any
+  >
+> {
+  /** Derives combined normalized text for an existing build via POST /api/orchestration/builds/{id}/extract-normalize. */
+  const { buildId, ...body } = params;
+  return apiFetch(`/api/orchestration/builds/${encodeURIComponent(buildId)}/extract-normalize`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+// PUBLIC_INTERFACE
 export async function generateDraftForBuild(params: {
   buildId: UUID;
   personaId?: UUID;
@@ -224,7 +248,7 @@ export async function generateDraftForBuild(params: {
   const { buildId, ...body } = params;
   return apiFetch(`/api/orchestration/builds/${encodeURIComponent(buildId)}/generate-draft`, {
     method: 'POST',
-    body: JSON.stringify(body),
+    body: JSON.stringify(body ?? {}),
   });
 }
 
@@ -264,6 +288,39 @@ export async function updatePersona(params: {
   return apiFetch(`/api/personas/${encodeURIComponent(personaId)}`, {
     method: 'PUT',
     body: JSON.stringify(body),
+  });
+}
+
+export interface PersonaDraftArtifact {
+  personaId: UUID;
+  draftId?: UUID | null;
+  draftJson: Record<string, any>;
+  updatedAt: string;
+}
+
+export interface PersonaFinalArtifact {
+  personaId: UUID;
+  finalId?: UUID | null;
+  finalJson: Record<string, any>;
+  updatedAt: string;
+}
+
+// PUBLIC_INTERFACE
+export async function savePersonaDraftLatest(params: { personaId: UUID; draftJson: Record<string, any> }): Promise<PersonaDraftArtifact> {
+  /** Saves edited draft JSON via PUT /api/personas/{id}/draft/latest. */
+  const { personaId, draftJson } = params;
+  return apiFetch<PersonaDraftArtifact>(`/api/personas/${encodeURIComponent(personaId)}/draft/latest`, {
+    method: 'PUT',
+    body: JSON.stringify({ draftJson }),
+  });
+}
+
+// PUBLIC_INTERFACE
+export async function getLatestPersonaFinalArtifact(personaId: UUID): Promise<PersonaFinalArtifact> {
+  /** Loads the latest finalized persona artifact via GET /api/personas/{id}/final/latest. */
+  return apiFetch<PersonaFinalArtifact>(`/api/personas/${encodeURIComponent(personaId)}/final/latest`, {
+    method: 'GET',
+    cache: 'no-store',
   });
 }
 
@@ -335,12 +392,97 @@ export async function uploadDocuments(params: {
     form.append('categoriesJson', JSON.stringify(params.categories));
   }
 
-  if (params.requireCategories) {
+  if (params.requireCategories === true) {
     form.append('requireCategories', 'true');
   }
 
   return apiFetch('/api/uploads/documents', {
     method: 'POST',
     body: form,
+  });
+}
+
+// PUBLIC_INTERFACE
+export async function uploadDocumentsWithProgress(params: {
+  files: File[];
+  userId?: UUID;
+  category?: string;
+  categories?: string[];
+  requireCategories?: boolean;
+  /**
+   * Called with upload progress for the whole multipart request.
+   * Note: browsers expose progress for the request bytes, not per-file.
+   * The caller may map request progress proportionally to per-file sizes.
+   */
+  onProgress?: (evt: { loaded: number; total: number }) => void;
+}): Promise<any> {
+  /**
+   * Upload documents via XHR to support upload progress callbacks.
+   *
+   * This targets the Next.js same-origin route `/api/uploads/documents`, which then proxies to the backend.
+   * Using XHR is intentional: Fetch does not currently provide portable upload progress events.
+   */
+  if (typeof window === 'undefined') {
+    throw new Error('uploadDocumentsWithProgress must be called in the browser.');
+  }
+
+  const form = new FormData();
+  for (const f of params.files) {
+    form.append('files', f, f.name);
+  }
+  if (params.userId) form.append('userId', params.userId);
+
+  if (params.category) {
+    form.append('category', params.category);
+  } else if (Array.isArray(params.categories) && params.categories.length > 0) {
+    form.append('categoriesJson', JSON.stringify(params.categories));
+  }
+
+  if (params.requireCategories === true) {
+    form.append('requireCategories', 'true');
+  }
+
+  const tryParseJson = (text: string): unknown => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/uploads/documents', true);
+
+    xhr.upload.onprogress = (e) => {
+      if (!params.onProgress) return;
+      if (!e.lengthComputable) return;
+      params.onProgress({ loaded: e.loaded, total: e.total });
+    };
+
+    xhr.onload = () => {
+      const status = xhr.status;
+      const rawText = typeof xhr.responseText === 'string' ? xhr.responseText : '';
+      const ct = xhr.getResponseHeader('content-type') || '';
+      const payload = ct.includes('application/json') ? tryParseJson(rawText) : rawText;
+
+      if (status >= 200 && status < 300) {
+        resolve(payload);
+        return;
+      }
+
+      const message =
+        payload && typeof payload === 'object' && 'message' in (payload as any) && typeof (payload as any).message === 'string'
+          ? (payload as any).message
+          : `Request failed: ${status}`;
+
+      reject(new ApiError(message, { status, payload }));
+    };
+
+    xhr.onerror = () => {
+      reject(new Error('Network error while uploading documents.'));
+    };
+
+    xhr.send(form);
   });
 }
