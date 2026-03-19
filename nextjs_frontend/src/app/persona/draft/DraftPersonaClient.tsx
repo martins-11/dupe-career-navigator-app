@@ -2,9 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { apiFetch } from '@/lib/apiClient';
 
 const STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
+const PERSONA_ID_STORAGE_KEY = 'career_navigator_persona_id';
 
 type CareerHighlightItem = {
   highlight: string;
@@ -60,58 +62,131 @@ function coerceCareerHighlights(input: unknown): CareerHighlightItem[] {
     .filter(Boolean) as CareerHighlightItem[];
 }
 
+async function fetchLatestPersistedDraft(personaId: string): Promise<any | null> {
+  /**
+   * Fetch latest draft from backend persistence (DB when configured, memory otherwise).
+   *
+   * Backend response shape (from personasRepo.getDraft):
+   * - { personaId, draftId?, draftJson, updatedAt }
+   */
+  const pid = String(personaId || '').trim();
+  if (!pid) return null;
+
+  try {
+    const res = await apiFetch<any>(`/api/personas/${encodeURIComponent(pid)}/draft/latest`, {
+      method: 'GET',
+      cache: 'no-store',
+      // If draft/persona isn't found, we'll fall back to localStorage.
+      noThrow: true,
+    });
+
+    // If the proxy returned an error payload, treat as missing.
+    if (res && typeof res === 'object' && (res as any).error) return null;
+
+    const draftJson = (res as any)?.draftJson ?? null;
+    if (draftJson && typeof draftJson === 'object') return draftJson;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // PUBLIC_INTERFACE
 export default function DraftPersonaClient() {
   /**
-   * Restored legacy draft persona UI (purple/violet styling).
+   * Draft persona UI (purple/violet styling).
    *
-   * Reads the latest draft persona JSON stored under:
-   *   localStorage['career_navigator_latest_draft_persona_v1']
-   *
-   * Expected legacy shape includes:
-   * - career_highlights: [{ text, source }]
-   * and we render each highlight plus its source.
+   * Correct end-to-end behavior:
+   * - Prefer backend-persisted draft (by personaId) so the view reflects what is saved in DB.
+   * - personaId source of truth:
+   *    1) URL query: /persona/draft?personaId=<uuid>
+   *    2) localStorage['career_navigator_persona_id']
+   * - Fallback: localStorage['career_navigator_latest_draft_persona_v1'] (legacy behavior)
    */
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [personaId, setPersonaId] = React.useState<string | null>(null);
+
   const [rawText, setRawText] = React.useState<string | null>(null);
   const [parsed, setParsed] = React.useState<any | null>(null);
+
+  const [loading, setLoading] = React.useState<boolean>(true);
+  const [source, setSource] = React.useState<'backend' | 'localStorage' | 'none'>('none');
   const [error, setError] = React.useState<string | null>(null);
 
-  const load = React.useCallback(() => {
-    setError(null);
+  const resolvePersonaId = React.useCallback((): string | null => {
+    // 1) URL query param
+    const fromQuery = String(searchParams?.get('personaId') ?? '').trim();
+    if (fromQuery) return fromQuery;
 
+    // 2) localStorage
+    try {
+      const fromStorage = String(window.localStorage.getItem(PERSONA_ID_STORAGE_KEY) ?? '').trim();
+      if (fromStorage) return fromStorage;
+    } catch {
+      // ignore storage failures
+    }
+
+    return null;
+  }, [searchParams]);
+
+  const loadFromLocalStorage = React.useCallback((): { rawText: string | null; parsed: any | null } => {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (!stored) {
-        setRawText(null);
-        setParsed(null);
-        return;
-      }
-
-      const parsedCandidate = safeJsonParse(stored);
-      setRawText(stored);
-      setParsed(parsedCandidate);
-
-      if (!parsedCandidate || typeof parsedCandidate !== "object") {
-        setError('Draft persona found in storage, but it is not valid JSON.');
-      }
+      if (!stored) return { rawText: null, parsed: null };
+      return { rawText: stored, parsed: safeJsonParse(stored) };
     } catch {
-      setRawText(null);
-      setParsed(null);
-      setError('Unable to access local storage to load the draft persona.');
+      return { rawText: null, parsed: null };
     }
   }, []);
 
+  const load = React.useCallback(async () => {
+    setError(null);
+    setLoading(true);
+
+    const pid = resolvePersonaId();
+    setPersonaId(pid);
+
+    // Prefer backend persisted draft when personaId is available.
+    if (pid) {
+      const draft = await fetchLatestPersistedDraft(pid);
+      if (draft) {
+        setRawText(JSON.stringify(draft));
+        setParsed(draft);
+        setSource('backend');
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Fallback: legacy localStorage draft
+    const local = loadFromLocalStorage();
+    setRawText(local.rawText);
+    setParsed(local.parsed);
+    setSource(local.rawText ? 'localStorage' : 'none');
+
+    if (local.rawText && (!local.parsed || typeof local.parsed !== 'object')) {
+      setError('Draft persona found in storage, but it is not valid JSON.');
+    }
+
+    // If we couldn't read storage at all and also couldn't fetch backend, show a clear error.
+    if (!pid && local.rawText === null) {
+      // Not necessarily fatal; this can happen on first visit. Keep as empty state.
+    }
+
+    setLoading(false);
+  }, [loadFromLocalStorage, resolvePersonaId]);
+
   React.useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const legacy = (parsed ?? null) as LegacyDraftPersona | null;
 
   const title =
     (legacy && typeof legacy?.title === 'string' ? legacy.title : '').trim() ||
-    (legacy &&
-    (typeof legacy?.professional_title === 'string' || typeof legacy?.current_role === 'string')
+    (legacy && (typeof legacy?.professional_title === 'string' || typeof legacy?.current_role === 'string')
       ? `${String(legacy.professional_title ?? legacy.current_role ?? '').trim()}`
       : '') ||
     'Draft persona';
@@ -133,9 +208,7 @@ export default function DraftPersonaClient() {
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-widest text-violet-600">
-                Draft persona
-              </div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-violet-600">Draft persona</div>
 
               <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900">
                 <span className="text-violet-700">{title}</span>
@@ -149,6 +222,22 @@ export default function DraftPersonaClient() {
                 </div>
               )}
 
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                  Source:{' '}
+                  <span className="font-semibold text-slate-700">
+                    {loading ? 'Loading…' : source === 'backend' ? 'Database' : source === 'localStorage' ? 'LocalStorage' : 'None'}
+                  </span>
+                </span>
+
+                <span className="rounded-full border border-violet-200 bg-white px-2 py-1">
+                  personaId:{' '}
+                  <span className="font-mono font-semibold text-violet-700">
+                    {personaId ? personaId : '—'}
+                  </span>
+                </span>
+              </div>
+
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
                 Highlights below show <span className="font-semibold text-violet-700">careerHighlights</span> with the{' '}
                 <span className="font-semibold text-violet-700">experience/source</span> they were derived from.
@@ -160,7 +249,7 @@ export default function DraftPersonaClient() {
                 type="button"
                 className="rounded-md border border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50"
                 onClick={() => {
-                  load();
+                  void load();
                   router.refresh();
                 }}
               >
@@ -183,7 +272,12 @@ export default function DraftPersonaClient() {
           </div>
         ) : null}
 
-        {!rawText ? (
+        {loading ? (
+          <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+            <div className="text-sm font-semibold text-slate-900">Loading draft persona…</div>
+            <div className="mt-1 text-sm text-slate-600">Fetching the latest saved draft from the backend (when available).</div>
+          </div>
+        ) : !rawText ? (
           <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
             <div className="text-sm font-semibold text-slate-900">No draft persona found yet.</div>
             <div className="mt-1 text-sm text-slate-600">
@@ -192,6 +286,10 @@ export default function DraftPersonaClient() {
                 Ingestion
               </Link>
               . Once it completes, you will be redirected here.
+            </div>
+            <div className="mt-2 text-xs text-slate-500">
+              Tip: if you have a saved personaId, you can open{' '}
+              <span className="font-mono">/persona/draft?personaId=&lt;uuid&gt;</span>.
             </div>
           </div>
         ) : (
@@ -223,9 +321,7 @@ export default function DraftPersonaClient() {
             <main className="lg:col-span-3">
               <section className="rounded-xl border border-violet-100 bg-white p-5">
                 <div className="flex items-baseline justify-between gap-3">
-                  <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                    Career highlights
-                  </div>
+                  <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">Career highlights</div>
                   <div className="text-xs font-semibold text-violet-700">
                     {careerHighlights.length ? `${careerHighlights.length} items` : '—'}
                   </div>
@@ -238,27 +334,19 @@ export default function DraftPersonaClient() {
                         key={`${idx}-${h.highlight}`}
                         className="rounded-lg border border-violet-100 bg-violet-50/30 p-4"
                       >
-                        <div className="text-sm font-semibold text-violet-800">
-                          {h.highlight}
-                        </div>
+                        <div className="text-sm font-semibold text-violet-800">{h.highlight}</div>
 
                         <div className="mt-2">
                           <div className="inline-flex items-start gap-2 rounded-md border border-violet-200 bg-white px-3 py-2">
-                            <div className="text-xs font-bold uppercase tracking-widest text-violet-600">
-                              Source
-                            </div>
-                            <div className="text-xs text-slate-700">
-                              {h.sourceExperience ? h.sourceExperience : '—'}
-                            </div>
+                            <div className="text-xs font-bold uppercase tracking-widest text-violet-600">Source</div>
+                            <div className="text-xs text-slate-700">{h.sourceExperience ? h.sourceExperience : '—'}</div>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-4 text-sm text-slate-600">
-                    No career highlights found in the draft yet.
-                  </div>
+                  <div className="mt-4 text-sm text-slate-600">No career highlights found in the draft yet.</div>
                 )}
               </section>
 

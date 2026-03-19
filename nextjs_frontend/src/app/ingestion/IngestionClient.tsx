@@ -417,9 +417,19 @@ export default function IngestionClient() {
         // Non-fatal: draft viewing page will show an empty state if storage fails.
       }
 
-      // Success: enable a clear next step (view draft)
+      // Success: enable a clear next step (view draft).
+      // Include personaId in the URL so the draft view can fetch the persisted draft deterministically.
       setUiStep('done');
-      router.push('/persona/draft');
+
+      let nextUrl = '/persona/draft';
+      try {
+        const pid = String(window.localStorage.getItem('career_navigator_persona_id') ?? '').trim();
+        if (pid) nextUrl = `/persona/draft?personaId=${encodeURIComponent(pid)}`;
+      } catch {
+        // ignore
+      }
+
+      router.push(nextUrl);
     } catch (e: any) {
       const msg = typeof e?.message === 'string' ? e.message : 'Failed to generate draft persona.';
       setError(msg);
