@@ -1,5 +1,5 @@
-import PersonaClient from './personaClient';
+import { redirect } from 'next/navigation';
 
 export default function PersonaPage() {
-  return <PersonaClient />;
+  redirect('/ingestion');
 }

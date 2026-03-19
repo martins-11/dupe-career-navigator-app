@@ -380,9 +380,10 @@ export default function IngestionClient() {
         }),
       });
 
-      // Success: navigate to persona page
+      // Success: persona page removed/disabled; remain on ingestion (or route elsewhere if desired)
       setUiStep('done');
-      router.push('/persona');
+      // router.push('/persona');
+      router.refresh();
     } catch (e: any) {
       const msg = typeof e?.message === 'string' ? e.message : 'Failed to generate draft persona.';
       setError(msg);
