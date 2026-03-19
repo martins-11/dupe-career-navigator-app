@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight, CalendarClock, CheckCircle2, Compass, GitBranch, Map, Route } from "lucide-react";
+import { CalendarClock, CheckCircle2, Compass, GitBranch, Map, Route } from "lucide-react";
 
 import RoleCard from "@/app/components/explore/role-card";
 import { ExploreMindmapView } from "@/app/components/explore/ExploreMindmapView";
@@ -16,16 +15,19 @@ import { Badge } from "@/app/components/ui/badge";
 import { getPersonaDerivedCurrentRoleTitle } from "@/lib/personaRoleDerivation";
 import { apiFetch } from "@/lib/apiClient";
 import { getTargetRoleSelection, persistTargetRoleSelection, type TimeHorizon } from "@/lib/targetRoleStorage";
+import { getExploreRecommendationsPool } from "@/lib/recommendationsPoolClient";
 
 /**
- * NOTE:
- * The backend does not currently expose a dedicated "direct roles from current role" endpoint.
- * To implement an end-to-end Direct Trajectory UX today, we:
- *  - derive current role title from persona,
- *  - fetch role title options via existing /api/roles/autocomplete?q=currentRoleTitle
- *  - require a selection-only target role (from the same catalog),
- *  - compute gap/requirements locally (persona skills vs role required skills),
- *  - render a roadmap consisting of (a) mindmap view filtered by time horizon, and (b) a simple pathway timeline.
+ * Direct Trajectory (updated, recommendation-driven)
+ * - NO manual target-role typing/picking via catalog dropdown
+ * - show recommendation-only "direct roles" derived from the FINALIZED persona
+ * - user selects one recommended target role and saves it
+ * - after save: show gap analysis + requirements + roadmap
+ *
+ * Implementation note (current codebase):
+ * - Backend already provides persona-driven recommendations via /api/recommendations/*
+ * - We reuse the existing recommendations pool client as the source of "direct-role recommendations"
+ *   until a dedicated "direct roles" endpoint exists.
  */
 
 function normString(v: unknown): string {
@@ -38,26 +40,11 @@ function safeStringArray(v: unknown): string[] {
 }
 
 function roleIdFromRole(role: any): string {
-  return normString(role?.id ?? role?.role_id ?? role?.roleId ?? role?.onet_id ?? role?.code);
+  return normString(role?.id ?? role?.role_id ?? role?.roleId ?? role?.onet_id ?? role?.code ?? role?.role_title ?? role?.title);
 }
 
 function roleTitleFromRole(role: any): string {
   return normString(role?.title ?? role?.role_title ?? role?.roleTitle);
-}
-
-type RoleOption = { id: string; title: string };
-
-function uniqueByTitle(items: RoleOption[]): RoleOption[] {
-  const seen = new Set<string>();
-  const out: RoleOption[] = [];
-  for (const it of items) {
-    const key = it.title.toLowerCase();
-    if (!key) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(it);
-  }
-  return out;
 }
 
 function horizonWeeks(h: TimeHorizon): number {
@@ -102,42 +89,6 @@ function differenceSet(required: string[], have: string[]): string[] {
   return out;
 }
 
-async function fetchRoleOptionsForCurrentRole(currentRoleTitle: string): Promise<RoleOption[]> {
-  // Uses existing Next API route (safe-fail contract handled server-side in many role routes)
-  const qs = new URLSearchParams();
-  qs.set("q", currentRoleTitle);
-  qs.set("limit", "18");
-  const res = await apiFetch<any>(`/api/roles/autocomplete?${qs.toString()}`, { method: "GET", cache: "no-store" });
-
-  const arr = Array.isArray(res) ? res : Array.isArray(res?.suggestions) ? res.suggestions : [];
-  const mapped: RoleOption[] = arr
-    .map((r: any, idx: number) => {
-      const title = roleTitleFromRole(r);
-      if (!title) return null;
-      const id = normString(r?.id ?? r?.role_id ?? r?.roleId) || `opt-${idx}`;
-      return { id, title };
-    })
-    .filter(Boolean) as RoleOption[];
-
-  // In practice autocomplete may return the exact current role as well; that's OK but we visually call out current role separately.
-  return uniqueByTitle(mapped);
-}
-
-async function fetchTargetRoleDetailsById(roleId: string): Promise<any | null> {
-  // We don't have a dedicated "get role by id" Next route in this frontend. We use search as a safe fallback.
-  // Search endpoint is designed to safe-fail (returns [] on internal errors).
-  const qs = new URLSearchParams();
-  qs.set("q", roleId);
-  qs.set("limit", "20");
-  const arr = await apiFetch<any>(`/api/roles/search?${qs.toString()}`, { method: "GET", cache: "no-store" });
-  const list = Array.isArray(arr) ? arr : [];
-  if (list.length === 0) return null;
-
-  // Try to match by id first; otherwise take the first result.
-  const exact = list.find((x: any) => roleIdFromRole(x) === roleId) ?? list[0];
-  return exact ?? null;
-}
-
 function extractPersonaSkills(persona: any): string[] {
   // Keep defensive: schema may evolve.
   const fromTop = safeStringArray(persona?.skills);
@@ -164,103 +115,44 @@ function extractRequiredSkills(role: any): string[] {
 
 // PUBLIC_INTERFACE
 export function DirectTrajectoryPanel(props: { personaId: string }) {
-  /** Direct Trajectory end-to-end flow: direct roles → target select-only → gap analysis → requirements → roadmap (mindmap + pathway). */
+  /** Direct Trajectory flow: recommended direct roles → save target role → roadmap. */
   const { personaId } = props;
 
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const targetRoleQuery = normString(searchParams?.get("targetRole"));
-  const exploreMode = normString(searchParams?.get("exploreMode"));
-  const flow = normString(searchParams?.get("flow"));
-
-  const isDirectTrajectory = exploreMode === "direct_trajectory" || flow === "direct";
   const [isLoading, setIsLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
 
   const currentRoleTitle = React.useMemo(() => {
-    // derive from persona cache (best-effort); if missing, still allow flow with placeholder.
+    // Derived from locally persisted persona (best-effort).
     return getPersonaDerivedCurrentRoleTitle() || "Current role";
   }, [personaId]);
 
-  // Step 1: fetch direct role options (selection-only).
-  const [directRoleOptions, setDirectRoleOptions] = React.useState<RoleOption[]>([]);
-  const [directOptionsLoading, setDirectOptionsLoading] = React.useState(false);
+  // A) Recommendation-only direct roles
+  const [directRoleRecs, setDirectRoleRecs] = React.useState<any[]>([]);
+  const [recsLoading, setRecsLoading] = React.useState(false);
 
-  // Step 2: selected target role id + details.
-  const [targetRoleId, setTargetRoleId] = React.useState<string>("");
-  const [targetRoleDetails, setTargetRoleDetails] = React.useState<any | null>(null);
-  const [targetLoading, setTargetLoading] = React.useState(false);
+  // B) User selection (NOT yet saved)
+  const [selectedRecRoleId, setSelectedRecRoleId] = React.useState<string>("");
 
-  // Time horizon controls the roadmap.
+  // C) Saved target role (drives roadmap)
+  const [savedTargetRoleId, setSavedTargetRoleId] = React.useState<string>("");
+
+  // Time horizon controls roadmap visuals/sequence.
   const [timeHorizon, setTimeHorizon] = React.useState<TimeHorizon>("Near");
 
-  // Persona skills for gap analysis.
+  // Persona skills for gap analysis (best-effort from localStorage).
   const [personaSkills, setPersonaSkills] = React.useState<string[]>([]);
 
   React.useEffect(() => {
-    // bootstrap local target selection (if present)
+    // Bootstrap: bring forward any previously saved selection.
     const saved = getTargetRoleSelection();
     setTimeHorizon(saved.timeHorizon ?? "Near");
-    if (saved.roleId) setTargetRoleId(saved.roleId);
+    if (saved.roleId) {
+      setSavedTargetRoleId(saved.roleId);
+      setSelectedRecRoleId(saved.roleId);
+    }
   }, []);
 
   React.useEffect(() => {
-    // accept query param targetRole from Pathway route and treat it as a title selection if it matches an option.
-    // Pathway currently passes targetRole as a title string (selection-only in that page).
-    if (!targetRoleQuery) return;
-    // We'll set it after options load by matching title.
-  }, [targetRoleQuery]);
-
-  React.useEffect(() => {
-    if (!isDirectTrajectory) {
-      setIsLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function run() {
-      setIsLoading(true);
-      setLoadError(null);
-
-      try {
-        setDirectOptionsLoading(true);
-        const options = await fetchRoleOptionsForCurrentRole(currentRoleTitle);
-        if (cancelled) return;
-
-        setDirectRoleOptions(options);
-
-        // If query param is present, prefer it (match by title).
-        if (targetRoleQuery) {
-          const match = options.find((o) => o.title.toLowerCase() === targetRoleQuery.toLowerCase());
-          if (match) setTargetRoleId(match.id);
-          else {
-            // If it's not in the direct options list, still allow selection later.
-            // We do not allow manual typing; user must pick from the dropdown options.
-          }
-        }
-      } catch (e: any) {
-        if (cancelled) return;
-        setLoadError("Unable to load direct roles right now. Please try again.");
-      } finally {
-        if (!cancelled) {
-          setDirectOptionsLoading(false);
-          setIsLoading(false);
-        }
-      }
-    }
-
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [isDirectTrajectory, currentRoleTitle, targetRoleQuery]);
-
-  React.useEffect(() => {
-    // Load persona skills (best-effort) from local persona storage.
-    // We intentionally avoid importing loadPersona() here to keep bundle surface small; role-card already does that.
-    // Instead, reuse a tiny call through apiFetch if backend ever exposes persona skills; for now, try localStorage.
     if (typeof window === "undefined") return;
     try {
       const raw = window.localStorage.getItem(`career_navigator_persona_${personaId}`);
@@ -278,57 +170,73 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
   React.useEffect(() => {
     let cancelled = false;
 
-    async function loadTarget() {
-      if (!isDirectTrajectory) return;
-      if (!targetRoleId) {
-        setTargetRoleDetails(null);
-        return;
-      }
+    async function run() {
+      setIsLoading(true);
+      setLoadError(null);
 
-      setTargetLoading(true);
       try {
-        const details = await fetchTargetRoleDetailsById(targetRoleId);
+        setRecsLoading(true);
+
+        /**
+         * For now, reuse the Explore recommendations pool. In the product design, these are
+         * "direct roles based on the finalized persona/current role". This provides the
+         * recommendation-driven UX immediately, without manual selection UI.
+         */
+        const pool = await getExploreRecommendationsPool({ personaId, allowPadding: true });
         if (cancelled) return;
-        setTargetRoleDetails(details);
 
-        // Persist selection locally + best-effort to backend.
-        persistTargetRoleSelection({ roleId: targetRoleId, timeHorizon });
+        const roles = Array.isArray(pool?.roles) ? pool.roles : [];
+        // Stabilize ids (RoleCard expects a stable id).
+        const normalized = roles
+          .map((r: any, idx: number) => {
+            const id = roleIdFromRole(r) || `rec-${idx}`;
+            const title = roleTitleFromRole(r) || `Role ${idx + 1}`;
+            return { ...r, id, title };
+          })
+          .filter(Boolean);
 
-        try {
-          await apiFetch("/api/personas/target-role", {
-            method: "POST",
-            body: JSON.stringify({ user_id: personaId, role_id: targetRoleId, time_horizon: timeHorizon }),
-          });
-        } catch {
-          // ignore; local selection is still valid.
+        setDirectRoleRecs(normalized);
+
+        // If nothing selected yet, preselect the top recommendation for convenience (still not saved).
+        if (!selectedRecRoleId && normalized.length > 0) {
+          setSelectedRecRoleId(normalized[0].id);
         }
-      } catch {
+
+        // If a saved target role exists but isn't in recommendations, keep it saved; user can re-save a recommended one.
+      } catch (e: any) {
         if (cancelled) return;
-        setTargetRoleDetails(null);
+        setLoadError("Unable to load direct-role recommendations right now. Please try again.");
       } finally {
-        if (!cancelled) setTargetLoading(false);
+        if (!cancelled) {
+          setRecsLoading(false);
+          setIsLoading(false);
+        }
       }
     }
 
-    loadTarget();
+    run();
     return () => {
       cancelled = true;
     };
-  }, [isDirectTrajectory, personaId, targetRoleId, timeHorizon]);
+    // intentionally omit selectedRecRoleId; we don't want to refetch recs on local selection change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personaId]);
 
-  const requiredSkills = React.useMemo(() => extractRequiredSkills(targetRoleDetails), [targetRoleDetails]);
-  const matchedSkills = React.useMemo(
-    () => intersectSet(personaSkills, requiredSkills),
-    [personaSkills, requiredSkills],
-  );
-  const missingSkills = React.useMemo(
-    () => differenceSet(requiredSkills, personaSkills),
-    [requiredSkills, personaSkills],
-  );
+  const selectedRole = React.useMemo(() => {
+    if (!selectedRecRoleId) return null;
+    return directRoleRecs.find((r) => roleIdFromRole(r) === selectedRecRoleId) ?? null;
+  }, [directRoleRecs, selectedRecRoleId]);
 
-  const canProceed = Boolean(targetRoleId);
+  const savedRole = React.useMemo(() => {
+    if (!savedTargetRoleId) return null;
+    return directRoleRecs.find((r) => roleIdFromRole(r) === savedTargetRoleId) ?? selectedRole ?? null;
+  }, [directRoleRecs, savedTargetRoleId, selectedRole]);
 
-  if (!isDirectTrajectory) return null;
+  const requiredSkills = React.useMemo(() => extractRequiredSkills(savedRole), [savedRole]);
+  const matchedSkills = React.useMemo(() => intersectSet(personaSkills, requiredSkills), [personaSkills, requiredSkills]);
+  const missingSkills = React.useMemo(() => differenceSet(requiredSkills, personaSkills), [requiredSkills, personaSkills]);
+
+  const hasSavedTarget = Boolean(savedTargetRoleId);
 
   if (isLoading) {
     return (
@@ -361,8 +269,8 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
             Direct Trajectory
           </CardTitle>
           <CardDescription>
-            Start from your current role, pick a target role (selection-only), then review gap analysis, requirements, and your
-            roadmap.
+            We’ve recommended direct next-step roles from your finalized persona. Choose one, save it as your target role, then review
+            gaps and your roadmap.
           </CardDescription>
         </CardHeader>
 
@@ -389,35 +297,67 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="directRoleList">Direct roles (from current role)</Label>
+              <Label htmlFor="directRecs">Recommended direct roles</Label>
               <Select
-                value={targetRoleId}
+                value={selectedRecRoleId}
                 onValueChange={(v) => {
-                  setTargetRoleId(v);
-                  // Reset details while loading a new one.
-                  setTargetRoleDetails(null);
+                  setSelectedRecRoleId(v);
                 }}
               >
-                <SelectTrigger id="directRoleList" className="bg-white">
-                  <SelectValue placeholder={directOptionsLoading ? "Loading roles…" : "Select a target role"} />
+                <SelectTrigger id="directRecs" className="bg-white">
+                  <SelectValue placeholder={recsLoading ? "Loading recommendations…" : "Select a recommended role"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {directRoleOptions.length === 0 ? (
+                  {directRoleRecs.length === 0 ? (
                     <SelectItem value="__none__" disabled>
-                      No roles available
+                      No recommendations available
                     </SelectItem>
                   ) : (
-                    directRoleOptions.map((opt) => (
-                      <SelectItem key={opt.id} value={opt.id}>
-                        {opt.title}
+                    directRoleRecs.map((r) => (
+                      <SelectItem key={roleIdFromRole(r)} value={roleIdFromRole(r)}>
+                        {roleTitleFromRole(r)}
                       </SelectItem>
                     ))
                   )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-slate-500">
-                You must select a target role (manual typing is disabled for the Direct Trajectory flow).
+                Direct Trajectory is recommendation-driven: manual searching/typing target roles is disabled.
               </p>
+
+              <div className="pt-2 flex items-center gap-3">
+                <Button
+                  type="button"
+                  disabled={!selectedRecRoleId}
+                  onClick={async () => {
+                    if (!selectedRecRoleId) return;
+
+                    // 1) Persist locally
+                    persistTargetRoleSelection({ roleId: selectedRecRoleId, timeHorizon });
+                    setSavedTargetRoleId(selectedRecRoleId);
+
+                    // 2) Best-effort backend persistence
+                    try {
+                      await apiFetch("/api/personas/target-role", {
+                        method: "POST",
+                        body: JSON.stringify({ user_id: personaId, role_id: selectedRecRoleId, time_horizon: timeHorizon }),
+                      });
+                    } catch {
+                      // ignore; local selection remains authoritative for frontend UX
+                    }
+                  }}
+                >
+                  Save target role
+                </Button>
+
+                {hasSavedTarget ? (
+                  <span className="text-xs text-muted-foreground">
+                    Saved: <span className="font-semibold text-foreground">{roleTitleFromRole(savedRole)}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Save a target role to generate your roadmap.</span>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-2">
@@ -427,7 +367,12 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
                 onValueChange={(v) => {
                   const next = (v === "Mid" || v === "Far" ? v : "Near") as TimeHorizon;
                   setTimeHorizon(next);
-                  persistTargetRoleSelection({ roleId: targetRoleId || "unknown", timeHorizon: next });
+
+                  // If a target role is already saved, keep it paired with the new horizon.
+                  const roleIdToPersist = savedTargetRoleId || selectedRecRoleId;
+                  if (roleIdToPersist) {
+                    persistTargetRoleSelection({ roleId: roleIdToPersist, timeHorizon: next });
+                  }
                 }}
               >
                 <SelectTrigger id="timeHorizon" className="bg-white">
@@ -441,83 +386,111 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
               </Select>
 
               <div className="text-xs text-slate-500">
-                Used to filter and sequence your roadmap. Estimated timeline:{" "}
-                <span className="font-semibold text-slate-900">{horizonWeeks(timeHorizon)} weeks</span>.
+                Used to timebox your roadmap: <span className="font-semibold text-slate-900">{horizonWeeks(timeHorizon)} weeks</span>.
               </div>
             </div>
           </div>
 
-          {!canProceed ? (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-              Select a target role to unlock gap analysis and roadmap.
-            </div>
-          ) : targetLoading ? (
-            <div className="rounded-lg border border-border bg-white/70 p-3 text-xs text-muted-foreground">
-              Loading role details…
+          {selectedRole ? (
+            <div className="rounded-xl border border-border bg-white/70 p-4">
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">Selected recommendation</div>
+              <RoleCard role={selectedRole} personaId={personaId} />
             </div>
           ) : null}
         </CardContent>
       </Card>
 
-      {/* Target role details (selection-only) */}
-      {canProceed ? (
-        <Card className="border-border bg-background">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Compass className="h-5 w-5 text-primary" />
-              Target role
-            </CardTitle>
-            <CardDescription>Confirm the selected target role before reviewing gaps and roadmap.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {targetRoleDetails ? (
-              <div className="max-w-4xl">
-                <RoleCard role={{ ...targetRoleDetails, id: targetRoleId, title: roleTitleFromRole(targetRoleDetails) }} personaId={personaId} />
-              </div>
-            ) : (
-              <div className="rounded-xl border border-border bg-secondary/30 p-4 text-sm text-muted-foreground">
-                Role details are unavailable right now, but you can still proceed with a best-effort roadmap.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
+      {/* Roadmap gate: only show after saving */}
+      {hasSavedTarget ? (
+        <>
+          <Card className="border-border bg-background">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Compass className="h-5 w-5 text-primary" />
+                Target role (saved)
+              </CardTitle>
+              <CardDescription>This is the role your Direct Trajectory roadmap will optimize for.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {savedRole ? (
+                <div className="max-w-4xl">
+                  <RoleCard role={savedRole} personaId={personaId} />
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border bg-secondary/30 p-4 text-sm text-muted-foreground">
+                  Target role details are unavailable right now, but your roadmap can still render.
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-      {/* Gap analysis */}
-      {canProceed ? (
-        <Card className="border-border bg-background">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              Gap analysis
-            </CardTitle>
-            <CardDescription>What you already have vs what you need for the target role.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-border bg-secondary/25 p-4">
-                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Matched skills</div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {matchedSkills.length > 0 ? (
-                    matchedSkills.slice(0, 24).map((s) => (
-                      <span
-                        key={s}
-                        className="px-3 py-1.5 rounded-full text-[11px] font-semibold border border-border/70 bg-gradient-to-r from-accent/90 via-accent/70 to-background/80 text-accent-foreground"
-                      >
-                        {s}
-                      </span>
-                    ))
-                  ) : (
-                    <div className="text-sm text-muted-foreground italic">No matched skills detected.</div>
-                  )}
+          <Card className="border-border bg-background">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                Gap analysis
+              </CardTitle>
+              <CardDescription>What you already have vs what you need for the target role.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-border bg-secondary/25 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Matched skills</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {matchedSkills.length > 0 ? (
+                      matchedSkills.slice(0, 24).map((s) => (
+                        <span
+                          key={s}
+                          className="px-3 py-1.5 rounded-full text-[11px] font-semibold border border-border/70 bg-gradient-to-r from-accent/90 via-accent/70 to-background/80 text-accent-foreground"
+                        >
+                          {s}
+                        </span>
+                      ))
+                    ) : (
+                      <div className="text-sm text-muted-foreground italic">No matched skills detected.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-secondary/25 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Missing skills</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {missingSkills.length > 0 ? (
+                      missingSkills.slice(0, 24).map((s) => (
+                        <span
+                          key={s}
+                          className="px-3 py-1.5 rounded-full text-[11px] font-semibold border border-border/70 bg-background/80 text-foreground"
+                        >
+                          {s}
+                        </span>
+                      ))
+                    ) : (
+                      <div className="text-sm text-muted-foreground italic">No missing skills detected.</div>
+                    )}
+                  </div>
                 </div>
               </div>
 
+              <div className="text-xs text-muted-foreground">
+                Tip: Choose Near for a tight, high-impact plan; Far for a broader skill-building sequence.
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border bg-background">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Map className="h-5 w-5 text-primary" />
+                Role requirements
+              </CardTitle>
+              <CardDescription>Skills and responsibilities expected for the selected target role.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="rounded-2xl border border-border bg-secondary/25 p-4">
-                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Missing skills</div>
+                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Required skills</div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {missingSkills.length > 0 ? (
-                    missingSkills.slice(0, 24).map((s) => (
+                  {requiredSkills.length > 0 ? (
+                    requiredSkills.slice(0, 28).map((s) => (
                       <span
                         key={s}
                         className="px-3 py-1.5 rounded-full text-[11px] font-semibold border border-border/70 bg-background/80 text-foreground"
@@ -526,140 +499,80 @@ export function DirectTrajectoryPanel(props: { personaId: string }) {
                       </span>
                     ))
                   ) : (
-                    <div className="text-sm text-muted-foreground italic">No missing skills detected.</div>
+                    <div className="text-sm text-muted-foreground italic">No requirements provided for this role.</div>
                   )}
                 </div>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            <div className="text-xs text-muted-foreground">
-              Tip: Set a shorter time horizon if you want a tighter, high-impact roadmap; choose Far for a broader skill-building
-              sequence.
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+          <Card className="border-border bg-background">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GitBranch className="h-5 w-5 text-violet-700" />
+                Roadmap (mindmap + pathway)
+              </CardTitle>
+              <CardDescription>A time-horizon roadmap combining a mindmap view and a stepwise pathway timeline.</CardDescription>
+            </CardHeader>
 
-      {/* Role requirements */}
-      {canProceed ? (
-        <Card className="border-border bg-background">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Map className="h-5 w-5 text-primary" />
-              Role requirements
-            </CardTitle>
-            <CardDescription>Skills and responsibilities expected for the selected target role.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-2xl border border-border bg-secondary/25 p-4">
-              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Required skills</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {requiredSkills.length > 0 ? (
-                  requiredSkills.slice(0, 28).map((s) => (
-                    <span
-                      key={s}
-                      className="px-3 py-1.5 rounded-full text-[11px] font-semibold border border-border/70 bg-background/80 text-foreground"
-                    >
-                      {s}
-                    </span>
-                  ))
-                ) : (
-                  <div className="text-sm text-muted-foreground italic">No requirements provided for this role.</div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  // Keep user in Explore but also ensure URL contains a stable target role id and horizon.
-                  const qs = new URLSearchParams(searchParams?.toString() ?? "");
-                  qs.set("exploreMode", "direct_trajectory");
-                  qs.set("flow", "direct");
-                  qs.set("targetRoleId", targetRoleId);
-                  qs.set("timeHorizon", timeHorizon);
-                  router.replace(`/explore?${qs.toString()}`);
-                }}
-              >
-                Save selection to URL <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {/* Roadmap */}
-      {canProceed ? (
-        <Card className="border-border bg-background">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <GitBranch className="h-5 w-5 text-violet-700" />
-              Roadmap (mindmap + pathway)
-            </CardTitle>
-            <CardDescription>
-              A time-horizon roadmap combining a mindmap view and a stepwise pathway. (Mindmap uses existing Explore view; pathway is a
-              structured timeline.)
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="space-y-8">
-            <div className="rounded-2xl border border-border bg-secondary/20 p-4">
-              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mindmap</div>
-              <div className="mt-3">
-                {/* Reuse ExploreMindmapView for now. Time horizon filtering is represented via the selected horizon badge + persisted selection.
-                    A dedicated mindmap endpoint supports timeHorizon, but ExploreMindmapView currently renders recommendations pool.
-                    This is still a useful "roadmap visualization" today and aligns with existing routing/state conventions. */}
-                <ExploreMindmapView personaId={personaId} selectedIndustry="" selectedSkills={[]} salaryRange={[0, 60]} />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-secondary/20 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pathway</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Horizon: <span className="font-semibold text-foreground">{horizonLabel(timeHorizon)}</span> •{" "}
-                    <span className="font-semibold text-foreground">{horizonWeeks(timeHorizon)} weeks</span>
-                  </div>
+            <CardContent className="space-y-8">
+              <div className="rounded-2xl border border-border bg-secondary/20 p-4">
+                <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Mindmap</div>
+                <div className="mt-3">
+                  <ExploreMindmapView personaId={personaId} selectedIndustry="" selectedSkills={[]} salaryRange={[0, 60]} />
                 </div>
-                <Badge variant="secondary" className="gap-1">
-                  <CalendarClock className="h-3.5 w-3.5" />
-                  Timeboxed
-                </Badge>
               </div>
 
-              <Separator className="my-4" />
+              <div className="rounded-2xl border border-border bg-secondary/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pathway</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      Horizon: <span className="font-semibold text-foreground">{horizonLabel(timeHorizon)}</span> •{" "}
+                      <span className="font-semibold text-foreground">{horizonWeeks(timeHorizon)} weeks</span>
+                    </div>
+                  </div>
+                  <Badge variant="secondary" className="gap-1">
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    Timeboxed
+                  </Badge>
+                </div>
 
-              <ol className="grid gap-3 md:grid-cols-2">
-                {[
-                  { w: 0.15, title: "Align on target role outcomes", desc: "Confirm responsibilities, required skills, and success signals." },
-                  { w: 0.35, title: "Close top skill gaps", desc: "Focus on 3–6 missing skills with highest impact on readiness." },
-                  { w: 0.65, title: "Build portfolio proof", desc: "Ship 1–2 projects demonstrating target-role responsibilities." },
-                  { w: 0.9, title: "Interview readiness + transitions", desc: "Update resume/LinkedIn, practice interviews, and network." },
-                ].map((step, idx) => {
-                  const weeks = Math.max(1, Math.round(horizonWeeks(timeHorizon) * step.w));
-                  return (
-                    <li key={step.title} className="rounded-xl border border-border bg-background p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                            Step {idx + 1} • ~{weeks}w
+                <Separator className="my-4" />
+
+                <ol className="grid gap-3 md:grid-cols-2">
+                  {[
+                    { w: 0.15, title: "Clarify success outcomes", desc: "Lock in responsibilities, required skills, and success signals." },
+                    { w: 0.35, title: "Close top skill gaps", desc: "Focus on 3–6 missing skills with highest impact on readiness." },
+                    { w: 0.65, title: "Build proof of work", desc: "Ship 1–2 projects demonstrating target-role responsibilities." },
+                    { w: 0.9, title: "Interview + transition plan", desc: "Update resume/LinkedIn, practice interviews, and network." },
+                  ].map((step, idx) => {
+                    const weeks = Math.max(1, Math.round(horizonWeeks(timeHorizon) * step.w));
+                    return (
+                      <li key={step.title} className="rounded-xl border border-border bg-background p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                              Step {idx + 1} • ~{weeks}w
+                            </div>
+                            <div className="mt-1 text-sm font-bold text-foreground">{step.title}</div>
+                            <div className="mt-1 text-sm text-muted-foreground">{step.desc}</div>
                           </div>
-                          <div className="mt-1 text-sm font-bold text-foreground">{step.title}</div>
-                          <div className="mt-1 text-sm text-muted-foreground">{step.desc}</div>
+                          <Badge variant="secondary">{timeHorizon}</Badge>
                         </div>
-                        <Badge variant="secondary">{timeHorizon}</Badge>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Save a target role to generate your Direct Trajectory roadmap.
+        </div>
+      )}
     </div>
   );
 }
