@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function PersonaPage() {
-  redirect('/ingestion');
+  redirect('/persona/draft');
 }
