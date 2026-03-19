@@ -41,11 +41,12 @@ module.exports = {
 
       /**
        * Global typography system:
-       * - Body: Segoe UI (system) for legibility
-       * - Headings: Inter for modern, high-tech feel
+       * - Global default: Montserrat (loaded via next/font in src/app/layout.tsx)
+       * - Fallbacks: system UI fonts
        */
       fontFamily: {
         body: [
+          'Montserrat',
           '"Segoe UI"',
           'SegoeUI',
           'system-ui',
@@ -56,7 +57,7 @@ module.exports = {
           'sans-serif',
         ],
         heading: [
-          'Inter',
+          'Montserrat',
           'ui-sans-serif',
           'system-ui',
           '-apple-system',
@@ -66,8 +67,9 @@ module.exports = {
           'sans-serif',
         ],
 
-        // Make Tailwind's default `font-sans` resolve to our body font system-wide.
+        // Make Tailwind's default `font-sans` resolve to Montserrat system-wide.
         sans: [
+          'Montserrat',
           '"Segoe UI"',
           'SegoeUI',
           'system-ui',
