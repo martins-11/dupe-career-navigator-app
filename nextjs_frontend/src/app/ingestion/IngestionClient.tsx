@@ -5,7 +5,7 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Check, CheckCircle2, Linkedin, Loader2, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { apiFetch, uploadDocuments } from '@/lib/apiClient';
+import { apiFetch, listDocuments, uploadDocuments } from '@/lib/apiClient';
 const LATEST_DRAFT_PERSONA_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
 
 type UploadCategory = 'resume' | 'job_description' | 'performance_review';
@@ -277,7 +277,7 @@ function LinkedInConnect() {
   );
 }
 
-type UiStep = 'idle' | 'starting-build' | 'uploading' | 'running-orchestration' | 'done';
+type UiStep = 'idle' | 'uploading' | 'running-orchestration' | 'done';
 
 // PUBLIC_INTERFACE
 export default function IngestionClient() {
@@ -325,8 +325,6 @@ export default function IngestionClient() {
     switch (uiStep) {
       case 'idle':
         return null;
-      case 'starting-build':
-        return 'Starting build…';
       case 'uploading':
         return 'Uploading documents…';
       case 'running-orchestration':
@@ -343,19 +341,7 @@ export default function IngestionClient() {
     setError(null);
 
     try {
-      setUiStep('starting-build');
-
-      // 1) Create build/workflow (frontend keeps build id for tracking / potential polling)
-      const build = await apiFetch<{ id: string } & Record<string, any>>('/api/builds', {
-        method: 'POST',
-        body: JSON.stringify({ mode: 'persona_build' }),
-      });
-      const buildId = build?.id;
-      if (!buildId || typeof buildId !== 'string') {
-        throw new Error('Failed to create build (missing buildId).');
-      }
-
-      // 2) Upload docs (single request) with per-file category tagging.
+      // 1) Upload docs (single request) with per-file category tagging.
       // Job Description + Performance Review are OPTIONAL.
       // NOTE: do NOT set requireCategories=true; that would force all 3 categories server-side.
       setUiStep('uploading');
@@ -368,18 +354,44 @@ export default function IngestionClient() {
         requireCategories: false,
       });
 
-      // 3) Single-call orchestration: link → extract/normalize → generate draft (→ optional finalize)
-      // We keep useLatestCategoryDocs=true so the backend can auto-select whatever categories exist.
+      // 2) Select the newly-uploaded documents deterministically.
+      // The upload API response intentionally does not include document IDs (stable contract),
+      // so we fetch /api/documents and match by filename, newest-first.
+      const docs = await listDocuments({ limit: 100, offset: 0 });
+      const docsByNewest = docs.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+      const usedDocIds = new Set<string>();
+      const selectedDocIds: string[] = [];
+      for (const f of files) {
+        const hit = docsByNewest.find((d) => d.originalFilename === f.name && !usedDocIds.has(d.id));
+        if (hit) {
+          usedDocIds.add(hit.id);
+          selectedDocIds.push(hit.id);
+        }
+      }
+
+      const documentIds =
+        selectedDocIds.length > 0 ? selectedDocIds : docsByNewest.slice(0, files.length).map((d) => d.id);
+
+      if (documentIds.length === 0) {
+        throw new Error('Upload succeeded but no documents were available for orchestration. Please retry.');
+      }
+
+      // 3) Spec-aligned single-call orchestration (backend creates the build internally):
+      // POST /orchestration/run-all (proxied via /api/orchestration/run-all)
       setUiStep('running-orchestration');
 
       const orchestrationRes = await apiFetch<any>('/api/orchestration/run-all', {
         method: 'POST',
         body: JSON.stringify({
           mode: 'persona_build',
-          // IMPORTANT: When autoCreatePersona=true, do NOT pass personaId.
-          // Passing personaId=buildId is incorrect and can cause backend validation issues.
+          documentIds,
+          useLatestCategoryDocs: false,
           autoCreatePersona: true,
-          useLatestCategoryDocs: true,
+          generate: {
+            saveDraft: true,
+            createVersion: true,
+          },
         }),
       });
 
@@ -404,10 +416,16 @@ export default function IngestionClient() {
       // Persist the latest draft so the user can view it immediately on /persona/draft.
       //
       // CRITICAL REQUIREMENT:
-      // - This MUST be the backend-generated draft persona (Bedrock/Claude), not a frontend-mapped fallback.
-      // - Therefore we persist the orchestration personaDraft verbatim.
+      // - This MUST be the backend-generated draft persona, not a frontend-mapped fallback.
+      // - We store the most likely draft artifact locations from the orchestration envelope.
       try {
-        const candidate = orchestrationRes?.orchestration?.personaDraft ?? null;
+        const candidate =
+          orchestrationRes?.orchestration?.personaDraft ??
+          orchestrationRes?.orchestration?.artifacts?.draftPersona ??
+          orchestrationRes?.orchestration?.artifacts?.draftPersona?.persona ??
+          orchestrationRes?.results?.generate?.persona ??
+          orchestrationRes?.persona ??
+          null;
 
         // Only store if it is a JSON object.
         if (candidate && typeof candidate === 'object') {
@@ -515,6 +533,18 @@ export default function IngestionClient() {
             Upload your professional documents to generate your AI-powered career profile.
           </p>
 
+
+        </section>
+
+        <section className="mt-10 flex flex-col items-center">
+          <div className="grid w-full max-w-[980px] grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
+            {cards.map((category) => (
+              <UploadCard key={category} category={category} onFilesSelected={onFilesSelected} disabled={disableInputs} />
+            ))}
+          </div>
+
+          <LinkedInConnect />
+
           <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <button
               type="button"
@@ -578,16 +608,6 @@ export default function IngestionClient() {
               </motion.div>
             ) : null}
           </AnimatePresence>
-        </section>
-
-        <section className="mt-10 flex flex-col items-center">
-          <div className="grid w-full max-w-[980px] grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
-            {cards.map((category) => (
-              <UploadCard key={category} category={category} onFilesSelected={onFilesSelected} disabled={disableInputs} />
-            ))}
-          </div>
-
-          <LinkedInConnect />
         </section>
 
         <section className="mx-auto mt-10 w-full max-w-[980px]">
