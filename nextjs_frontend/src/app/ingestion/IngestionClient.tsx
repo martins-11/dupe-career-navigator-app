@@ -522,7 +522,7 @@ export default function IngestionClient() {
     }
   })();
 
-  const ingestionRunner = React.useMemo(
+  const ingestionRunner = useMemo(
     () =>
       createRetryableAsync(async (): Promise<IngestionResult> => {
         // Resume is the only required input to proceed.
