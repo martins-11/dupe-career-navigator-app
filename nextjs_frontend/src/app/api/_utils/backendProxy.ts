@@ -11,17 +11,20 @@ import { NextRequest, NextResponse } from 'next/server';
  * Resolves the backend base URL from environment variables.
  * We support both NEXT_PUBLIC_* and REACT_APP_* env naming conventions used in Kavia preview environments.
  */
-export function getBackendBaseUrl(): string | null {
+export function getBackendBaseUrl(): string {
   // Prefer internal cluster URL when available (Kavia/preview), then public backend URL, then common legacy vars.
   // IMPORTANT: next.config.mjs rewrites already prefer BACKEND_INTERNAL_URL; the route-handler proxy must match
   // so the same-origin API routes behave consistently across environments.
+  //
+  // Fallback: default to localhost backend in dev/dupe repos where env may not be configured.
+  // This matches next.config.mjs rewrites() default and prevents /api/* proxy routes from 500ing.
   return (
     process.env.BACKEND_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     process.env.NEXT_PUBLIC_API_BASE ||
     process.env.REACT_APP_BACKEND_URL ||
     process.env.REACT_APP_API_BASE ||
-    null
+    'http://localhost:3001'
   );
 }
 

@@ -95,6 +95,8 @@ export default function FinalizedPersonaClient() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  const [reloadNonce, setReloadNonce] = React.useState(0);
+
   React.useEffect(() => {
     let cancelled = false;
 
@@ -189,7 +191,7 @@ export default function FinalizedPersonaClient() {
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, [searchParams, reloadNonce]);
 
   const legacy = (finalJson ?? null) as LegacyDraftPersona | null;
   const schema = (finalJson ?? null) as PersonaDraftSchema | null;
@@ -268,7 +270,22 @@ export default function FinalizedPersonaClient() {
           </div>
         ) : error ? (
           <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
-            {error}
+            <div>{error}</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-800 hover:bg-red-50"
+                onClick={() => setReloadNonce((n) => n + 1)}
+              >
+                Retry load
+              </button>
+              <Link
+                href="/ingestion"
+                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-800 hover:bg-red-50"
+              >
+                Go to ingestion
+              </Link>
+            </div>
           </div>
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">

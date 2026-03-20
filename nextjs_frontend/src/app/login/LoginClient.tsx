@@ -235,6 +235,33 @@ export default function LoginClient() {
                     Log in
                   </a>
                 </p>
+
+                {/* MVP-safety: allow bypassing prototype auth without breaking the core flow */}
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    className="inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors"
+                    style={{
+                      backgroundColor: '#24212F',
+                      borderColor: '#4A465C',
+                      color: 'rgba(255,255,255,0.72)',
+                    }}
+                    onClick={() => {
+                      // Keep navigation unblocked even if the user doesn't want to use prototype auth.
+                      router.replace('/ingestion');
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#2A2736';
+                      (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.86)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#24212F';
+                      (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.72)';
+                    }}
+                  >
+                    Skip login (MVP)
+                  </button>
+                </div>
               </header>
 
               {/* Role switch (segmented control) */}

@@ -18,6 +18,7 @@ import { loadPersonaId, persistPersonaId } from "@/lib/personaStorage";
 import { apiFetch } from "@/lib/apiClient";
 import { getExploreViewMode, persistExploreViewMode } from "@/lib/exploreMindmapViewStateStorage";
 import type { MultiversePathType } from "@/lib/multiverseBookmarksStorage";
+import MvpSafePlaceholder from "@/app/components/MvpSafePlaceholder";
 
 function normString(v: unknown): string {
   return String(v ?? "").trim();
@@ -188,8 +189,12 @@ export default function ExploreClient() {
       persistPersonaId(personaIdQuery);
     }
 
+    // MVP-safety: Explore should never hard-block navigation.
+    // If personaId is missing, we show a non-blocking placeholder but still allow UI to mount.
     if (!effectivePersonaId) {
-      setError("No persona found. Please complete the data ingestion first.");
+      setError("No persona found yet.");
+    } else {
+      setError(null);
     }
     setIsLoading(false);
   }, [personaIdQuery, effectivePersonaId]);
@@ -239,12 +244,23 @@ export default function ExploreClient() {
 
   if (error) {
     return (
-      <div className="px-8 py-12 bg-transparent min-h-screen">
-        <div className="max-w-2xl mx-auto p-6 bg-secondary border border-border rounded-xl">
-          <h1 className="text-xl font-bold text-foreground mb-2">Discovery Paused</h1>
-          <p className="text-muted-foreground">{error}</p>
+      <MvpSafePlaceholder
+        title="Explore (MVP‑safe)"
+        description="Explore is part of the MVP, but it needs a personaId (generated during ingestion) for personalized recommendations. You can continue by completing ingestion first."
+        statusLabel="Action needed"
+        actions={[
+          { label: "Start Ingestion (MVP)", href: "/ingestion", variant: "default" },
+          { label: "Go to Finalized Persona", href: "/persona/finalized", variant: "outline" },
+        ]}
+      >
+        <div className="space-y-2">
+          <div className="font-semibold text-foreground">Why you’re seeing this</div>
+          <div className="text-muted-foreground">
+            We couldn’t find a saved <span className="font-semibold">personaId</span> in this browser session.
+            Once you generate a persona, Explore will automatically use it.
+          </div>
         </div>
-      </div>
+      </MvpSafePlaceholder>
     );
   }
 
