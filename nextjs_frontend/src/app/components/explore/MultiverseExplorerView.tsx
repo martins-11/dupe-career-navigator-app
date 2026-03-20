@@ -52,25 +52,49 @@ type CareerPath = {
 type MultiverseRecommendedRole = {
   id: string;
   title: string;
+  industry?: string | null;
+  salary_range?: string | null;
+  experience_range?: string | null;
+
   description?: string | null;
   tags?: string[] | null;
+
   required_skills?: string[];
   skills_required?: string[];
   key_responsibilities?: string[];
   responsibilities?: string[];
+
   whyThisMatchesPathType?: string;
   confidence?: number;
+
+  // Scoring fields used by RoleCard's CompatibilityScore ring UI
+  compatibilityScore?: number;
+  finalCompatibilityScore?: number;
+  threeTwoReport?: any;
+  masteryAreas?: string[];
+  growthAreas?: string[];
+
   meta?: Record<string, any>;
+  match_metadata?: Record<string, any>;
 };
 
 function roleIdFromRec(r: any, idx: number): string {
-  const raw = normString(r?.id ?? r?.role_id ?? r?.roleId ?? r?.role_title ?? r?.title);
+  const raw = normString(r?.id ?? r?.role_id ?? r?.roleId);
   if (raw) return raw;
-  return `multiverse-rec-${idx}`;
+
+  // Fallback: generate a stable-ish id compatible with backend target-role validator.
+  const title = normString(r?.role_title ?? r?.title ?? r?.roleTitle);
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+  if (slug) return `bedrock-rec-${slug}`;
+  return `bedrock-rec-multiverse-${idx + 1}`;
 }
 
 function roleTitleFromRec(r: any): string {
-  return normString(r?.title ?? r?.role_title ?? r?.roleTitle);
+  return normString(r?.role_title ?? r?.title ?? r?.roleTitle);
 }
 
 function labelForPathType(t: MultiversePathType): string {
@@ -363,20 +387,38 @@ function normalizeRecommendedRoles(details: any): MultiverseRecommendedRole[] {
     if (!title) continue;
 
     const id = roleIdFromRec(r, i);
+
     const why = normString((r as any)?.whyThisMatchesPathType || (r as any)?.rationale || '');
+    const description = normString((r as any)?.description) || why;
 
     out.push({
       id,
       title,
-      description: why || null,
-      tags: [],
-      required_skills: safeStringArray((r as any)?.requiredSkills ?? (r as any)?.required_skills ?? (r as any)?.skills_required ?? []),
+      industry: normString((r as any)?.industry) || null,
+      salary_range: normString((r as any)?.salary_range ?? (r as any)?.salaryRange) || null,
+      experience_range: normString((r as any)?.experience_range ?? (r as any)?.experienceRange) || null,
+
+      description: description || null,
+      tags: safeStringArray((r as any)?.tags ?? []).filter(Boolean),
+
+      required_skills: safeStringArray((r as any)?.required_skills ?? (r as any)?.requiredSkills ?? (r as any)?.skills_required ?? []),
       skills_required: safeStringArray((r as any)?.skills_required ?? (r as any)?.required_skills ?? []),
-      key_responsibilities: safeStringArray((r as any)?.keyResponsibilities ?? (r as any)?.key_responsibilities ?? []),
+      key_responsibilities: safeStringArray((r as any)?.key_responsibilities ?? (r as any)?.keyResponsibilities ?? []),
       responsibilities: safeStringArray((r as any)?.responsibilities ?? []),
+
       whyThisMatchesPathType: why || undefined,
       confidence: Number.isFinite(Number((r as any)?.confidence)) ? Math.round(Number((r as any)?.confidence)) : undefined,
+
+      compatibilityScore: Number.isFinite(Number((r as any)?.compatibilityScore)) ? Math.round(Number((r as any)?.compatibilityScore)) : undefined,
+      finalCompatibilityScore: Number.isFinite(Number((r as any)?.finalCompatibilityScore))
+        ? Math.round(Number((r as any)?.finalCompatibilityScore))
+        : undefined,
+      threeTwoReport: (r as any)?.threeTwoReport ?? undefined,
+      masteryAreas: safeStringArray((r as any)?.masteryAreas ?? (r as any)?.threeTwoReport?.masteryAreas ?? []),
+      growthAreas: safeStringArray((r as any)?.growthAreas ?? (r as any)?.threeTwoReport?.growthAreas ?? []),
+
       meta: (r as any)?.meta ?? undefined,
+      match_metadata: (r as any)?.match_metadata ?? undefined,
     });
   }
 
@@ -800,12 +842,33 @@ export function MultiverseExplorerView(props: {
                           key={r.id}
                           role={{
                             id: r.id,
+                            role_id: r.id,
+
                             title: r.title,
                             role_title: r.title,
+
+                            industry: r.industry ?? undefined,
+                            salary_range: r.salary_range ?? undefined,
+                            experience_range: r.experience_range ?? undefined,
+
                             description: r.description || r.whyThisMatchesPathType || '',
-                            tags: (r.confidence != null ? [`Confidence ${r.confidence}%`] : []).filter(Boolean),
+                            tags: [
+                              ...(r.confidence != null ? [`Confidence ${r.confidence}%`] : []),
+                              ...(Array.isArray(r.tags) ? r.tags : []),
+                            ].filter(Boolean),
+
                             required_skills: r.required_skills ?? r.skills_required ?? [],
+                            skills_required: r.skills_required ?? r.required_skills ?? [],
                             key_responsibilities: r.key_responsibilities ?? [],
+                            responsibilities: r.responsibilities ?? [],
+
+                            compatibilityScore: r.compatibilityScore,
+                            finalCompatibilityScore: r.finalCompatibilityScore,
+                            threeTwoReport: r.threeTwoReport,
+                            masteryAreas: r.masteryAreas,
+                            growthAreas: r.growthAreas,
+
+                            match_metadata: r.match_metadata,
                           }}
                           personaId={personaId ?? undefined}
                           expanded={idx === 0}
