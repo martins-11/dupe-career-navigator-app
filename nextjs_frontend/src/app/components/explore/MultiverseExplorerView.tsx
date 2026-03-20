@@ -467,53 +467,78 @@ export function MultiverseExplorerView(props: {
   }, [personaId, userIdForBookmarks]);
 
   React.useEffect(() => {
+    /**
+     * Fetch the Multiverse graph and derive selectable paths.
+     *
+     * IMPORTANT:
+     * - Backend returns `paths: [{ id: "path_1", nodeIds: [...] }]`.
+     * - Those path ids are the ONLY valid ids for GET /api/multiverse/paths/:id.
+     * - Do NOT derive "paths" from role nodes, otherwise we end up calling
+     *   /api/multiverse/paths/<role title> which correctly 404s.
+     *
+     * Loop prevention:
+     * - This effect must NOT depend on `selectedPathId`, otherwise selection changes can
+     *   cascade into repeated graph refetches (especially if pool ordering changes).
+     */
     let cancelled = false;
 
     async function run() {
       setLoading(true);
       setError(null);
-      try {
-        const filters = {
-          minSalaryUsdK: salaryRange?.[0],
-          maxSalaryUsdK: salaryRange?.[1],
-        };
 
+      const minSalaryUsdK = salaryRange?.[0];
+      const maxSalaryUsdK = salaryRange?.[1];
+
+      try {
         const graph: any = await fetchMultiverseGraph({
           personaId,
           currentRoleTitle: null,
-          filters,
+          filters: { minSalaryUsdK, maxSalaryUsdK },
           limit: 60,
         });
 
         const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-        const pathNodes = nodes.filter((n: any) => String(n?.type) === 'path');
+        const pathsFromBackend = Array.isArray(graph?.paths) ? graph.paths : [];
 
-        let derived: CareerPath[] = [];
-        if (pathNodes.length > 0) {
-          derived = pathNodes.map((n: any) => {
-            const id = normString(n?.id);
-            const title = normString(n?.label) || `Path ${id}`;
-            const steps = safeStringArray(n?.data?.steps || n?.meta?.steps || []);
-            return { id, title, steps };
-          });
-        } else {
-          const roleNodes = nodes.filter((n: any) => String(n?.type) === 'role');
-          derived = roleNodes.slice(0, 30).map((n: any, idx: number) => {
-            const id = normString(n?.id) || `role-${idx}`;
-            const title = normString(n?.label) || `Role ${idx + 1}`;
-            return { id, title, steps: [title] };
-          });
+        // Build lookup from nodeId -> title/label for pretty steps.
+        const nodeTitleById = new Map<string, string>();
+        for (const n of nodes) {
+          const id = normString((n as any)?.id);
+          if (!id) continue;
+          const title = normString((n as any)?.data?.title) || normString((n as any)?.label) || id;
+          nodeTitleById.set(id, title);
         }
 
-        derived = derived.filter((p) => p.id && p.steps.length > 0);
+        let derived: CareerPath[] = pathsFromBackend
+          .map((p: any) => {
+            const id = normString(p?.id);
+            const nodeIds = Array.isArray(p?.nodeIds) ? p.nodeIds.map((x: any) => normString(x)).filter(Boolean) : [];
+
+            // Convert nodeIds -> readable role titles. Skip the center/current node (index 0) for steps.
+            const steps = nodeIds
+              .slice(1)
+              .map((nid: string) => nodeTitleById.get(nid) || nid)
+              .filter(Boolean);
+
+            const titleFromBackend = normString(p?.title);
+            const title = titleFromBackend || (steps.length > 0 ? steps.join(' → ') : `Path ${id}`);
+
+            return { id, title, steps };
+          })
+          .filter((p: CareerPath) => p.id && p.steps.length > 0);
 
         if (cancelled) return;
+
         setPaths(derived);
 
-        if (selectedPathId && derived.some((p) => p.id === selectedPathId)) return;
-        setSelectedPathId(derived[0]?.id ?? null);
+        // Preserve user selection when possible; otherwise pick the first path.
+        setSelectedPathId((prev) => {
+          if (prev && derived.some((p) => p.id === prev)) return prev;
+          return derived[0]?.id ?? null;
+        });
       } catch (e) {
         if (cancelled) return;
+
         setPaths([]);
         setSelectedPathId(null);
 
@@ -529,7 +554,7 @@ export function MultiverseExplorerView(props: {
     return () => {
       cancelled = true;
     };
-  }, [personaId, salaryRange, selectedPathId]);
+  }, [personaId, salaryRange?.[0], salaryRange?.[1]]);
 
   const filtered = React.useMemo(() => {
     return paths.filter((p) => pathMatchesFilters({ path: p, titleQuery, selectedIndustry, selectedSkills }));
