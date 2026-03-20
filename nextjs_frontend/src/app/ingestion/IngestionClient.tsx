@@ -19,6 +19,7 @@ import {
 
 const LATEST_DRAFT_PERSONA_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
 const BUILD_ID_STORAGE_KEY = 'career_navigator_build_id';
+const PERSONA_ID_STORAGE_KEY = 'career_navigator_persona_id';
 
 type UploadStatus = 'ready' | 'uploading' | 'uploaded' | 'error';
 
@@ -620,8 +621,11 @@ export default function IngestionClient() {
             useLatestCategoryDocs: false,
             autoCreatePersona: true,
             generate: {
+              // In ingestion, we usually don't have an existing personaId yet.
+              // Asking for createVersion here can fail on some backends because versioning is per-persona.
+              // We still save the draft; versioning can happen later (e.g., regenerate/edit flows).
               saveDraft: true,
-              createVersion: true,
+              createVersion: false,
             },
           }),
         });
