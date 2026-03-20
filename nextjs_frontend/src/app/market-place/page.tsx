@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from '@/app/components/ui/card';
 import TrendBarChartCard from '@/app/market-place/TrendBarChartCard';
+import MvpSafePlaceholder from '@/app/components/MvpSafePlaceholder';
 
 type Kpi = {
   label: string;
@@ -109,14 +110,28 @@ export default function Page() {
   ];
 
   return (
-    <main className="min-h-svh px-6 py-8 md:px-10 md:py-10 text-zinc-900">
-      <div className="max-w-6xl">
-        {/* Header */}
-        <div className="rounded-3xl border border-zinc-200/70 bg-gradient-to-b from-white to-violet-50/50 p-6 md:p-8 shadow-[0_12px_34px_rgba(0,0,0,0.06)]">
-          <div className="flex flex-col gap-2">
-            <div className="text-[11.5px] font-semibold tracking-wide text-violet-700">
-              MARKET PLACE • ANALYTICS
-            </div>
+    <div className="min-h-svh">
+      <MvpSafePlaceholder
+        title="Market Place (Non‑MVP)"
+        description="This analytics dashboard is available as a preview, but it is not required to complete the MVP persona → recommendations flow."
+        statusLabel="MVP‑safe"
+        actions={[
+          { label: 'Continue MVP flow: Ingestion', href: '/ingestion', variant: 'default' },
+          { label: 'Explore roles (MVP)', href: '/explore', variant: 'outline' },
+          { label: 'Mind map (optional)', href: '/mindmap', variant: 'outline' },
+        ]}
+      >
+        This page currently uses placeholder market signals (no external marketplace integrations required for MVP).
+      </MvpSafePlaceholder>
+
+      <main className="px-6 py-8 md:px-10 md:py-10 text-zinc-900">
+        <div className="max-w-6xl">
+          {/* Header */}
+          <div className="rounded-3xl border border-zinc-200/70 bg-gradient-to-b from-white to-violet-50/50 p-6 md:p-8 shadow-[0_12px_34px_rgba(0,0,0,0.06)]">
+            <div className="flex flex-col gap-2">
+              <div className="text-[11.5px] font-semibold tracking-wide text-violet-700">
+                MARKET PLACE • ANALYTICS (Preview)
+              </div>
 
             <h1 className="text-[22px] md:text-[30px] font-semibold tracking-tight text-zinc-950">
               Market intelligence dashboard
@@ -285,7 +300,8 @@ export default function Page() {
             </CardContent>
           </Card>
         </section>
-      </div>
-    </main>
+        </div>
+      </main>
+    </div>
   );
 }
