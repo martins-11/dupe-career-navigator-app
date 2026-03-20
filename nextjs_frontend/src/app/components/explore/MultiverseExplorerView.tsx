@@ -376,7 +376,15 @@ function normalizeBackendBookmarksToLocal(records: MultiverseBookmarkRecord[]): 
 }
 
 function normalizeRecommendedRoles(details: any): MultiverseRecommendedRole[] {
-  const arr = Array.isArray(details?.recommendedRoles) ? details.recommendedRoles : [];
+  // Backend contract is `recommendedRoles`, but be defensive to handle minor envelope changes.
+  const raw =
+    (details && Array.isArray((details as any).recommendedRoles) && (details as any).recommendedRoles) ||
+    (details && Array.isArray((details as any).recommended_roles) && (details as any).recommended_roles) ||
+    (details && Array.isArray((details as any).roles) && (details as any).roles) ||
+    (details && Array.isArray((details as any).recommendedRoles?.roles) && (details as any).recommendedRoles.roles) ||
+    [];
+
+  const arr = Array.isArray(raw) ? raw : [];
   const out: MultiverseRecommendedRole[] = [];
 
   for (let i = 0; i < arr.length; i += 1) {
@@ -401,7 +409,9 @@ function normalizeRecommendedRoles(details: any): MultiverseRecommendedRole[] {
       description: description || null,
       tags: safeStringArray((r as any)?.tags ?? []).filter(Boolean),
 
-      required_skills: safeStringArray((r as any)?.required_skills ?? (r as any)?.requiredSkills ?? (r as any)?.skills_required ?? []),
+      required_skills: safeStringArray(
+        (r as any)?.required_skills ?? (r as any)?.requiredSkills ?? (r as any)?.skills_required ?? [],
+      ),
       skills_required: safeStringArray((r as any)?.skills_required ?? (r as any)?.required_skills ?? []),
       key_responsibilities: safeStringArray((r as any)?.key_responsibilities ?? (r as any)?.keyResponsibilities ?? []),
       responsibilities: safeStringArray((r as any)?.responsibilities ?? []),
@@ -409,7 +419,9 @@ function normalizeRecommendedRoles(details: any): MultiverseRecommendedRole[] {
       whyThisMatchesPathType: why || undefined,
       confidence: Number.isFinite(Number((r as any)?.confidence)) ? Math.round(Number((r as any)?.confidence)) : undefined,
 
-      compatibilityScore: Number.isFinite(Number((r as any)?.compatibilityScore)) ? Math.round(Number((r as any)?.compatibilityScore)) : undefined,
+      compatibilityScore: Number.isFinite(Number((r as any)?.compatibilityScore))
+        ? Math.round(Number((r as any)?.compatibilityScore))
+        : undefined,
       finalCompatibilityScore: Number.isFinite(Number((r as any)?.finalCompatibilityScore))
         ? Math.round(Number((r as any)?.finalCompatibilityScore))
         : undefined,
