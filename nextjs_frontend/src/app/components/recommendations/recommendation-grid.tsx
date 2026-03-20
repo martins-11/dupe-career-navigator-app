@@ -6,6 +6,14 @@ import { getExploreRecommendationsPool } from "@/lib/recommendationsPoolClient";
 
 interface RecommendationGridProps {
   personaId: string;
+
+  /**
+   * If set to "multiverse", the grid will source recommendations from the multiverse
+   * Bedrock/Claude pathType-constrained flow (via /api/recommendations/pool with query hints).
+   */
+  recommendationsMode?: "default" | "multiverse";
+  pathType?: "vertical" | "lateral" | "pivot" | "non_linear";
+
   showAnalysis?: boolean;
   onViewAnalysis?: () => void;
   filters?: {
@@ -94,6 +102,8 @@ function roleMatchesFilters(params: {
 // PUBLIC_INTERFACE
 export function RecommendationGrid({
   personaId,
+  recommendationsMode = "default",
+  pathType,
   showAnalysis = false,
   onViewAnalysis,
   filters = {},
@@ -122,6 +132,8 @@ export function RecommendationGrid({
         const { roles, meta } = await getExploreRecommendationsPool({
           personaId,
           allowPadding,
+          recommendationsMode,
+          pathType,
         });
 
         if (!cancelled) {
@@ -143,11 +155,11 @@ export function RecommendationGrid({
     return () => {
       cancelled = true;
     };
-  }, [personaId]);
+  }, [personaId, recommendationsMode, pathType]);
 
   useEffect(() => {
     setShowAll(false);
-  }, [personaId, filters.industry, filters.title, filters.skills, filters.salaryRange]);
+  }, [personaId, recommendationsMode, pathType, filters.industry, filters.title, filters.skills, filters.salaryRange]);
 
   const filteredRoles = useMemo(() => {
     const selectedIndustry = normString(filters.industry);

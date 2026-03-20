@@ -40,8 +40,15 @@ const IN_FLIGHT = new Map<string, Promise<ExploreRecommendationsPoolResult>>();
  */
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 
-function cacheKey(params: { personaId: string; allowPadding: boolean }): string {
-  return `${params.personaId}::allowPadding=${params.allowPadding ? '1' : '0'}`;
+function cacheKey(params: {
+  personaId: string;
+  allowPadding: boolean;
+  recommendationsMode: 'default' | 'multiverse';
+  pathType?: string;
+}): string {
+  const mode = params.recommendationsMode || 'default';
+  const pt = String(params.pathType ?? '').trim();
+  return `${params.personaId}::mode=${mode}::pathType=${pt || 'none'}::allowPadding=${params.allowPadding ? '1' : '0'}`;
 }
 
 function sessionKey(key: string): string {
@@ -87,6 +94,8 @@ function isFresh(entry: CacheEntry, ttlMs: number): boolean {
 export function primeExploreRecommendationsPoolCache(params: {
   personaId: string;
   allowPadding?: boolean;
+  recommendationsMode?: 'default' | 'multiverse';
+  pathType?: string;
   roles: any[];
   meta?: any | null;
 }): void {
@@ -98,7 +107,8 @@ export function primeExploreRecommendationsPoolCache(params: {
   if (!personaId) return;
 
   const allowPadding = Boolean(params.allowPadding);
-  const key = cacheKey({ personaId, allowPadding });
+  const recommendationsMode = params.recommendationsMode === 'multiverse' ? 'multiverse' : 'default';
+  const key = cacheKey({ personaId, allowPadding, recommendationsMode, pathType: params.pathType });
 
   const entry: CacheEntry = {
     roles: Array.isArray(params.roles) ? params.roles : [],
@@ -147,6 +157,15 @@ export function clearExploreRecommendationsPoolCache(personaId?: string): void {
 export async function getExploreRecommendationsPool(params: {
   personaId: string;
   allowPadding?: boolean;
+
+  /**
+   * default: /api/recommendations/pool -> backend /api/recommendations/pool
+   * multiverse: /api/recommendations/pool (same route) but with query hints that cause
+   * the frontend route handler to source from backend /api/multiverse/*.
+   */
+  recommendationsMode?: 'default' | 'multiverse';
+  pathType?: 'vertical' | 'lateral' | 'pivot' | 'non_linear';
+
   /**
    * Override cache TTL (ms). Defaults to a few minutes.
    * Use 0 to force a refetch (not recommended for normal UX).
@@ -154,7 +173,7 @@ export async function getExploreRecommendationsPool(params: {
   ttlMs?: number;
 }): Promise<ExploreRecommendationsPoolResult> {
   /**
-   * Fetches the explore recommendations pool once per personaId (and allowPadding option),
+   * Fetches the explore recommendations pool once per personaId (and mode/pathType/allowPadding option),
    * and reuses the same promise + cached value across:
    * - Explore Cards view (RecommendationGrid)
    * - Explore Mindmap view
@@ -165,8 +184,10 @@ export async function getExploreRecommendationsPool(params: {
 
   const allowPadding = Boolean(params.allowPadding);
   const ttlMs = typeof params.ttlMs === 'number' ? params.ttlMs : DEFAULT_TTL_MS;
+  const recommendationsMode = params.recommendationsMode === 'multiverse' ? 'multiverse' : 'default';
+  const pathType = params.pathType;
 
-  const key = cacheKey({ personaId, allowPadding });
+  const key = cacheKey({ personaId, allowPadding, recommendationsMode, pathType });
 
   // 1) Memory cache
   const mem = MEMORY_CACHE.get(key);
@@ -190,6 +211,12 @@ export async function getExploreRecommendationsPool(params: {
     const qs = new URLSearchParams({ personaId });
     if (allowPadding) qs.set('allowPadding', 'true');
 
+    if (recommendationsMode === 'multiverse') {
+      qs.set('flow', 'multiverse');
+      qs.set('exploreMode', 'multiverse');
+      if (pathType) qs.set('pathType', pathType);
+    }
+
     const data: any = await apiFetch(`/api/recommendations/pool?${qs.toString()}`, {
       method: 'GET',
       cache: 'no-store',
@@ -203,11 +230,10 @@ export async function getExploreRecommendationsPool(params: {
     writeToSessionStorage(key, entry);
 
     return { roles, meta };
-  })()
-    .finally(() => {
-      // Ensure a failed request doesn't permanently poison the in-flight map.
-      IN_FLIGHT.delete(key);
-    });
+  })().finally(() => {
+    // Ensure a failed request doesn't permanently poison the in-flight map.
+    IN_FLIGHT.delete(key);
+  });
 
   IN_FLIGHT.set(key, p);
   return p;

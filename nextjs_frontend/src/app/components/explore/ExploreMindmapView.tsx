@@ -95,9 +95,18 @@ function roleMatchesFilters(params: {
   return true;
 }
 
-async function fetchRecommendations(personaId: string) {
+async function fetchRecommendations(params: {
+  personaId: string;
+  recommendationsMode?: 'default' | 'multiverse';
+  pathType?: 'vertical' | 'lateral' | 'pivot' | 'non_linear';
+}) {
   const allowPadding = process.env.NEXT_PUBLIC_RECOMMENDATIONS_ALLOW_PADDING === 'true';
-  const { roles } = await getExploreRecommendationsPool({ personaId, allowPadding });
+  const { roles } = await getExploreRecommendationsPool({
+    personaId: params.personaId,
+    allowPadding,
+    recommendationsMode: params.recommendationsMode,
+    pathType: params.pathType,
+  });
   return Array.isArray(roles) ? roles : [];
 }
 
@@ -121,9 +130,16 @@ export function ExploreMindmapView(props: {
   selectedIndustry: string;
   selectedSkills: string[];
   salaryRange: [number, number];
+
+  /**
+   * If set to "multiverse", this view sources recommendations from multiverse pathType-constrained
+   * Bedrock/Claude output rather than the default recommendation pool.
+   */
+  recommendationsMode?: 'default' | 'multiverse';
+  pathType?: 'vertical' | 'lateral' | 'pivot' | 'non_linear';
 }) {
   /** Explore mind map alternative view: current role centered with recommended roles branching. */
-  const { personaId, selectedIndustry, selectedSkills, salaryRange } = props;
+  const { personaId, selectedIndustry, selectedSkills, salaryRange, recommendationsMode = 'default', pathType } = props;
 
   const [roles, setRoles] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -152,7 +168,7 @@ export function ExploreMindmapView(props: {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchRecommendations(personaId);
+        const data = await fetchRecommendations({ personaId, recommendationsMode, pathType });
         if (cancelled) return;
         setRoles(Array.isArray(data) ? data : []);
       } catch (e: any) {

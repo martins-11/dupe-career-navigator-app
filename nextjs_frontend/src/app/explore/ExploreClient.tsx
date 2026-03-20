@@ -12,15 +12,12 @@ import { SearchBar } from "../components/explore/search-bar";
 import RoleCard from "../components/explore/role-card";
 import { EmptyState } from "../components/explore/empty-state";
 import DirectTrajectoryPanel from "../components/explore/DirectTrajectoryPanel";
-import {
-  MultiverseExplorerView,
-  resolveInitialMultiversePathType,
-  persistMultiversePathType,
-} from "../components/explore/MultiverseExplorerView";
+import { resolveInitialMultiversePathType, persistMultiversePathType } from "../components/explore/MultiverseExplorerView";
 
 import { loadPersonaId, persistPersonaId } from "@/lib/personaStorage";
 import { apiFetch } from "@/lib/apiClient";
 import { getExploreViewMode, persistExploreViewMode } from "@/lib/exploreMindmapViewStateStorage";
+import type { MultiversePathType } from "@/lib/multiverseBookmarksStorage";
 
 function normString(v: unknown): string {
   return String(v ?? "").trim();
@@ -94,6 +91,19 @@ function roleMatchesFilters(params: {
   }
 
   return true;
+}
+
+function labelForPathType(t: MultiversePathType): string {
+  switch (t) {
+    case "vertical":
+      return "Vertical";
+    case "lateral":
+      return "Lateral";
+    case "pivot":
+      return "Pivot";
+    case "non_linear":
+      return "Non-linear";
+  }
 }
 
 // PUBLIC_INTERFACE
@@ -238,6 +248,8 @@ export default function ExploreClient() {
     );
   }
 
+  const recommendationsMode = isMultiverseExplorer ? "multiverse" : "default";
+
   return (
     <div className="px-8 py-8 bg-transparent min-h-screen font-sans text-foreground cn-explore-theme">
       <div className="max-w-7xl mx-auto">
@@ -245,6 +257,11 @@ export default function ExploreClient() {
           <div>
             <h1 className="text-4xl font-extrabold text-primary tracking-tight">Career Navigator</h1>
             <p className="text-muted-foreground mt-2 text-lg">Precision-matched roles based on your professional persona.</p>
+            {isMultiverseExplorer && multiversePathType ? (
+              <p className="text-xs text-muted-foreground mt-2">
+                Multiverse mode: <span className="font-semibold text-foreground">{labelForPathType(multiversePathType)}</span> path
+              </p>
+            ) : null}
           </div>
         </header>
 
@@ -304,20 +321,6 @@ export default function ExploreClient() {
             <div className="p-6 bg-secondary border border-border rounded-xl text-foreground max-w-2xl mx-auto">
               <p className="font-semibold">Search Error</p>
               <p className="text-sm mt-1 text-muted-foreground">{searchError}</p>
-            </div>
-          ) : isMultiverseExplorer ? (
-            <div className="space-y-6">
-              <MultiverseExplorerView
-                personaId={effectivePersonaId}
-                pathType={multiversePathType}
-                selectedIndustry={selectedIndustry}
-                selectedSkills={selectedSkills}
-                salaryRange={salaryRange}
-                titleQuery={selectedTitle}
-              />
-              <div className="text-xs text-muted-foreground">
-                Tip: Use search + filters to narrow paths. Click a path to drill down and bookmark it for later.
-              </div>
             </div>
           ) : Array.isArray(searchResults) ? (
             (() => {
@@ -407,7 +410,9 @@ export default function ExploreClient() {
           ) : (
             <div className="space-y-6">
               <div className="flex items-center justify-between gap-4">
-                <div className="text-sm text-muted-foreground">Persona recommendations view</div>
+                <div className="text-sm text-muted-foreground">
+                  {isMultiverseExplorer ? "Multiverse recommendations view" : "Persona recommendations view"}
+                </div>
 
                 <Tabs
                   value={viewMode}
@@ -430,10 +435,14 @@ export default function ExploreClient() {
                   selectedIndustry={selectedIndustry}
                   selectedSkills={selectedSkills}
                   salaryRange={salaryRange}
+                  recommendationsMode={recommendationsMode}
+                  pathType={multiversePathType ?? undefined}
                 />
               ) : (
                 <RecommendationGrid
                   personaId={effectivePersonaId || ""}
+                  recommendationsMode={recommendationsMode}
+                  pathType={multiversePathType ?? undefined}
                   filters={{
                     industry: selectedIndustry,
                     skills: selectedSkills,

@@ -16,6 +16,48 @@ import { getBackendBaseUrl } from '../../_utils/backendProxy';
  *
  * PUBLIC_INTERFACE
  */
+function normString(v: unknown): string {
+  return String(v ?? '').trim();
+}
+
+function roleIdFromAny(r: any, idx: number): string {
+  const raw = normString(r?.id ?? r?.role_id ?? r?.roleId);
+  if (raw) return raw;
+
+  const title = normString(r?.role_title ?? r?.title ?? r?.roleTitle);
+  const slug = title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+  if (slug) return `bedrock-rec-${slug}`;
+  return `bedrock-rec-multiverse-${idx + 1}`;
+}
+
+function roleTitleFromAny(r: any): string {
+  return normString(r?.role_title ?? r?.title ?? r?.roleTitle);
+}
+
+function normalizeRoleForExploreCard(r: any, idx: number): any | null {
+  if (!r || typeof r !== 'object') return null;
+
+  const title = roleTitleFromAny(r);
+  if (!title) return null;
+
+  const id = roleIdFromAny(r, idx);
+
+  // Normalize into the union of fields observed across existing Explore flows.
+  const normalized = {
+    ...r,
+    id,
+    role_id: id,
+    title,
+    role_title: title,
+  };
+
+  return normalized;
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const query = url.search || '';
@@ -25,6 +67,12 @@ export async function GET(req: NextRequest) {
   if (!personaId) {
     return NextResponse.json({ error: 'missing_persona_id', message: 'Query param personaId is required.' }, { status: 400 });
   }
+
+  const exploreMode = normString(url.searchParams.get('exploreMode'));
+  const flow = normString(url.searchParams.get('flow'));
+  const pathType = normString(url.searchParams.get('pathType'));
+
+  const isMultiverse = exploreMode === 'multiverse' || flow === 'multiverse' || Boolean(pathType);
 
   const rawBackendUrl = getBackendBaseUrl();
   if (!rawBackendUrl) {
@@ -64,15 +112,7 @@ export async function GET(req: NextRequest) {
   /**
    * Timeout tuning:
    * - Backend pooled Bedrock runs can be ~35–40s on cold runs.
-   * - Prior default (~25s) caused the Next.js route to abort early and return 504.
-   *
-   * We keep a pool-specific timeout with a safer default, and allow override via env.
-   *
-   * Notes:
-   * - NEXT_PUBLIC_* is used here because this app already uses that pattern; however this
-   *   code runs server-side (route handler) so it’s safe to read non-public env vars too.
-   * - Prefer setting NEXT_PUBLIC_RECOMMENDATIONS_POOL_PROXY_TIMEOUT_MS in the deployment
-   *   environment if you need to tune without affecting other routes.
+   * - We keep a pool-specific timeout with a safer default, and allow override via env.
    */
   const poolTimeoutMsFromEnv = Number(
     process.env.NEXT_PUBLIC_RECOMMENDATIONS_POOL_PROXY_TIMEOUT_MS ||
@@ -80,7 +120,7 @@ export async function GET(req: NextRequest) {
       '',
   );
 
-  // Default: 65s, to comfortably cover typical cold-start pool latency.
+  // Default: 65s, to comfortably cover typical cold-start AI latency.
   const poolTimeoutMs = Number.isFinite(poolTimeoutMsFromEnv) && poolTimeoutMsFromEnv > 0 ? poolTimeoutMsFromEnv : 65_000;
 
   // Fallback should be fast/deterministic; we keep it bounded.
@@ -118,7 +158,7 @@ export async function GET(req: NextRequest) {
     return Array.isArray(roles) && roles.filter(Boolean).length > 0;
   }
 
-  function attachFrontendSource(payload: any, source: 'initial' | 'roles'): any {
+  function attachFrontendSource(payload: any, source: 'initial' | 'roles' | 'multiverse'): any {
     if (Array.isArray(payload)) return payload;
     const meta = payload?.meta ?? null;
     return {
@@ -127,6 +167,111 @@ export async function GET(req: NextRequest) {
     };
   }
 
+  async function fetchMultiverseRoles(): Promise<{ roles: any[]; meta: any }> {
+    /**
+     * Multiverse mode: use backend /api/multiverse/* to obtain persona-personalized, pathType-constrained
+     * Claude/Bedrock recommendations, then return in the same envelope shape the Explore UI expects.
+     *
+     * We intentionally reuse the existing multiverse graph -> path details flow:
+     *  - GET /api/multiverse/graph?personaId=...
+     *  - choose a valid backend path id from `paths[]`
+     *  - GET /api/multiverse/paths/:id?personaId=...&pathType=...
+     */
+    const graphController = new AbortController();
+    const detailsController = new AbortController();
+
+    const graph = await fetchJsonWithTimeout({
+      targetUrl: `${backendUrl}/api/multiverse/graph?personaId=${encodeURIComponent(personaId)}&limit=60`,
+      controller: graphController,
+      timeoutMs: 20_000,
+    });
+
+    if (!graph.ok) {
+      return {
+        roles: [],
+        meta: {
+          source: 'multiverse_graph_failed',
+          graphStatus: graph.status,
+        },
+      };
+    }
+
+    const paths = Array.isArray(graph.data?.paths) ? graph.data.paths : [];
+    const pathId = normString(paths?.[0]?.id || paths?.[0]?.pathId || '');
+
+    if (!pathId) {
+      return {
+        roles: [],
+        meta: {
+          source: 'multiverse_no_paths',
+        },
+      };
+    }
+
+    const qs = new URLSearchParams();
+    qs.set('personaId', personaId);
+    if (pathType) qs.set('pathType', pathType);
+
+    const details = await fetchJsonWithTimeout({
+      targetUrl: `${backendUrl}/api/multiverse/paths/${encodeURIComponent(pathId)}?${qs.toString()}`,
+      controller: detailsController,
+      timeoutMs: poolTimeoutMs,
+    });
+
+    if (!details.ok) {
+      return {
+        roles: [],
+        meta: {
+          source: 'multiverse_path_details_failed',
+          pathId,
+          pathType: pathType || null,
+          detailsStatus: details.status,
+        },
+      };
+    }
+
+    const raw =
+      (Array.isArray(details.data?.recommendedRoles) && details.data.recommendedRoles) ||
+      (Array.isArray(details.data?.recommended_roles) && details.data.recommended_roles) ||
+      (Array.isArray(details.data?.roles) && details.data.roles) ||
+      [];
+
+    const roles = (Array.isArray(raw) ? raw : [])
+      .map((r: any, idx: number) => normalizeRoleForExploreCard(r, idx))
+      .filter(Boolean) as any[];
+
+    return {
+      roles,
+      meta: {
+        source: 'multiverse_path_details',
+        pathId,
+        pathType: pathType || null,
+      },
+    };
+  }
+
+  if (isMultiverse) {
+    try {
+      const { roles, meta } = await fetchMultiverseRoles();
+      return NextResponse.json(attachFrontendSource({ roles, meta }, 'multiverse'), { status: 200 });
+    } catch (e: any) {
+      const isAbort =
+        e?.name === 'AbortError' ||
+        String(e?.message || '').toLowerCase().includes('aborted') ||
+        String(e?.message || '').toLowerCase().includes('timeout');
+
+      return NextResponse.json(
+        {
+          error: 'Failed to load multiverse recommendations',
+          detail: e?.message || String(e),
+          ...(isAbort ? { code: 'backend_proxy_timeout', timeoutMs: poolTimeoutMs } : {}),
+        },
+        { status: isAbort ? 504 : 500 },
+      );
+    }
+  }
+
+  // Default (non-multiverse) behavior:
   // 1) Pool-first: wait for backend pool to finish (with extended timeout).
   const poolController = new AbortController();
   const rolesController = new AbortController();
