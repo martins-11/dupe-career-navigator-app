@@ -34,18 +34,37 @@ function safeStringArray(v: unknown): string[] {
 }
 
 function parseSalaryRangeToLakhs(role: any): { min: number | null; max: number | null } {
-  const raw = normString(role?.salary_range ?? role?.salaryRange ?? role?.salary);
+  /**
+   * Parse salary ranges into the SAME units as the Explore salary slider: USD thousands ($k).
+   *
+   * We keep the function name to avoid large refactors, but it now performs unit normalization:
+   * - "$120,000 - $160,000" -> [120, 160]
+   * - "$120k - $160k" -> [120, 160]
+   * - "₹18–₹30 LPA" -> [18, 30] (best-effort; stays numeric and won't incorrectly exclude everything)
+   */
+  const raw = normString(role?.salary_range ?? role?.salary_lpa_range ?? role?.salaryRange ?? role?.salary);
   if (!raw) return { min: null, max: null };
 
-  const nums = raw
-    .replace(/,/g, "")
-    .match(/\d+(\.\d+)?/g)
-    ?.map((s) => Number(s))
-    .filter((n) => Number.isFinite(n));
+  const lower = raw.toLowerCase();
 
-  if (!nums || nums.length === 0) return { min: null, max: null };
+  let nums =
+    raw
+      .replace(/,/g, "")
+      .match(/\d+(\.\d+)?/g)
+      ?.map((s) => Number(s))
+      .filter((n) => Number.isFinite(n)) ?? [];
+
+  if (nums.length === 0) return { min: null, max: null };
+
+  // Heuristic: if values look like USD dollars (e.g. 120000) convert to $k.
+  const looksUsd =
+    lower.includes("$") || lower.includes("usd") || lower.includes("dollar") || lower.includes("dollars");
+  const maxVal = Math.max(...nums);
+  if (looksUsd && maxVal >= 1000) {
+    nums = nums.map((n) => n / 1000);
+  }
+
   if (nums.length === 1) return { min: nums[0], max: nums[0] };
-
   return { min: Math.min(...nums), max: Math.max(...nums) };
 }
 
@@ -165,14 +184,14 @@ export function RecommendationGrid({
     const selectedIndustry = normString(filters.industry);
     const selectedSkills = Array.isArray(filters.skills) ? filters.skills : [];
     const titleQuery = normString(filters.title);
-    const salaryRange = Array.isArray(filters.salaryRange) ? filters.salaryRange : ([0, 60] as [number, number]);
+    const salaryRange = Array.isArray(filters.salaryRange) ? filters.salaryRange : ([0, 300] as [number, number]);
 
     const hasAnyFilter =
       Boolean(titleQuery) ||
       Boolean(selectedIndustry) ||
       (selectedSkills?.length ?? 0) > 0 ||
       (salaryRange?.[0] ?? 0) !== 0 ||
-      (salaryRange?.[1] ?? 60) !== 60;
+      (salaryRange?.[1] ?? 300) !== 300;
 
     if (!hasAnyFilter) return allRoles;
 
@@ -228,7 +247,7 @@ export function RecommendationGrid({
       Boolean(normString(filters.title)) ||
       Boolean(normString(filters.industry)) ||
       (Array.isArray(filters.skills) && filters.skills.length > 0) ||
-      (Array.isArray(filters.salaryRange) && (filters.salaryRange[0] !== 0 || filters.salaryRange[1] !== 60));
+      (Array.isArray(filters.salaryRange) && (filters.salaryRange[0] !== 0 || filters.salaryRange[1] !== 300));
 
     return (
       <div className="text-center py-20 border-2 border-dashed border-border rounded-2xl bg-secondary/30">

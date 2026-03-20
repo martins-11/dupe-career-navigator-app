@@ -196,14 +196,23 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    const paths = Array.isArray(graph.data?.paths) ? graph.data.paths : [];
-    const pathId = normString(paths?.[0]?.id || paths?.[0]?.pathId || '');
+    const paths =
+      (Array.isArray(graph.data?.paths) && graph.data.paths) ||
+      (Array.isArray(graph.data?.meta?.paths) && graph.data.meta.paths) ||
+      [];
+
+    const firstPath = paths?.[0];
+    const pathId =
+      typeof firstPath === 'string'
+        ? normString(firstPath)
+        : normString(firstPath?.id || firstPath?.pathId || '');
 
     if (!pathId) {
       return {
         roles: [],
         meta: {
           source: 'multiverse_no_paths',
+          note: 'Graph response did not include a usable paths[0].id (or first path was missing).',
         },
       };
     }
@@ -232,6 +241,7 @@ export async function GET(req: NextRequest) {
 
     const raw =
       (Array.isArray(details.data?.recommendedRoles) && details.data.recommendedRoles) ||
+      (Array.isArray(details.data?.recommendedRoles?.roles) && details.data.recommendedRoles.roles) ||
       (Array.isArray(details.data?.recommended_roles) && details.data.recommended_roles) ||
       (Array.isArray(details.data?.roles) && details.data.roles) ||
       [];

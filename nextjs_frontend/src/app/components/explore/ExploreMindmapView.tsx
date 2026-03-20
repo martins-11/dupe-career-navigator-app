@@ -38,16 +38,31 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 function parseSalaryRangeToLakhs(role: any): { min: number | null; max: number | null } {
-  const raw = normString(role?.salary_range ?? role?.salaryRange ?? role?.salary);
+  /**
+   * Normalize salary ranges into the Explore UI slider units (USD thousands, $k).
+   * See RecommendationGrid for rationale.
+   */
+  const raw = normString(role?.salary_range ?? role?.salary_lpa_range ?? role?.salaryRange ?? role?.salary);
   if (!raw) return { min: null, max: null };
 
-  const nums = raw
-    .replace(/,/g, '')
-    .match(/\d+(\.\d+)?/g)
-    ?.map((s) => Number(s))
-    .filter((n) => Number.isFinite(n));
+  const lower = raw.toLowerCase();
 
-  if (!nums || nums.length === 0) return { min: null, max: null };
+  let nums =
+    raw
+      .replace(/,/g, '')
+      .match(/\d+(\.\d+)?/g)
+      ?.map((s) => Number(s))
+      .filter((n) => Number.isFinite(n)) ?? [];
+
+  if (nums.length === 0) return { min: null, max: null };
+
+  const looksUsd =
+    lower.includes('$') || lower.includes('usd') || lower.includes('dollar') || lower.includes('dollars');
+  const maxVal = Math.max(...nums);
+  if (looksUsd && maxVal >= 1000) {
+    nums = nums.map((n) => n / 1000);
+  }
+
   if (nums.length === 1) return { min: nums[0], max: nums[0] };
 
   const min = Math.min(...nums);
