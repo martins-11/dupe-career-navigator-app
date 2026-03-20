@@ -37,6 +37,29 @@ function roleIdFromRole(role: any): string {
   return normString(role?.id ?? role?.role_id ?? role?.roleId);
 }
 
+function roleSalaryFromRole(role: any): string {
+  // Backend sources/aliases observed across flows:
+  // - initial recommendations: salary_range + salary_lpa_range
+  // - multiverse: salary_range
+  // - search/catalog: salary_range or estimated_salary_range
+  return normString(
+    role?.salary_range ??
+      role?.salary_lpa_range ??
+      role?.salaryRange ??
+      role?.salaryLpaRange ??
+      role?.estimated_salary_range ??
+      role?.estimatedSalaryRange ??
+      "",
+  );
+}
+
+function roleExperienceFromRole(role: any): string {
+  // Backend sources/aliases observed across flows:
+  // - initial recommendations: experience_range
+  // - multiverse: experience_range
+  return normString(role?.experience_range ?? role?.experienceRange ?? "");
+}
+
 /**
  * Best-effort extractor for persona skills stored in localStorage.
  * The persona schema may evolve; keep this defensive.
@@ -101,7 +124,18 @@ function intersectSkills(params: { personaSkills: string[]; requiredSkills: stri
 const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }: RoleCardProps) => {
   const title = normString(role?.title || role?.role_title) || "Untitled Role";
   const industry = normString(role?.industry) || "—";
+  const salaryRange = roleSalaryFromRole(role);
+  const experienceRange = roleExperienceFromRole(role);
   const description = normString(role?.description);
+
+  const metaLine = [
+    industry !== "—" ? industry : "",
+    salaryRange,
+    experienceRange,
+  ]
+    .map((s) => String(s || "").trim())
+    .filter(Boolean)
+    .join(" • ") || "—";
 
   const report = role?.threeTwoReport && typeof role.threeTwoReport === "object" ? role.threeTwoReport : {};
   const masteryAreas = safeStringArray(report?.masteryAreas);
@@ -279,7 +313,7 @@ const RoleCard = ({ role, personaId, expanded: expandedProp, onExpandedChange }:
                   {/* Flashy micro-accent underline */}
                   <div className="mt-2 h-[3px] w-14 rounded-full bg-gradient-to-r from-primary/70 via-primary/30 to-transparent opacity-60 transition-all duration-500 group-hover:w-24 group-hover:opacity-90" />
 
-                  <p className="mt-2 text-xs text-muted-foreground font-medium">{industry}</p>
+                  <p className="mt-2 text-xs text-muted-foreground font-medium">{metaLine}</p>
                 </div>
               </div>
 

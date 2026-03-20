@@ -95,6 +95,23 @@ export function TargetRoleDetailsPanel(props: TargetRoleDetailsPanelProps) {
 
   const title = normString(role?.title ?? role?.role_title) || 'Target role';
   const industry = normString(role?.industry) || '—';
+
+  const salaryRange = normString(
+    role?.salary_range ??
+      role?.salary_lpa_range ??
+      role?.salaryRange ??
+      role?.salaryLpaRange ??
+      role?.estimated_salary_range ??
+      role?.estimatedSalaryRange ??
+      ''
+  );
+
+  const experienceRange = normString(role?.experience_range ?? role?.experienceRange ?? '');
+
+  const headerMetaLine =
+    [industry !== '—' ? industry : '', salaryRange, experienceRange].map((s) => String(s || '').trim()).filter(Boolean).join(' • ') ||
+    '—';
+
   const description = normString(role?.description);
 
   const report = role?.threeTwoReport && typeof role.threeTwoReport === 'object' ? role.threeTwoReport : {};
@@ -123,7 +140,7 @@ export function TargetRoleDetailsPanel(props: TargetRoleDetailsPanelProps) {
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-semibold">Target role</div>
           <div className="mt-1 text-base font-bold text-foreground truncate">{loading ? 'Loading…' : title}</div>
-          <div className="mt-1 text-xs text-muted-foreground font-medium truncate">{industry}</div>
+          <div className="mt-1 text-xs text-muted-foreground font-medium truncate">{headerMetaLine}</div>
         </div>
 
         {onClose ? (
