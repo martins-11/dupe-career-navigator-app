@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import StepProgressHeader from '@/app/components/StepProgressHeader';
 import { apiFetch, listDocuments, uploadDocumentsWithProgress } from '@/lib/apiClient';
 import { createLogger } from '@/lib/logger';
+import { createRetryableAsync, type RetryState } from '@/lib/retryableAsync';
 import {
   deleteIngestionFile,
   listIngestionFiles,
@@ -325,6 +326,12 @@ function LinkedInConnect() {
 
 type UiStep = 'idle' | 'uploading' | 'running-orchestration' | 'done';
 
+type IngestionResult = {
+  buildId: string | null;
+  personaId: string | null;
+  documentIds: string[];
+};
+
 function fileToStored(record: UploadedPreview): StoredIngestionFile {
   return {
     id: record.id,
@@ -406,6 +413,13 @@ export default function IngestionClient() {
   const [uploaded, setUploaded] = useState<UploadedPreview[]>([]);
   const [uiStep, setUiStep] = useState<UiStep>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  const [op, setOp] = useState<RetryState<IngestionResult>>({
+    loading: false,
+    error: null,
+    data: null,
+    attempt: 0,
+  });
 
   const cards = useMemo<UploadCategory[]>(() => ['resume', 'job_description', 'performance_review'], []);
 
@@ -508,114 +522,111 @@ export default function IngestionClient() {
     }
   })();
 
-  const onGenerateDraft = async () => {
-    // Resume is the only required input to proceed.
-    if (!hasResumeUpload || isBusy) return;
-
-    setError(null);
-
-    // Snapshot upload order at click time so progress mapping remains stable.
-    const ordered = uploaded.slice().sort((a, b) => b.addedAt - a.addedAt);
-    const files = ordered.map((u) => u.file);
-    const categories = ordered.map((u) => u.category);
-
-    // Mark all as uploading in UI.
-    setUploaded((prev) =>
-      prev.map((p) => ({
-        ...p,
-        status: 'uploading',
-        progressPct: 0,
-        error: null,
-      })),
-    );
-
-    try {
-      // 1) Upload docs (single request) with per-file category tagging.
-      // Job Description + Performance Review are OPTIONAL.
-      // NOTE: do NOT set requireCategories=true; that would force all 3 categories server-side.
-      setUiStep('uploading');
-
-      await uploadDocumentsWithProgress({
-        files,
-        categories,
-        requireCategories: false,
-        onProgress: ({ loaded, total }) => {
-          const perFile = progressByFileSizes({ files, loaded, total });
-
-          setUploaded((prev) => {
-            // Map progress to the same order we used to send.
-            const byId = new Map(prev.map((p) => [p.id, p] as const));
-            const updatedInOrder = ordered.map((p, idx) => ({
-              ...(byId.get(p.id) ?? p),
-              status: 'uploading' as UploadStatus,
-              progressPct: perFile[idx] ?? 0,
-              error: null,
-            }));
-
-            // Preserve any entries that might have been added since click (unlikely but safe).
-            const touchedIds = new Set(updatedInOrder.map((u) => u.id));
-            const untouched = prev.filter((p) => !touchedIds.has(p.id));
-
-            return [...updatedInOrder, ...untouched];
-          });
-        },
-      });
-
-      setUploaded((prev) =>
-        prev.map((p) => ({
-          ...p,
-          status: 'uploaded',
-          progressPct: 100,
-          error: null,
-        })),
-      );
-
-      // 2) Select the newly-uploaded documents deterministically.
-      // The upload API response intentionally does not include document IDs (stable contract),
-      // so we fetch /api/documents and match by filename, newest-first.
-      const docs = await listDocuments({ limit: 100, offset: 0 });
-      const docsByNewest = docs.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-
-      const usedDocIds = new Set<string>();
-      const selectedDocIds: string[] = [];
-      for (const f of files) {
-        const hit = docsByNewest.find((d) => d.originalFilename === f.name && !usedDocIds.has(d.id));
-        if (hit) {
-          usedDocIds.add(hit.id);
-          selectedDocIds.push(hit.id);
+  const ingestionRunner = React.useMemo(
+    () =>
+      createRetryableAsync(async (): Promise<IngestionResult> => {
+        // Resume is the only required input to proceed.
+        if (!hasResumeUpload) {
+          throw new Error('Please upload at least your Resume to generate a draft persona.');
         }
-      }
 
-      const documentIds = selectedDocIds.length > 0 ? selectedDocIds : docsByNewest.slice(0, files.length).map((d) => d.id);
+        // Snapshot upload order at click time so progress mapping remains stable and retry-safe.
+        const ordered = uploaded.slice().sort((a, b) => b.addedAt - a.addedAt);
+        const files = ordered.map((u) => u.file);
+        const categories = ordered.map((u) => u.category);
 
-      if (documentIds.length === 0) {
-        throw new Error('Upload succeeded but no documents were available for orchestration. Please retry.');
-      }
+        // Mark all as uploading in UI.
+        setUploaded((prev) =>
+          prev.map((p) => ({
+            ...p,
+            status: 'uploading',
+            progressPct: 0,
+            error: null,
+          })),
+        );
 
-      // 3) Spec-aligned single-call orchestration (backend creates the build internally):
-      // POST /orchestration/run-all (proxied via /api/orchestration/run-all)
-      setUiStep('running-orchestration');
+        // 1) Upload docs (single request) with per-file category tagging.
+        // Job Description + Performance Review are OPTIONAL.
+        // NOTE: do NOT set requireCategories=true; that would force all 3 categories server-side.
+        setUiStep('uploading');
 
-      const orchestrationRes = await apiFetch<any>('/api/orchestration/run-all', {
-        method: 'POST',
-        body: JSON.stringify({
-          mode: 'persona_build',
-          documentIds,
-          useLatestCategoryDocs: false,
-          autoCreatePersona: true,
-          generate: {
-            saveDraft: true,
-            createVersion: true,
+        await uploadDocumentsWithProgress({
+          files,
+          categories,
+          requireCategories: false,
+          onProgress: ({ loaded, total }) => {
+            const perFile = progressByFileSizes({ files, loaded, total });
+
+            setUploaded((prev) => {
+              // Map progress to the same order we used to send.
+              const byId = new Map(prev.map((p) => [p.id, p] as const));
+              const updatedInOrder = ordered.map((p, idx) => ({
+                ...(byId.get(p.id) ?? p),
+                status: 'uploading' as UploadStatus,
+                progressPct: perFile[idx] ?? 0,
+                error: null,
+              }));
+
+              // Preserve any entries that might have been added since click (unlikely but safe).
+              const touchedIds = new Set(updatedInOrder.map((u) => u.id));
+              const untouched = prev.filter((p) => !touchedIds.has(p.id));
+
+              return [...updatedInOrder, ...untouched];
+            });
           },
-        }),
-      });
+        });
 
-      // Persist buildId + personaId so downstream pages can regenerate/finalize deterministically.
-      try {
-        const buildId = String(orchestrationRes?.build?.id ?? '').trim();
-        if (buildId) {
-          window.localStorage.setItem(BUILD_ID_STORAGE_KEY, buildId);
+        setUploaded((prev) =>
+          prev.map((p) => ({
+            ...p,
+            status: 'uploaded',
+            progressPct: 100,
+            error: null,
+          })),
+        );
+
+        // 2) Select the newly-uploaded documents deterministically.
+        // The upload API response intentionally does not include document IDs (stable contract),
+        // so we fetch /api/documents and match by filename, newest-first.
+        const docs = await listDocuments({ limit: 100, offset: 0 });
+        const docsByNewest = docs.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+        const usedDocIds = new Set<string>();
+        const selectedDocIds: string[] = [];
+        for (const f of files) {
+          const hit = docsByNewest.find((d) => d.originalFilename === f.name && !usedDocIds.has(d.id));
+          if (hit) {
+            usedDocIds.add(hit.id);
+            selectedDocIds.push(hit.id);
+          }
         }
+
+        const documentIds =
+          selectedDocIds.length > 0 ? selectedDocIds : docsByNewest.slice(0, files.length).map((d) => d.id);
+
+        if (documentIds.length === 0) {
+          throw new Error('Upload succeeded but no documents were available for orchestration. Please retry.');
+        }
+
+        // 3) Spec-aligned single-call orchestration (backend creates the build internally):
+        // POST /orchestration/run-all (proxied via /api/orchestration/run-all)
+        setUiStep('running-orchestration');
+
+        const orchestrationRes = await apiFetch<any>('/api/orchestration/run-all', {
+          method: 'POST',
+          body: JSON.stringify({
+            mode: 'persona_build',
+            documentIds,
+            useLatestCategoryDocs: false,
+            autoCreatePersona: true,
+            generate: {
+              saveDraft: true,
+              createVersion: true,
+            },
+          }),
+        });
+
+        const buildId = String(orchestrationRes?.build?.id ?? '').trim() || null;
 
         const personaIdCandidate =
           orchestrationRes?.results?.generate?.personaId ??
@@ -625,70 +636,62 @@ export default function IngestionClient() {
           orchestrationRes?.personaId ??
           null;
 
-        const personaId = String(personaIdCandidate ?? '').trim();
-        if (personaId) {
-          window.localStorage.setItem('career_navigator_persona_id', personaId);
+        const personaId = String(personaIdCandidate ?? '').trim() || null;
+
+        // Persist buildId + personaId so downstream pages can regenerate/finalize deterministically.
+        try {
+          if (buildId) window.localStorage.setItem(BUILD_ID_STORAGE_KEY, buildId);
+          if (personaId) window.localStorage.setItem(PERSONA_ID_STORAGE_KEY, personaId);
+        } catch {
+          // ignore storage failures
         }
-      } catch {
-        // ignore storage failures
-      }
 
-      // Persist the latest draft so the user can view it immediately on /persona/draft.
-      try {
-        const candidate =
-          orchestrationRes?.orchestration?.personaDraft ??
-          orchestrationRes?.orchestration?.artifacts?.draftPersona ??
-          orchestrationRes?.orchestration?.artifacts?.draftPersona?.persona ??
-          orchestrationRes?.results?.generate?.persona ??
-          orchestrationRes?.persona ??
-          null;
+        // Persist the latest draft so the user can view it immediately on /persona/draft.
+        try {
+          const candidate =
+            orchestrationRes?.orchestration?.personaDraft ??
+            orchestrationRes?.orchestration?.artifacts?.draftPersona ??
+            orchestrationRes?.orchestration?.artifacts?.draftPersona?.persona ??
+            orchestrationRes?.results?.generate?.persona ??
+            orchestrationRes?.persona ??
+            null;
 
-        if (candidate && typeof candidate === 'object') {
-          window.localStorage.setItem(LATEST_DRAFT_PERSONA_STORAGE_KEY, JSON.stringify(candidate));
+          if (candidate && typeof candidate === 'object') {
+            window.localStorage.setItem(LATEST_DRAFT_PERSONA_STORAGE_KEY, JSON.stringify(candidate));
+          }
+        } catch {
+          // Non-fatal: draft viewing page will show an empty state if storage fails.
         }
-      } catch {
-        // Non-fatal: draft viewing page will show an empty state if storage fails.
-      }
 
-      setUiStep('done');
+        setUiStep('done');
 
-      let nextUrl = '/persona/draft';
-      try {
-        const pid = String(window.localStorage.getItem('career_navigator_persona_id') ?? '').trim();
-        const bid = String(window.localStorage.getItem(BUILD_ID_STORAGE_KEY) ?? '').trim();
+        return { buildId, personaId, documentIds };
+      }),
+    [hasResumeUpload, uploaded],
+  );
 
-        const qs = new URLSearchParams();
-        if (pid) qs.set('personaId', pid);
-        if (bid) qs.set('buildId', bid);
+  const onGenerateDraft = async () => {
+    if (isBusy) return;
 
-        if (qs.toString()) nextUrl = `/persona/draft?${qs.toString()}`;
-      } catch {
-        // ignore
-      }
-
-      router.push(nextUrl);
-    } catch (e: any) {
-      const msg = typeof e?.message === 'string' ? e.message : 'Failed to generate draft persona.';
-
-      log.error('Ingestion flow failed', {
-        message: msg,
-        error: e,
-        // Note: ApiError includes status + payload; keep it in logs for debugging.
-        status: typeof e?.status === 'number' ? e.status : undefined,
-        payload: e?.payload,
-      });
-
-      setUploaded((prev) =>
-        prev.map((p) => ({
-          ...p,
-          status: 'error',
-          error: msg,
-        })),
-      );
-
+    setError(null);
+    const res = await ingestionRunner.run(setOp);
+    if (!res) {
+      // Error already set by runner; reflect in page-level error too.
+      const msg = op.error || 'Failed to generate draft persona.';
       setError(msg);
       setUiStep('idle');
+
+      // Mark all items as errored for visibility.
+      setUploaded((prev) => prev.map((p) => ({ ...p, status: 'error', error: msg })));
+      return;
     }
+
+    // Navigate with buildId/personaId if available.
+    const qs = new URLSearchParams();
+    if (res.personaId) qs.set('personaId', res.personaId);
+    if (res.buildId) qs.set('buildId', res.buildId);
+
+    router.push(qs.toString() ? `/persona/draft?${qs.toString()}` : '/persona/draft');
   };
 
   return (
@@ -753,8 +756,33 @@ export default function IngestionClient() {
               onClick={onGenerateDraft}
             >
               {isBusy ? <Loader2 className="h-[16px] w-[16px] animate-spin" aria-hidden="true" /> : null}
-              {isBusy ? 'Working…' : 'Generate Draft Persona'}
+              {uiStep === 'uploading'
+                ? 'Uploading…'
+                : uiStep === 'running-orchestration'
+                  ? 'Generating draft…'
+                  : 'Generate Draft Persona'}
             </button>
+
+            {error ? (
+              <button
+                type="button"
+                className="rounded-lg transition-all duration-200 inline-flex items-center justify-center gap-2"
+                style={{
+                  backgroundColor: 'white',
+                  color: 'var(--primary)',
+                  padding: '12px 20px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  border: '1px solid rgba(99,102,241,0.22)',
+                  cursor: !isBusy ? 'pointer' : 'not-allowed',
+                  opacity: !isBusy ? 1 : 0.55,
+                }}
+                disabled={isBusy}
+                onClick={onGenerateDraft}
+              >
+                Retry
+              </button>
+            ) : null}
           </div>
 
           <AnimatePresence initial={false}>

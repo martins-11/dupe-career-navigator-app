@@ -13,6 +13,7 @@ import {
   type UUID,
 } from '@/lib/apiClient';
 import { persistPersonaId } from '@/lib/personaStorage';
+import { createRetryableAsync, type RetryState } from '@/lib/retryableAsync';
 
 const LEGACY_DRAFT_STORAGE_KEY = 'career_navigator_latest_draft_persona_v1';
 const PERSONA_ID_STORAGE_KEY = 'career_navigator_persona_id';
@@ -250,6 +251,10 @@ export default function DraftPersonaClient() {
   const [error, setError] = React.useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = React.useState<boolean>(false);
 
+  const [saveOp, setSaveOp] = React.useState<RetryState<any>>({ loading: false, error: null, data: null, attempt: 0 });
+  const [regenOp, setRegenOp] = React.useState<RetryState<any>>({ loading: false, error: null, data: null, attempt: 0 });
+  const [finalizeOp, setFinalizeOp] = React.useState<RetryState<any>>({ loading: false, error: null, data: null, attempt: 0 });
+
   const resolvePersonaId = React.useCallback((): string | null => {
     const fromQuery = String(searchParams?.get('personaId') ?? '').trim();
     if (fromQuery) return fromQuery;
@@ -409,131 +414,158 @@ export default function DraftPersonaClient() {
     onEditField('careerHighlights', next);
   };
 
-  const handleSaveChanges = async () => {
-    if (!personaId) {
-      setError('Missing personaId. Please return to ingestion and generate a draft again.');
-      return;
-    }
+  const saveRunner = React.useMemo(
+    () =>
+      createRetryableAsync(async () => {
+        if (!personaId) {
+          throw new Error('Missing personaId. Please return to ingestion and generate a draft again.');
+        }
 
+        const updatedDraft = applyEditsToDraft(draftJson ?? {}, edits);
+
+        // Keep local override for resilience/offline refresh behavior.
+        saveLocalOverride(personaId, updatedDraft);
+
+        // Canonical draft persistence: PUT /personas/:id/draft/latest (via Next.js /api proxy).
+        const saved = await savePersonaDraftLatest({
+          personaId: personaId as UUID,
+          draftJson: updatedDraft,
+        });
+
+        // Best-effort: update persona metadata title (avoid creating a new version by not sending personaJson).
+        try {
+          await updatePersona({
+            personaId: personaId as UUID,
+            title: `${edits.name || 'Persona'} — ${edits.role || 'Draft'}`.trim(),
+          });
+        } catch {
+          // ignore metadata failures; the draft itself is already persisted.
+        }
+
+        const savedJson =
+          (saved as any)?.draftJson && typeof (saved as any).draftJson === 'object' ? (saved as any).draftJson : updatedDraft;
+
+        return savedJson;
+      }),
+    [personaId, draftJson, edits, saveLocalOverride],
+  );
+
+  const regenRunner = React.useMemo(
+    () =>
+      createRetryableAsync(async () => {
+        const bid = String(buildId ?? '').trim();
+        if (!bid) {
+          throw new Error('Missing buildId. Please return to ingestion and generate a draft again.');
+        }
+
+        await generateDraftForBuild({
+          buildId: bid as UUID,
+          personaId: personaId ? (personaId as UUID) : undefined,
+          saveDraft: true,
+          createVersion: true,
+        });
+
+        // Clear local overrides so the UI reflects the newly generated backend draft.
+        if (personaId) clearLocalOverride(personaId);
+
+        return { ok: true };
+      }),
+    [buildId, personaId, clearLocalOverride],
+  );
+
+  const finalizeRunner = React.useMemo(
+    () =>
+      createRetryableAsync(async () => {
+        if (dirty) {
+          throw new Error('Please Save Changes before finalizing.');
+        }
+
+        const bid = String(buildId ?? '').trim();
+        if (!bid) {
+          throw new Error('Missing buildId. Please return to ingestion and generate a draft again.');
+        }
+
+        const updatedDraft = applyEditsToDraft(draftJson ?? {}, edits);
+
+        const resp = await finalizePersonaForBuild({
+          buildId: bid as UUID,
+          personaId: personaId ? (personaId as UUID) : undefined,
+          finalOverride: updatedDraft,
+          saveFinal: true,
+          createVersion: true,
+        });
+
+        const respPersonaId = String(resp?.personaId ?? personaId ?? '').trim() || null;
+        return { buildId: bid, personaId: respPersonaId, resp };
+      }),
+    [dirty, buildId, personaId, draftJson, edits],
+  );
+
+  const handleSaveChanges = async () => {
     setSaving(true);
     setError(null);
     setSaveSuccess(false);
 
-    try {
-      const updatedDraft = applyEditsToDraft(draftJson ?? {}, edits);
-
-      // Keep local override for resilience/offline refresh behavior.
-      saveLocalOverride(personaId, updatedDraft);
-
-      // Canonical draft persistence: PUT /personas/:id/draft/latest (via Next.js /api proxy).
-      // Response shape: { personaId, draftId?, draftJson, updatedAt }
-      const saved = await savePersonaDraftLatest({
-        personaId: personaId as UUID,
-        draftJson: updatedDraft,
-      });
-
-      // Best-effort: update persona metadata title (avoid creating a new version by not sending personaJson).
-      try {
-        await updatePersona({
-          personaId: personaId as UUID,
-          title: `${edits.name || 'Persona'} — ${edits.role || 'Draft'}`.trim(),
-        });
-      } catch {
-        // ignore metadata failures; the draft itself is already persisted.
-      }
-
-      const savedJson =
-        (saved as any)?.draftJson && typeof (saved as any).draftJson === 'object' ? (saved as any).draftJson : updatedDraft;
-      setDraftJson(savedJson);
-      setDirty(false);
-      setSaveSuccess(true);
-      window.setTimeout(() => setSaveSuccess(false), 2500);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to save changes.');
-    } finally {
+    const savedJson = await saveRunner.run(setSaveOp);
+    if (!savedJson) {
+      setError(saveOp.error || 'Failed to save changes.');
       setSaving(false);
+      return;
     }
+
+    setDraftJson(savedJson);
+    setDirty(false);
+    setSaveSuccess(true);
+    window.setTimeout(() => setSaveSuccess(false), 2500);
+    setSaving(false);
   };
 
   const handleRegenerateDraft = async () => {
-    const bid = String(buildId ?? '').trim();
-    if (!bid) {
-      setError('Missing buildId. Please return to ingestion and generate a draft again.');
-      return;
-    }
-
     setRegenerating(true);
     setError(null);
 
-    try {
-      // Regenerate draft in the backend.
-      await generateDraftForBuild({
-        buildId: bid as UUID,
-        personaId: personaId ? (personaId as UUID) : undefined,
-        saveDraft: true,
-        createVersion: true,
-      });
-
-      // Clear local overrides so the UI reflects the newly generated backend draft.
-      if (personaId) clearLocalOverride(personaId);
-
-      await load();
-      router.refresh();
-    } catch (e: any) {
-      setError(e?.message || 'Failed to regenerate draft.');
-    } finally {
+    const ok = await regenRunner.run(setRegenOp);
+    if (!ok) {
+      setError(regenOp.error || 'Failed to regenerate draft.');
       setRegenerating(false);
+      return;
     }
+
+    await load();
+    router.refresh();
+    setRegenerating(false);
   };
 
   const handleFinalize = async () => {
-    if (dirty) {
-      setError('Please Save Changes before finalizing.');
-      return;
-    }
-
-    const bid = String(buildId ?? '').trim();
-    if (!bid) {
-      setError('Missing buildId. Please return to ingestion and generate a draft again.');
-      return;
-    }
-
     setFinalizing(true);
     setError(null);
 
-    try {
-      const updatedDraft = applyEditsToDraft(draftJson ?? {}, edits);
-
-      const resp = await finalizePersonaForBuild({
-        buildId: bid as UUID,
-        personaId: personaId ? (personaId as UUID) : undefined,
-        finalOverride: updatedDraft,
-        saveFinal: true,
-        createVersion: true,
-      });
-
-      // Ensure personaId is persisted (some environments return it only on finalize).
-      const respPersonaId = String(resp?.personaId ?? personaId ?? '').trim();
-      if (respPersonaId) {
-        persistPersonaId(respPersonaId as any);
-        try {
-          window.localStorage.setItem(PERSONA_ID_STORAGE_KEY, respPersonaId);
-        } catch {
-          // ignore
-        }
-      }
-
-      // Navigation: finalized persona page.
-      const qs = new URLSearchParams();
-      if (respPersonaId) qs.set('personaId', respPersonaId);
-      qs.set('buildId', bid);
-
-      router.push(`/persona/finalized?${qs.toString()}`);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to finalize persona.');
-    } finally {
+    const result = await finalizeRunner.run(setFinalizeOp);
+    if (!result) {
+      setError(finalizeOp.error || 'Failed to finalize persona.');
       setFinalizing(false);
+      return;
     }
+
+    const bid = result.buildId;
+    const respPersonaId = result.personaId;
+
+    // Ensure personaId is persisted (some environments return it only on finalize).
+    if (respPersonaId) {
+      persistPersonaId(respPersonaId as any);
+      try {
+        window.localStorage.setItem(PERSONA_ID_STORAGE_KEY, respPersonaId);
+      } catch {
+        // ignore
+      }
+    }
+
+    const qs = new URLSearchParams();
+    if (respPersonaId) qs.set('personaId', respPersonaId);
+    qs.set('buildId', bid);
+
+    router.push(`/persona/finalized?${qs.toString()}`);
+    setFinalizing(false);
   };
 
   const headingRole = edits.role.trim();
@@ -602,7 +634,37 @@ export default function DraftPersonaClient() {
 
         {error ? (
           <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
-            {error}
+            <div>{error}</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:opacity-60"
+                onClick={handleSaveChanges}
+                disabled={loading || saving || regenerating || finalizing || !dirty}
+                title={!dirty ? 'Nothing to save.' : undefined}
+              >
+                Retry save
+              </button>
+
+              <button
+                type="button"
+                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:opacity-60"
+                onClick={handleRegenerateDraft}
+                disabled={loading || saving || regenerating || finalizing}
+              >
+                Retry regenerate
+              </button>
+
+              <button
+                type="button"
+                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-800 hover:bg-red-50 disabled:opacity-60"
+                onClick={handleFinalize}
+                disabled={loading || saving || regenerating || finalizing || dirty}
+                title={dirty ? 'Save Changes before finalizing.' : undefined}
+              >
+                Retry finalize
+              </button>
+            </div>
           </div>
         ) : null}
 
